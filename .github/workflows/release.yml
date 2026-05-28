@@ -143,13 +143,13 @@ jobs:
               echo "RELEASE_STORE_FILE=./key.jks"
             } >> "$GITHUB_WORKSPACE/gradle.properties"
             echo "$RELEASE_KEY_STORE" | base64 --decode > "$GITHUB_WORKSPACE/app/key.jks"
-          elif [ -f "$GITHUB_WORKSPACE/app/ci-debug.keystore" ]; then
-            echo "::warning::Release signing secrets are not configured; using local legacy CI signing key."
+          elif [ -f "$GITHUB_WORKSPACE/app/ci-release.keystore" ]; then
+            echo "::warning::Release signing secrets are not configured; using stable repository CI release signing key."
             {
-              echo "RELEASE_STORE_FILE=./ci-debug.keystore"
-              echo "RELEASE_KEY_ALIAS=legado-ci-debug"
-              echo "RELEASE_STORE_PASSWORD=legado-ci-debug"
-              echo "RELEASE_KEY_PASSWORD=legado-ci-debug"
+              echo "RELEASE_STORE_FILE=./ci-release.keystore"
+              echo "RELEASE_KEY_ALIAS=wanjuan-ci-release"
+              echo "RELEASE_STORE_PASSWORD=wanjuan-ci-release"
+              echo "RELEASE_KEY_PASSWORD=wanjuan-ci-release"
             } >> "$GITHUB_WORKSPACE/gradle.properties"
           else
             echo "::error::Release signing secrets are not configured. Set RELEASE_KEY_STORE, RELEASE_KEY_ALIAS, RELEASE_KEY_PASSWORD, and RELEASE_STORE_PASSWORD to keep release signatures stable."

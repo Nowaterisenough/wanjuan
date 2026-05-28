@@ -25,6 +25,14 @@ class GithubWorkflowSigningTest {
     }
 
     @Test
+    fun ciSigningKeystoreIsCommittedForFallbackSigning() {
+        val keystore = repoFile("app/ci-release.keystore")
+
+        assertTrue(keystore.isFile)
+        assertFalse(gitIgnores("app/ci-release.keystore"))
+    }
+
+    @Test
     fun bookSourceSampleTestsAreNonBlocking() {
         listOf(
             ".github/workflows/test.yml",
@@ -62,11 +70,12 @@ class GithubWorkflowSigningTest {
     }
 
     private fun assertStableCiSigningFallback(script: String) {
-        assertTrue(script.contains("RELEASE_STORE_FILE=./ci-debug.keystore"))
-        assertTrue(script.contains("RELEASE_KEY_ALIAS=wanjuan-ci-debug"))
-        assertTrue(script.contains("RELEASE_STORE_PASSWORD=wanjuan-ci-debug"))
-        assertTrue(script.contains("RELEASE_KEY_PASSWORD=wanjuan-ci-debug"))
+        assertTrue(script.contains("RELEASE_STORE_FILE=./ci-release.keystore"))
+        assertTrue(script.contains("RELEASE_KEY_ALIAS=wanjuan-ci-release"))
+        assertTrue(script.contains("RELEASE_STORE_PASSWORD=wanjuan-ci-release"))
+        assertTrue(script.contains("RELEASE_KEY_PASSWORD=wanjuan-ci-release"))
         assertFalse(script.contains("keytool -genkeypair"))
+        assertFalse(script.contains("ci-debug.keystore"))
         assertFalse(script.contains("RELEASE_STORE_FILE=./wanjuan.jks"))
     }
 
@@ -75,5 +84,12 @@ class GithubWorkflowSigningTest {
             .map { File(it, path) }
             .firstOrNull { it.exists() }
             ?: error("$path not found")
+    }
+
+    private fun gitIgnores(path: String): Boolean {
+        val process = ProcessBuilder("git", "check-ignore", "-q", path)
+            .redirectErrorStream(true)
+            .start()
+        return process.waitFor() == 0
     }
 }

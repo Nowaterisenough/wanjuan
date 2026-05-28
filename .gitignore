@@ -27,6 +27,7 @@ package-lock.json
 app/wanjuan.jks
 *.jks
 *.keystore
+!app/ci-release.keystore
 modules/rhino/lib/
 docs/superpowers/
 # Claude AI
