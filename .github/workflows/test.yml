@@ -158,21 +158,21 @@ jobs:
           test -n "$(find "${{ github.workspace }}/apk" -maxdepth 1 -name 'wanjuan_*.apk' -print -quit)"
 
       - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: wanjuan.app
           if-no-files-found: error
           path: ${{ github.workspace }}/apk/*.apk
 
       - name: Upload mapping artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: wanjuan.app.mapping
           if-no-files-found: ignore
           path: ${{ github.workspace }}/mapping/mapping.txt
 
       - name: Upload missing rules artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: wanjuan.app.mapping.missing_rules
           if-no-files-found: ignore
