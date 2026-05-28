@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:clickable="true"
+    android:focusable="true"
+    android:orientation="vertical">
+
+    <FrameLayout
+        android:id="@+id/background_card_preview"
+        android:layout_width="match_parent"
+        android:layout_height="70dp"
+        android:background="@drawable/bg_read_menu_theme_card"
+        android:clipToOutline="true">
+
+        <androidx.appcompat.widget.AppCompatImageView
+            android:id="@+id/iv_background_card_image"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:contentDescription="@string/background_image"
+            android:scaleType="centerCrop" />
+
+        <View
+            android:id="@+id/background_card_scrim"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@color/transparent20" />
+
+        <View
+            android:id="@+id/background_card_selection_border"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clickable="false"
+            android:focusable="false"
+            android:visibility="gone" />
+
+        <androidx.appcompat.widget.AppCompatImageView
+            android:id="@+id/iv_background_card_check"
+            android:layout_width="22dp"
+            android:layout_height="22dp"
+            android:layout_gravity="top|end"
+            android:layout_margin="6dp"
+            android:background="@drawable/shape_circle"
+            android:padding="5dp"
+            android:src="@drawable/ic_lucide_check"
+            android:visibility="gone"
+            app:tint="@color/white" />
+    </FrameLayout>
+
+    <TextView
+        android:id="@+id/tv_background_card_label"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:ellipsize="end"
+        android:gravity="center"
+        android:maxLines="1"
+        android:textSize="11sp" />
+</LinearLayout>

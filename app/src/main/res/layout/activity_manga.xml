@@ -1,0 +1,255 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <io.wanjuan.app.ui.book.manga.recyclerview.WebtoonFrame
+        android:id="@+id/webtoon_frame"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <io.wanjuan.app.ui.book.manga.recyclerview.WebtoonRecyclerView
+            android:id="@+id/recycler_view"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+    </io.wanjuan.app.ui.book.manga.recyclerview.WebtoonFrame>
+
+    <io.wanjuan.app.ui.widget.ReaderInfoBarView
+        android:id="@+id/infobar"
+        android:layout_width="match_parent"
+        android:layout_height="20dp"
+        android:layout_gravity="bottom"
+        android:layout_marginBottom="10dp"
+        android:paddingStart="10dp"
+        android:paddingEnd="10dp"
+        android:visibility="gone"
+        tools:visibility="visible" />
+
+    <io.wanjuan.app.ui.book.read.MangaMenu
+        android:id="@+id/manga_menu"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone"
+        tools:visibility="visible" />
+
+    <LinearLayout
+        android:id="@+id/manga_progress_minimap_panel"
+        android:layout_width="68dp"
+        android:layout_height="wrap_content"
+        android:layout_gravity="end|top"
+        android:layout_marginEnd="8dp"
+        android:clipChildren="false"
+        android:clipToPadding="false"
+        android:gravity="center_horizontal"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <io.wanjuan.app.ui.book.manga.MangaProgressMinimapView
+            android:id="@+id/manga_progress_minimap"
+            android:layout_width="56dp"
+            android:layout_height="wrap_content"
+            android:clickable="true"
+            android:contentDescription="@string/manga_progress_minimap"
+            android:focusable="true" />
+
+        <LinearLayout
+            android:id="@+id/manga_progress_minimap_controls"
+            android:layout_width="68dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:clipChildren="false"
+            android:clipToPadding="false"
+            android:gravity="center"
+            android:orientation="vertical">
+
+            <FrameLayout
+                android:id="@+id/btn_manga_minimap_previous"
+                android:layout_width="68dp"
+                android:layout_height="32dp"
+                android:clickable="true"
+                android:clipChildren="false"
+                android:clipToOutline="false"
+                android:clipToPadding="false"
+                android:contentDescription="@string/previous_chapter"
+                android:focusable="true">
+
+                <com.qmdeve.liquidglass.widget.LiquidGlassView
+                    android:id="@+id/manga_minimap_previous_glass_view"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:clickable="false"
+                    android:focusable="false" />
+
+                <View
+                    android:id="@+id/manga_minimap_previous_shell_overlay"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:background="@drawable/bg_liquid_glass_shell_overlay"
+                    android:clickable="false"
+                    android:focusable="false" />
+
+                <TextView
+                    android:id="@+id/tv_manga_minimap_previous"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:gravity="center"
+                    android:includeFontPadding="false"
+                    android:maxLines="1"
+                    android:text="@string/previous_chapter"
+                    android:textColor="@color/white"
+                    android:textSize="12sp" />
+
+            </FrameLayout>
+
+            <FrameLayout
+                android:id="@+id/btn_manga_minimap_current"
+                android:layout_width="68dp"
+                android:layout_height="32dp"
+                android:layout_marginTop="6dp"
+                android:clickable="true"
+                android:clipChildren="false"
+                android:clipToOutline="false"
+                android:clipToPadding="false"
+                android:contentDescription="@string/chapter_list"
+                android:focusable="true">
+
+                <com.qmdeve.liquidglass.widget.LiquidGlassView
+                    android:id="@+id/manga_minimap_current_glass_view"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:clickable="false"
+                    android:focusable="false" />
+
+                <View
+                    android:id="@+id/manga_minimap_current_shell_overlay"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:background="@drawable/bg_liquid_glass_shell_overlay"
+                    android:clickable="false"
+                    android:focusable="false" />
+
+                <TextView
+                    android:id="@+id/tv_manga_minimap_current"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:ellipsize="middle"
+                    android:gravity="center"
+                    android:includeFontPadding="false"
+                    android:maxLines="1"
+                    android:paddingStart="8dp"
+                    android:paddingEnd="8dp"
+                    android:singleLine="true"
+                    android:text="@string/chapter"
+                    android:textColor="@color/white"
+                    android:textSize="12sp" />
+
+            </FrameLayout>
+
+            <FrameLayout
+                android:id="@+id/btn_manga_minimap_next"
+                android:layout_width="68dp"
+                android:layout_height="32dp"
+                android:layout_marginTop="6dp"
+                android:clickable="true"
+                android:clipChildren="false"
+                android:clipToOutline="false"
+                android:clipToPadding="false"
+                android:contentDescription="@string/next_chapter"
+                android:focusable="true">
+
+                <com.qmdeve.liquidglass.widget.LiquidGlassView
+                    android:id="@+id/manga_minimap_next_glass_view"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:clickable="false"
+                    android:focusable="false" />
+
+                <View
+                    android:id="@+id/manga_minimap_next_shell_overlay"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:background="@drawable/bg_liquid_glass_shell_overlay"
+                    android:clickable="false"
+                    android:focusable="false" />
+
+                <TextView
+                    android:id="@+id/tv_manga_minimap_next"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:gravity="center"
+                    android:includeFontPadding="false"
+                    android:maxLines="1"
+                    android:text="@string/next_chapter"
+                    android:textColor="@color/white"
+                    android:textSize="12sp" />
+
+            </FrameLayout>
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <FrameLayout
+        android:id="@+id/fl_loading"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/background">
+
+        <LinearLayout
+            android:id="@+id/ll_loading"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:gravity="center"
+            android:orientation="vertical">
+
+            <ProgressBar
+                android:id="@+id/pb_loading"
+                style="@style/Widget.Material3.CircularProgressIndicator.Small"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:indeterminate="true"
+                app:indicatorColor="@color/white"
+                app:indicatorSize="36dp"
+                app:trackCornerRadius="99dp"
+                app:trackThickness="3dp" />
+
+            <TextView
+                android:id="@+id/tv_loading_message"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:text="@string/loading"
+                android:textColor="@color/primaryText" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/ll_retry"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/tv_msg"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@color/primaryText" />
+
+            <io.wanjuan.app.ui.widget.text.AccentTextView
+                android:id="@+id/tv_retry"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_margin="16dp"
+                android:text="重新加载"
+                android:textSize="18sp"
+                tools:visibility="visible" />
+        </LinearLayout>
+
+    </FrameLayout>
+
+</FrameLayout>

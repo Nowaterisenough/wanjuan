@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/vw_menu_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+    <View
+        android:id="@+id/vw_menu_bg"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:contentDescription="@string/content"
+        tools:layout_editor_absoluteX="0dp"
+        tools:layout_editor_absoluteY="0dp" />
+
+    <FrameLayout
+        android:id="@+id/title_bar_shell"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:clipChildren="true"
+        android:clipToPadding="true"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <com.qmdeve.liquidglass.widget.LiquidGlassView
+            android:id="@+id/title_bar_glass_view"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:clickable="false"
+            android:focusable="false" />
+
+        <View
+            android:id="@+id/title_bar_shell_overlay"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:clickable="false"
+            android:focusable="false" />
+
+        <io.wanjuan.app.ui.widget.TitleBar
+            android:id="@+id/title_bar"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:theme="?attr/actionBarStyle"
+            app:opaque="false">
+
+            <androidx.constraintlayout.widget.ConstraintLayout
+                android:id="@+id/title_bar_addition"
+                android:layout_width="match_parent"
+                android:layout_height="@dimen/read_top_bar_button_size"
+                android:paddingStart="16dp"
+                android:paddingTop="0dp"
+                android:paddingEnd="16dp"
+                android:paddingBottom="0dp">
+
+                <LinearLayout
+                    android:id="@+id/ll_title_info"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="12dp"
+                    android:gravity="center_vertical"
+                    android:minHeight="34dp"
+                    android:orientation="vertical"
+                    app:layout_constraintBottom_toBottomOf="parent"
+                    app:layout_constraintEnd_toStartOf="@+id/tv_source_action"
+                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintTop_toTopOf="parent"
+                    app:layout_constraintVertical_bias="0.05">
+
+                    <TextView
+                        android:id="@+id/tv_chapter_name"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:ellipsize="middle"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:singleLine="true"
+                        android:textSize="18sp"
+                        android:textStyle="bold"
+                        android:visibility="gone"
+                        tools:visibility="visible" />
+
+                    <TextView
+                        android:id="@+id/tv_chapter_url"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:ellipsize="end"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:singleLine="true"
+                        android:textSize="12sp"
+                        android:visibility="gone"
+                        tools:visibility="visible" />
+
+                </LinearLayout>
+
+                <io.wanjuan.app.ui.widget.text.AccentBgTextView
+                    android:id="@+id/tv_source_action"
+                    android:layout_width="wrap_content"
+                    android:layout_height="34dp"
+                    android:ellipsize="end"
+                    android:gravity="center"
+                    android:includeFontPadding="false"
+                    android:maxLines="1"
+                    android:maxWidth="120dp"
+                    android:minWidth="64dp"
+                    android:paddingStart="14dp"
+                    android:paddingEnd="14dp"
+                    android:text="@string/book_source"
+                    android:textSize="12sp"
+                    app:layout_constraintBottom_toBottomOf="@+id/ll_title_info"
+                    app:layout_constraintEnd_toEndOf="parent"
+                    app:layout_constraintTop_toTopOf="@+id/ll_title_info"
+                    app:radius="4dp"
+                    tools:visibility="visible" />
+
+            </androidx.constraintlayout.widget.ConstraintLayout>
+
+        </io.wanjuan.app.ui.widget.TitleBar>
+
+    </FrameLayout>
+
+    <LinearLayout
+        android:id="@+id/bottom_menu"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:background="@android:color/transparent"
+        android:importantForAccessibility="no"
+        android:orientation="vertical"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

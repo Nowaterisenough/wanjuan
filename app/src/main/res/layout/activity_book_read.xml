@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+    <FrameLayout
+        android:id="@+id/read_content_container"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <io.wanjuan.app.ui.book.read.page.ReadView
+            android:id="@+id/read_view"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+    </FrameLayout>
+
+    <View
+        android:id="@+id/text_menu_position"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:visibility="invisible" />
+
+    <ImageView
+        android:id="@+id/cursor_left"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:contentDescription="@string/select_start"
+        android:src="@drawable/ic_cursor_left"
+        android:visibility="invisible" />
+
+    <ImageView
+        android:id="@+id/cursor_right"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:contentDescription="@string/select_end"
+        android:src="@drawable/ic_cursor_right"
+        android:visibility="invisible" />
+
+    <io.wanjuan.app.ui.book.read.ReadMenu
+        android:id="@+id/read_menu"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone" />
+
+    <LinearLayout
+        android:id="@+id/chapter_progress_minimap_panel"
+        android:layout_width="68dp"
+        android:layout_height="wrap_content"
+        android:layout_gravity="end|top"
+        android:layout_marginEnd="8dp"
+        android:clipChildren="false"
+        android:clipToPadding="false"
+        android:gravity="center_horizontal"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <io.wanjuan.app.ui.book.read.ChapterProgressMinimapView
+            android:id="@+id/chapter_progress_minimap"
+            android:layout_width="56dp"
+            android:layout_height="300dp"
+            android:clickable="true"
+            android:contentDescription="@string/chapter_progress_minimap"
+            android:focusable="true" />
+
+        <LinearLayout
+            android:id="@+id/chapter_progress_minimap_controls"
+            android:layout_width="68dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:clipChildren="false"
+            android:clipToPadding="false"
+            android:gravity="center"
+            android:orientation="vertical">
+
+            <FrameLayout
+                android:id="@+id/btn_chapter_minimap_previous"
+                android:layout_width="68dp"
+                android:layout_height="32dp"
+                android:clickable="true"
+                android:clipChildren="false"
+                android:clipToOutline="false"
+                android:clipToPadding="false"
+                android:contentDescription="@string/previous_chapter"
+                android:focusable="true">
+
+                <com.qmdeve.liquidglass.widget.LiquidGlassView
+                    android:id="@+id/chapter_minimap_previous_glass_view"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:clickable="false"
+                    android:focusable="false" />
+
+                <View
+                    android:id="@+id/chapter_minimap_previous_shell_overlay"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:background="@drawable/bg_liquid_glass_shell_overlay"
+                    android:clickable="false"
+                    android:focusable="false" />
+
+                <TextView
+                    android:id="@+id/tv_chapter_minimap_previous"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:gravity="center"
+                    android:includeFontPadding="false"
+                    android:maxLines="1"
+                    android:text="@string/previous_chapter"
+                    android:textColor="@color/white"
+                    android:textSize="12sp" />
+
+            </FrameLayout>
+
+            <FrameLayout
+                android:id="@+id/btn_chapter_minimap_next"
+                android:layout_width="68dp"
+                android:layout_height="32dp"
+                android:layout_marginTop="6dp"
+                android:clickable="true"
+                android:clipChildren="false"
+                android:clipToOutline="false"
+                android:clipToPadding="false"
+                android:contentDescription="@string/next_chapter"
+                android:focusable="true">
+
+                <com.qmdeve.liquidglass.widget.LiquidGlassView
+                    android:id="@+id/chapter_minimap_next_glass_view"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:clickable="false"
+                    android:focusable="false" />
+
+                <View
+                    android:id="@+id/chapter_minimap_next_shell_overlay"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:background="@drawable/bg_liquid_glass_shell_overlay"
+                    android:clickable="false"
+                    android:focusable="false" />
+
+                <TextView
+                    android:id="@+id/tv_chapter_minimap_next"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:gravity="center"
+                    android:includeFontPadding="false"
+                    android:maxLines="1"
+                    android:text="@string/next_chapter"
+                    android:textColor="@color/white"
+                    android:textSize="12sp" />
+
+            </FrameLayout>
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <io.wanjuan.app.ui.book.read.SearchMenu
+        android:id="@+id/search_menu"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone" />
+
+    <io.wanjuan.app.ui.book.read.ReadAiFloatingPanel
+        android:id="@+id/read_ai_panel"
+        android:layout_width="320dp"
+        android:layout_height="wrap_content"
+        android:visibility="gone" />
+
+    <View
+        android:id="@+id/navigation_bar"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_gravity="bottom" />
+
+</FrameLayout>

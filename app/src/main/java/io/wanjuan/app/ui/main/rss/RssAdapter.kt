@@ -1,0 +1,101 @@
+package io.wanjuan.app.ui.main.rss
+
+import android.content.Context
+import android.view.View
+import android.view.ViewGroup
+import android.widget.PopupWindow
+import androidx.fragment.app.Fragment
+import androidx.lifecycle.Lifecycle
+import com.bumptech.glide.request.RequestOptions
+import io.wanjuan.app.R
+import io.wanjuan.app.base.adapter.ItemViewHolder
+import io.wanjuan.app.base.adapter.RecyclerAdapter
+import io.wanjuan.app.data.entities.RssSource
+import io.wanjuan.app.databinding.ItemRssBinding
+import io.wanjuan.app.help.glide.ImageLoader
+import io.wanjuan.app.help.glide.OkHttpModelLoader
+import io.wanjuan.app.ui.widget.ModernActionPopup
+import splitties.views.onLongClick
+
+class RssAdapter(
+    context: Context,
+    private val fragment: Fragment,
+    private val callBack: CallBack,
+    private val lifecycle: Lifecycle
+) : RecyclerAdapter<RssSource, ItemRssBinding>(context) {
+
+    private var modernMenuPopup: PopupWindow? = null
+
+    override fun getViewBinding(parent: ViewGroup): ItemRssBinding {
+        return ItemRssBinding.inflate(inflater, parent, false)
+    }
+
+    override fun convert(
+        holder: ItemViewHolder,
+        binding: ItemRssBinding,
+        item: RssSource,
+        payloads: MutableList<Any>
+    ) {
+        binding.apply {
+            tvName.text = item.sourceName
+            val options = RequestOptions()
+                .set(OkHttpModelLoader.sourceOriginOption, item.sourceUrl)
+            ImageLoader.load(fragment, lifecycle, item.sourceIcon)
+                .apply(options)
+                .centerCrop()
+                .placeholder(R.drawable.image_rss)
+                .error(R.drawable.image_rss)
+                .into(ivIcon)
+        }
+    }
+
+    override fun registerListener(holder: ItemViewHolder, binding: ItemRssBinding) {
+        binding.apply {
+            root.setOnClickListener {
+                getItemByLayoutPosition(holder.layoutPosition)?.let {
+                    callBack.openRss(it)
+                }
+            }
+            root.onLongClick {
+                getItemByLayoutPosition(holder.layoutPosition)?.let {
+                    showMenu(ivIcon, it)
+                }
+            }
+        }
+    }
+
+    private fun showMenu(view: View, rssSource: RssSource) {
+        modernMenuPopup = ModernActionPopup.showFromMenu(
+            view,
+            R.menu.rss_main_item,
+            modernMenuPopup,
+            prepare = {
+                val hasLoginUrl = !rssSource.loginUrl.isNullOrBlank()
+                findItem(R.id.menu_login).apply {
+                    isVisible = true
+                    title = context.getString(
+                        if (hasLoginUrl) R.string.login else R.string.open_in_app_webview
+                    )
+                }
+            }
+        ) {
+            when (it.itemId) {
+                R.id.menu_edit -> callBack.edit(rssSource)
+                R.id.menu_top -> callBack.toTop(rssSource)
+                R.id.menu_login -> callBack.login(rssSource)
+                R.id.menu_del -> callBack.del(rssSource)
+                R.id.menu_disable -> callBack.disable(rssSource)
+            }
+            true
+        }
+    }
+
+    interface CallBack {
+        fun openRss(rssSource: RssSource)
+        fun edit(rssSource: RssSource)
+        fun toTop(rssSource: RssSource)
+        fun login(rssSource: RssSource)
+        fun del(rssSource: RssSource)
+        fun disable(rssSource: RssSource)
+    }
+}

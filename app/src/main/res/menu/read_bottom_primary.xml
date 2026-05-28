@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:showIn="read_bottom_primary_nav">
+
+    <item
+        android:id="@+id/menu_read_search"
+        android:icon="@drawable/ic_lucide_search"
+        android:title="@string/search" />
+
+    <item
+        android:id="@+id/menu_read_toc"
+        android:icon="@drawable/ic_lucide_book_open_text"
+        android:title="@string/chapter_list" />
+
+    <item
+        android:id="@+id/menu_read_aloud"
+        android:icon="@drawable/ic_lucide_headphones"
+        android:title="@string/read_aloud" />
+
+    <item
+        android:id="@+id/menu_read_interface"
+        android:icon="@drawable/ic_lucide_sliders_horizontal"
+        android:title="@string/interface_setting" />
+
+    <item
+        android:id="@+id/menu_read_settings"
+        android:icon="@drawable/ic_lucide_settings"
+        android:title="@string/setting" />
+
+</menu>
