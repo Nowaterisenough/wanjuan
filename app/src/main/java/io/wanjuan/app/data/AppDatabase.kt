@@ -19,6 +19,7 @@ import io.wanjuan.app.data.dao.CookieDao
 import io.wanjuan.app.data.dao.DictRuleDao
 import io.wanjuan.app.data.dao.HttpTTSDao
 import io.wanjuan.app.data.dao.KeyboardAssistsDao
+import io.wanjuan.app.data.dao.ParagraphRuleDao
 import io.wanjuan.app.data.dao.ReadRecentBookDao
 import io.wanjuan.app.data.dao.ReadRecordDao
 import io.wanjuan.app.data.dao.ReadRecordDailyDao
@@ -35,6 +36,7 @@ import io.wanjuan.app.data.dao.TxtTocRuleDao
 import io.wanjuan.app.data.entities.Book
 import io.wanjuan.app.data.entities.BookChapter
 import io.wanjuan.app.data.entities.BookGroup
+import io.wanjuan.app.data.entities.BookParagraphRule
 import io.wanjuan.app.data.entities.BookSource
 import io.wanjuan.app.data.entities.BookSourcePart
 import io.wanjuan.app.data.entities.Bookmark
@@ -43,6 +45,8 @@ import io.wanjuan.app.data.entities.Cookie
 import io.wanjuan.app.data.entities.DictRule
 import io.wanjuan.app.data.entities.HttpTTS
 import io.wanjuan.app.data.entities.KeyboardAssist
+import io.wanjuan.app.data.entities.ParagraphRule
+import io.wanjuan.app.data.entities.ParagraphRuleVar
 import io.wanjuan.app.data.entities.ReadRecentBook
 import io.wanjuan.app.data.entities.ReadRecord
 import io.wanjuan.app.data.entities.ReadRecordDaily
@@ -71,7 +75,7 @@ val appDb by lazy {
 }
 
 @Database(
-    version = 92,
+    version = 93,
     exportSchema = true,
     entities = [Book::class, BookGroup::class, BookSource::class, BookChapter::class,
         ReplaceRule::class, SearchBook::class, SearchKeyword::class, Cookie::class,
@@ -79,7 +83,8 @@ val appDb by lazy {
         RssStar::class, TxtTocRule::class, ReadRecord::class, ReadRecordDaily::class,
         HttpTTS::class, Cache::class,
         RuleSub::class, DictRule::class, KeyboardAssist::class, Server::class,
-        ReadRecentBook::class],
+        ReadRecentBook::class, ParagraphRule::class, BookParagraphRule::class,
+        ParagraphRuleVar::class],
     views = [BookSourcePart::class],
     autoMigrations = [
         AutoMigration(from = 43, to = 44),
@@ -156,6 +161,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract val dictRuleDao: DictRuleDao
     abstract val keyboardAssistsDao: KeyboardAssistsDao
     abstract val serverDao: ServerDao
+    abstract val paragraphRuleDao: ParagraphRuleDao
 
     companion object {
 
