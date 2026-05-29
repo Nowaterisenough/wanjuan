@@ -123,6 +123,7 @@ object WebViewPool {
                     pooledWebView.isInUse = false
                     pooledWebView.lastUseTime = System.currentTimeMillis()
                     idlePool.push(pooledWebView)
+                    startCleanupTimer()
                 }
             }
             loadUrl(BLANK_HTML)
