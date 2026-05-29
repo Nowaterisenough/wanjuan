@@ -8,6 +8,7 @@ import androidx.annotation.Keep
 import com.bumptech.glide.Glide
 import com.bumptech.glide.RequestBuilder
 import com.bumptech.glide.load.DataSource
+import com.bumptech.glide.load.DecodeFormat
 import com.bumptech.glide.load.Transformation
 import com.bumptech.glide.load.engine.DiskCacheStrategy
 import com.bumptech.glide.load.engine.GlideException
@@ -91,7 +92,10 @@ object BookCover {
             return ImageLoader.load(context, defaultDrawable)
                 .centerCrop()
         }
-        var options = RequestOptions().set(OkHttpModelLoader.loadOnlyWifiOption, loadOnlyWifi)
+        var options = RequestOptions()
+            .format(DecodeFormat.PREFER_ARGB_8888)
+            .disallowHardwareConfig()
+            .set(OkHttpModelLoader.loadOnlyWifiOption, loadOnlyWifi)
         if (sourceOrigin != null) {
             options = options.set(OkHttpModelLoader.sourceOriginOption, sourceOrigin)
         }
@@ -136,7 +140,10 @@ object BookCover {
         sourceOrigin: String? = null,
         transformation: Transformation<Bitmap>? = null,
     ): RequestBuilder<Drawable> {
-        var options = RequestOptions().set(OkHttpModelLoader.loadOnlyWifiOption, loadOnlyWifi)
+        var options = RequestOptions()
+            .format(DecodeFormat.PREFER_ARGB_8888)
+            .disallowHardwareConfig()
+            .set(OkHttpModelLoader.loadOnlyWifiOption, loadOnlyWifi)
             .set(OkHttpModelLoader.mangaOption, true)
         if (sourceOrigin != null) {
             options = options.set(OkHttpModelLoader.sourceOriginOption, sourceOrigin)

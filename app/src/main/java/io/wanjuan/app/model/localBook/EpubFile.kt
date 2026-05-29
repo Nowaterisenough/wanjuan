@@ -17,9 +17,11 @@ import io.wanjuan.app.help.config.AppConfig
 import io.wanjuan.app.utils.FileUtils
 import io.wanjuan.app.utils.MD5Utils
 import io.wanjuan.app.utils.SvgUtils
+import io.wanjuan.app.utils.compressPreservingAlpha
 import io.wanjuan.app.utils.decodeBase64DataUrlBytes
 import io.wanjuan.app.utils.encodeURI
 import io.wanjuan.app.utils.isXml
+import io.wanjuan.app.utils.preferredCoverExtension
 import io.wanjuan.app.utils.printOnDebug
 import io.wanjuan.app.ui.book.read.page.provider.ChapterProvider
 import me.ag2s.epublib.domain.EpubBook
@@ -1919,7 +1921,7 @@ class EpubFile(var book: Book) {
         return try {
             epubBook?.let {
                 if (book.coverUrl.isNullOrEmpty()) {
-                    book.coverUrl = LocalBook.getCoverPath(book)
+                    book.coverUrl = LocalBook.findCoverPath(book) ?: LocalBook.getCoverPath(book)
                 }
                 if (fastCheck && File(book.coverUrl!!).exists()) {
                     return true
@@ -1932,8 +1934,10 @@ class EpubFile(var book: Book) {
                     AppLog.putDebug("Epub: 封面获取为空. path: ${book.bookUrl}")
                     return false
                 }
-                FileOutputStream(FileUtils.createFileIfNotExist(book.coverUrl!!)).use { out ->
-                    cover.compress(Bitmap.CompressFormat.JPEG, 90, out)
+                val coverPath = LocalBook.resolveCoverPath(book, cover.preferredCoverExtension())
+                book.coverUrl = coverPath
+                FileOutputStream(FileUtils.createFileIfNotExist(coverPath)).use { out ->
+                    cover.compressPreservingAlpha(out, 90)
                     out.flush()
                 }
                 return true

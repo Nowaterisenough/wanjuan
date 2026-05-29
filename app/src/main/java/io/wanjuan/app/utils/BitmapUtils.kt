@@ -233,6 +233,33 @@ object BitmapUtils {
 
 }
 
+fun Bitmap.hasTransparentPixels(): Boolean {
+    if (!hasAlpha() || width <= 0 || height <= 0 || isRecycled) return false
+    return runCatching {
+        val row = IntArray(width)
+        for (y in 0 until height) {
+            getPixels(row, 0, width, 0, y, width, 1)
+            for (pixel in row) {
+                if (Color.alpha(pixel) < 255) return true
+            }
+        }
+        false
+    }.getOrDefault(hasAlpha())
+}
+
+fun Bitmap.preferredCoverExtension(): String {
+    return if (hasTransparentPixels()) "png" else "jpg"
+}
+
+fun Bitmap.compressPreservingAlpha(outputStream: OutputStream, jpegQuality: Int = 90): Boolean {
+    val usePng = hasTransparentPixels()
+    return compress(
+        if (usePng) Bitmap.CompressFormat.PNG else Bitmap.CompressFormat.JPEG,
+        if (usePng) 100 else jpegQuality,
+        outputStream
+    )
+}
+
 /**
  * 获取指定宽高的图片
  */

@@ -12,7 +12,9 @@ import io.wanjuan.app.help.book.getLocalUri
 import io.wanjuan.app.utils.BitmapUtils
 import io.wanjuan.app.utils.FileUtils
 import io.wanjuan.app.utils.SystemUtils
+import io.wanjuan.app.utils.compressPreservingAlpha
 import io.wanjuan.app.utils.isContentScheme
+import io.wanjuan.app.utils.preferredCoverExtension
 import io.wanjuan.app.utils.printOnDebug
 import splitties.init.appCtx
 import java.io.File
@@ -195,14 +197,18 @@ class PdfFile(var book: Book) {
         try {
             pdfRenderer?.let { renderer ->
                 if (book.coverUrl.isNullOrEmpty()) {
-                    book.coverUrl = LocalBook.getCoverPath(book)
+                    book.coverUrl = LocalBook.findCoverPath(book) ?: LocalBook.getCoverPath(book)
                 }
                 if (fastCheck && File(book.coverUrl!!).exists()) {
                     return
                 }
-                FileOutputStream(FileUtils.createFileIfNotExist(book.coverUrl!!)).use { out ->
-                    openPdfPage(renderer, 0)?.compress(Bitmap.CompressFormat.JPEG, 90, out)
-                    out.flush()
+                openPdfPage(renderer, 0)?.let { cover ->
+                    val coverPath = LocalBook.resolveCoverPath(book, cover.preferredCoverExtension())
+                    book.coverUrl = coverPath
+                    FileOutputStream(FileUtils.createFileIfNotExist(coverPath)).use { out ->
+                        cover.compressPreservingAlpha(out, 90)
+                        out.flush()
+                    }
                 }
             }
         } catch (e: Exception) {
