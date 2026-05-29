@@ -114,7 +114,7 @@ class BookshelfFragment2() : BaseBookshelfFragment(R.layout.fragment_bookshelf2)
         binding.refreshLayout.setProgressViewOffset(true, (-28).dpToPx(), 56.dpToPx())
         binding.refreshLayout.setOnRefreshListener {
             binding.refreshLayout.isRefreshing = false
-            activityViewModel.upToc(books, onlyUpdateRead)
+            activityViewModel.upToc(currentUpdateBooks(), onlyUpdateRead)
         }
         updateLayoutManager()
         binding.rvBookshelf.adapter = booksAdapter
@@ -422,6 +422,14 @@ class BookshelfFragment2() : BaseBookshelfFragment(R.layout.fragment_bookshelf2)
             return books
         }
         return bookGroups + books
+    }
+
+    override fun currentUpdateBooks(): List<Book> {
+        return if (::booksAdapter.isInitialized) {
+            booksAdapter.getItems().filterIsInstance<Book>()
+        } else {
+            books
+        }
     }
 
     @SuppressLint("NotifyDataSetChanged")

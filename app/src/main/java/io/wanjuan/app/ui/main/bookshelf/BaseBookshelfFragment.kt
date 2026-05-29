@@ -98,6 +98,8 @@ abstract class BaseBookshelfFragment(layoutId: Int) : VMBaseFragment<BookshelfVi
 
     abstract fun gotoTop()
 
+    protected open fun currentUpdateBooks(): List<Book> = books
+
     override fun onCompatCreateOptionsMenu(menu: Menu) {
         menuInflater.inflate(R.menu.main_bookshelf, menu)
     }
@@ -132,7 +134,7 @@ abstract class BaseBookshelfFragment(layoutId: Int) : VMBaseFragment<BookshelfVi
         when (item.itemId) {
             R.id.menu_remote -> startActivity<RemoteBookActivity>()
             R.id.menu_search -> startActivity<SearchActivity>()
-            R.id.menu_update_toc -> activityViewModel.upToc(books, onlyUpdateRead)
+            R.id.menu_update_toc -> activityViewModel.upToc(currentUpdateBooks(), onlyUpdateRead)
             R.id.menu_bookshelf_layout -> configBookshelf()
             R.id.menu_group_manage -> showDialogFragment<GroupManageDialog>()
             R.id.menu_book_tag_manage -> startActivity<BookshelfTagManageActivity> {
