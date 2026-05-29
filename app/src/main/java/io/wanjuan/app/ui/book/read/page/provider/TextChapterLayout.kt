@@ -24,6 +24,7 @@ import io.wanjuan.app.data.entities.Book
 import io.wanjuan.app.data.entities.BookChapter
 import io.wanjuan.app.help.book.BookContent
 import io.wanjuan.app.help.book.BookHelp
+import io.wanjuan.app.help.book.ParagraphRuleProcessor
 import io.wanjuan.app.help.book.getBookSource
 import io.wanjuan.app.help.book.isEpub
 import io.wanjuan.app.help.config.AppConfig
@@ -293,7 +294,9 @@ class TextChapterLayout(
                                     when (key) {
                                         "style" -> style = value
                                         "width" -> width = value
+                                        "pclick" -> click = value
                                         "click" -> click = value
+                                            .takeUnless { ParagraphRuleProcessor.isParagraphClick(it) }
                                     }
                                 }
                             }
@@ -439,7 +442,9 @@ class TextChapterLayout(
                                     when (key) {
                                         "style" -> style = value
                                         "width" -> width = value
+                                        "pclick" -> click = value
                                         "click" -> click = value
+                                            .takeUnless { ParagraphRuleProcessor.isParagraphClick(it) }
                                     }
                                 }
                             }
@@ -1481,7 +1486,15 @@ class TextChapterLayout(
         val width = element.attr("data-wanjuan-width")
             .ifBlank { element.attr("width") }
             .ifBlank { element.cssWidth() }
-        val click = element.attr("data-wanjuan-click").ifBlank { null }
+        val click = element.attr("data-legado-pclick")
+            .ifBlank { element.attr("data-wanjuan-pclick") }
+            .ifBlank {
+                element.attr("data-legado-click")
+                    .ifBlank { element.attr("data-wanjuan-click") }
+                    .takeUnless { ParagraphRuleProcessor.isParagraphClick(it) }
+                    .orEmpty()
+            }
+            .ifBlank { null }
         var imgSize = ImageProvider.getImageSize(book, src, ReadBook.bookSource)
         imgSize = imgSize.applyWidth(width)
         if (style == null) {
@@ -1630,7 +1643,10 @@ class TextChapterLayout(
                         val urlOption = GSON.fromJsonObject<Map<String, String>>(urlOptionStr).getOrNull() ?: return@let
                         var iStyle = urlOption["style"]
                         val width = urlOption["width"]
-                        val click = urlOption["click"]
+                        val pclick = urlOption["pclick"]?.takeIf { it.isNotBlank() }
+                        val click = pclick ?: urlOption["click"]
+                            ?.takeIf { it.isNotBlank() }
+                            ?.takeUnless { ParagraphRuleProcessor.isParagraphClick(it) }
                         var imgSize = ImageProvider.getImageSize(book, source, ReadBook.bookSource)
                         width?.let {
                             imgSize = imgSize.applyWidth(it)

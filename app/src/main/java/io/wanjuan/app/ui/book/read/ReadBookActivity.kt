@@ -45,6 +45,7 @@ import io.wanjuan.app.help.IntentData
 import io.wanjuan.app.help.TTS
 import io.wanjuan.app.help.book.BookHelp
 import io.wanjuan.app.help.book.ContentProcessor
+import io.wanjuan.app.help.book.ParagraphRuleProcessor
 import io.wanjuan.app.help.book.isAudio
 import io.wanjuan.app.help.book.isEpub
 import io.wanjuan.app.help.book.isLocal
@@ -85,6 +86,7 @@ import io.wanjuan.app.ui.book.read.config.BgTextConfigDialog.Companion.BG_COLOR
 import io.wanjuan.app.ui.book.read.config.BgTextConfigDialog.Companion.TEXT_ACCENT_COLOR
 import io.wanjuan.app.ui.book.read.config.BgTextConfigDialog.Companion.TEXT_COLOR
 import io.wanjuan.app.ui.book.read.config.MoreConfigDialog
+import io.wanjuan.app.ui.book.read.config.ParagraphRuleManageActivity
 import io.wanjuan.app.ui.book.read.config.ReadAloudDialog
 import io.wanjuan.app.ui.book.read.config.TipConfigDialog.Companion.TIP_COLOR
 import io.wanjuan.app.ui.book.read.config.TipConfigDialog.Companion.TIP_DIVIDER_COLOR
@@ -109,6 +111,8 @@ import io.wanjuan.app.ui.replace.ReplaceRuleActivity
 import io.wanjuan.app.ui.replace.edit.ReplaceEditActivity
 import io.wanjuan.app.ui.widget.ModernActionPopup
 import io.wanjuan.app.ui.widget.PopupAction
+import io.wanjuan.app.ui.widget.dialog.BottomWebViewDialog
+import io.wanjuan.app.ui.widget.dialog.CommentWebViewSession
 import io.wanjuan.app.ui.widget.dialog.PhotoDialog
 import io.wanjuan.app.utils.ACache
 import io.wanjuan.app.utils.Debounce
@@ -234,6 +238,11 @@ class ReadBookActivity : BaseReadBookActivity(),
     private var modernMenuPopup: PopupWindow? = null
     private var backupJob: Job? = null
     private var tts: TTS? = null
+    private var commentWebViewSession: CommentWebViewSession? = null
+    @Volatile
+    private var commentBrowserOpening = false
+    @Volatile
+    private var commentBrowserShowing = false
     val textActionMenu: TextActionMenu by lazy {
         TextActionMenu(this, this)
     }
@@ -467,6 +476,7 @@ class ReadBookActivity : BaseReadBookActivity(),
 //                    }
 
                     R.id.menu_reverse_content -> item.isVisible = onLine
+                    R.id.menu_paragraph_rule_manage -> item.isVisible = !book.isEpub
                     R.id.menu_del_ruby_tag -> item.isChecked = book.getDelTag(Book.rubyTag)
                     R.id.menu_del_h_tag -> item.isChecked = book.getDelTag(Book.hTag)
                 }
@@ -663,6 +673,12 @@ class ReadBookActivity : BaseReadBookActivity(),
             }
 
             R.id.menu_effective_replaces -> showDialogFragment<EffectiveReplacesDialog>()
+
+            R.id.menu_paragraph_rule_manage -> ReadBook.book?.let {
+                startActivity<ParagraphRuleManageActivity> {
+                    putExtra("bookUrl", it.bookUrl)
+                }
+            }
 
             R.id.menu_help -> showHelp()
         }
@@ -1712,18 +1728,103 @@ class ReadBookActivity : BaseReadBookActivity(),
     /**
      * 鐐瑰嚮鍥剧墖
      */
+    private fun evalParagraphRuleClick(click: String?, src: String): Boolean {
+        if (!ParagraphRuleProcessor.isParagraphClick(click)) return false
+        if (commentBrowserOpening || commentBrowserShowing) return true
+        val clickValue = click ?: return false
+        commentBrowserOpening = true
+        getCommentWebViewSession().prepare(applicationContext)
+        Coroutine.async(lifecycleScope, IO) {
+            val book = ReadBook.book ?: return@async
+            val chapter = appDb.bookChapterDao.getChapter(book.bookUrl, ReadBook.durChapterIndex)
+                ?: throw Exception("no find chapter")
+            ParagraphRuleProcessor.evalClick(
+                book,
+                chapter,
+                clickValue,
+                src,
+                paragraphRuleBrowserCallback(),
+                coroutineContext
+            )
+        }.onError {
+            AppLog.put("ParagraphRule pclick error: ${it.localizedMessage}", it, true)
+        }.onFinally {
+            if (!commentBrowserShowing) {
+                commentBrowserOpening = false
+            }
+        }
+        return true
+    }
+
+    private fun getCommentWebViewSession(): CommentWebViewSession {
+        return commentWebViewSession ?: CommentWebViewSession.shared.also { commentWebViewSession = it }
+    }
+
+    private fun paragraphRuleBrowserCallback(): ParagraphRuleProcessor.BrowserCallback {
+        return object : ParagraphRuleProcessor.BrowserCallback {
+            override fun showBrowser(
+                url: String,
+                html: String?,
+                preloadJs: String?,
+                config: String?,
+                sourceKey: String?
+            ): Boolean {
+                val browserSourceKey = sourceKey ?: ReadBook.bookSource?.getKey() ?: return false
+                commentBrowserShowing = true
+                runOnUiThread {
+                    if (!lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+                        commentBrowserShowing = false
+                        commentBrowserOpening = false
+                        return@runOnUiThread
+                    }
+                    showDialogFragment(
+                        BottomWebViewDialog(
+                            browserSourceKey,
+                            BookType.text,
+                            url,
+                            html,
+                            preloadJs,
+                            config,
+                            getCommentWebViewSession(),
+                            onDismiss = {
+                                commentBrowserShowing = false
+                                commentBrowserOpening = false
+                            }
+                        )
+                    )
+                }
+                return true
+            }
+        }
+    }
+
+    private fun ensureCurrentChapterCacheForClick(book: Book, chapter: BookChapter) {
+        val current = ReadBook.curTextChapter
+            ?.takeIf { it.chapter.index == chapter.index }
+            ?.getContent()
+            ?.takeIf { it.isNotBlank() }
+        if (!BookHelp.hasContent(book, chapter) && current != null) {
+            BookHelp.saveText(book, chapter, current)
+        }
+        BookHelp.ensureLegacyContentAlias(book, chapter, current)
+    }
+
     override fun oldClickImg(src: String): Boolean {
         val urlMatcher = paramPattern.matcher(src)
         if (urlMatcher.find()) {
             val urlOptionStr = src.substring(urlMatcher.end())
             val urlOptionMap = GSON.fromJsonObject<Map<String, String>>(urlOptionStr).getOrNull()
+            val pclick = urlOptionMap?.get("pclick")
+            if (!pclick.isNullOrBlank() && evalParagraphRuleClick(pclick, src)) return true
             val click = urlOptionMap?.get("click")
-            if (click != null) {
+                ?.takeUnless { ParagraphRuleProcessor.isParagraphClick(it) }
+            if (!click.isNullOrBlank()) {
                 Coroutine.async(lifecycleScope,IO) {
                     val source = ReadBook.bookSource ?: return@async
                     val java = SourceLoginJsExtensions(this@ReadBookActivity, source, BookType.text)
                     val book = ReadBook.book ?: return@async
                     val chapter = appDb.bookChapterDao.getChapter(book.bookUrl, ReadBook.durChapterIndex) ?: throw Exception("no find chapter")
+                    ensureCurrentChapterCacheForClick(book, chapter)
                     runScriptWithContext {
                         source.evalJS(click) {
                             put("java", java)
@@ -1758,11 +1859,13 @@ class ReadBookActivity : BaseReadBookActivity(),
     }
 
     override fun clickImg(click: String, src: String) {
+        if (evalParagraphRuleClick(click, src)) return
         Coroutine.async(lifecycleScope,IO) {
             val source = ReadBook.bookSource ?: return@async
             val java = SourceLoginJsExtensions(this@ReadBookActivity, source, BookType.text)
             val book = ReadBook.book ?: return@async
             val chapter = appDb.bookChapterDao.getChapter(book.bookUrl, ReadBook.durChapterIndex) ?: throw Exception("no find chapter")
+            ensureCurrentChapterCacheForClick(book, chapter)
             runScriptWithContext {
                 source.evalJS(click) {
                     put("java", java)
@@ -2109,6 +2212,10 @@ class ReadBookActivity : BaseReadBookActivity(),
         textActionMenu.dismiss()
         popupAction.dismiss()
         binding.readView.onDestroy()
+        commentWebViewSession?.destroy()
+        commentWebViewSession = null
+        commentBrowserOpening = false
+        commentBrowserShowing = false
         ReadBook.unregister(this)
         handler.removeCallbacksAndMessages(null) // 娓呯悊Handler娑堟伅
         if (!ReadBook.inBookshelf && !isChangingConfigurations) {
@@ -2117,6 +2224,11 @@ class ReadBookActivity : BaseReadBookActivity(),
         if (!BuildConfig.DEBUG) {
             Backup.autoBack(this)
         }
+    }
+
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        commentWebViewSession?.trimMemory(level)
     }
 
     override fun observeLiveBus() = binding.run {

@@ -11,6 +11,7 @@ import io.wanjuan.app.data.entities.BaseSource
 import io.wanjuan.app.data.entities.Book
 import io.wanjuan.app.data.entities.BookChapter
 import io.wanjuan.app.exception.NoStackTraceException
+import io.wanjuan.app.help.book.ParagraphRuleJsExtensions
 import io.wanjuan.app.model.AudioPlay
 import io.wanjuan.app.model.ReadBook
 import io.wanjuan.app.model.ReadManga
@@ -64,6 +65,9 @@ class SourceLoginViewModel(application: Application) : BaseViewModel(application
                         "bookSource" ->  appDb.bookSourceDao.getBookSource(sourceKey)
                         "rssSource" -> appDb.rssSourceDao.getByKey(sourceKey)
                         "httpTts" -> appDb.httpTTSDao.get(sourceKey.toLong())
+                        "paragraphRule" -> appDb.paragraphRuleDao.get(sourceKey.toLong())?.let { rule ->
+                            ParagraphRuleJsExtensions(rule)
+                        }
                         else -> null
                     }
                     val bookUrl = intent.getStringExtra("bookUrl")

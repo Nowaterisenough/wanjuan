@@ -150,6 +150,11 @@
         app:showAsAction="never" />
 
     <item
+        android:id="@+id/menu_paragraph_rule_manage"
+        android:title="@string/paragraph_rule_manage"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/menu_log"
         android:title="@string/log"
         app:showAsAction="never" />
