@@ -95,6 +95,24 @@ class GithubWorkflowSigningTest {
         }
     }
 
+    @Test
+    fun ciWorkflowsPassMonotonicVersionCodeToReleaseBuilds() {
+        listOf(
+            ".github/workflows/test.yml",
+            ".github/workflows/release.yml"
+        ).forEach { workflowPath ->
+            val workflow = repoFile(workflowPath).readText()
+            val setVersionStep = workflow.substringAfter("- name: Set version")
+                .substringBefore("- name: Set up JDK 21")
+            val buildStep = workflow.substringAfter("- name: Build release APK")
+                .substringBefore("- name: Organize build outputs")
+
+            assertTrue(setVersionStep.contains("VERSION_CODE=\"\$((\$(date -u +%s) / 60))\""))
+            assertTrue(setVersionStep.contains("echo \"VERSION_CODE=\${VERSION_CODE}\" >> \"\$GITHUB_ENV\""))
+            assertTrue(buildStep.contains("-PVERSION_CODE=\"\${VERSION_CODE}\""))
+        }
+    }
+
     private fun assertStableCiSigningFallback(script: String) {
         assertTrue(script.contains("RELEASE_STORE_FILE=./ci-release.keystore"))
         assertTrue(script.contains("RELEASE_KEY_ALIAS=wanjuan-ci-release"))

@@ -70,9 +70,13 @@ jobs:
         shell: bash
         run: |
           VERSION="$(date -d "8 hour" -u +${APP_MAJOR_VERSION}.%y.%m%d%H%M)"
+          VERSION_CODE="$(($(date -u +%s) / 60))"
           echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
+          echo "VERSION_CODE=${VERSION_CODE}" >> "$GITHUB_ENV"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "version_code=${VERSION_CODE}" >> "$GITHUB_OUTPUT"
           echo "VERSION_NAME=${VERSION}"
+          echo "VERSION_CODE=${VERSION_CODE}"
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -170,7 +174,7 @@ jobs:
       - name: Build release APK
         run: |
           chmod +x gradlew
-          ./gradlew -PVERSION_NAME="${VERSION}" assembleAppRelease --build-cache --parallel --daemon --warning-mode all
+          ./gradlew -PVERSION_NAME="${VERSION}" -PVERSION_CODE="${VERSION_CODE}" assembleAppRelease --build-cache --parallel --daemon --warning-mode all
 
       - name: Organize build outputs
         run: |
