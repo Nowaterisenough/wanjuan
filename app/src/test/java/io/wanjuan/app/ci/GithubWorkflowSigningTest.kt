@@ -69,6 +69,32 @@ class GithubWorkflowSigningTest {
         assertFalse(publishJob.contains("python3 .github/scripts/generate_changelog.py >> release_notes.md"))
     }
 
+    @Test
+    fun releasePublishJobCanCreateGitHubRelease() {
+        val workflow = repoFile(".github/workflows/release.yml").readText()
+        val publishJob = workflow.substringAfter("  publish:")
+        val permissions = publishJob.substringAfter("    permissions:")
+            .substringBefore("    env:")
+
+        assertTrue(publishJob.contains("    permissions:"))
+        assertTrue(permissions.contains("      actions: read"))
+        assertTrue(permissions.contains("      contents: write"))
+    }
+
+    @Test
+    fun ciWorkflowsUseCurrentMajorVersionForGeneratedVersions() {
+        listOf(
+            ".github/workflows/test.yml",
+            ".github/workflows/release.yml"
+        ).forEach { workflowPath ->
+            val workflow = repoFile(workflowPath).readText()
+
+            assertTrue(workflow.contains("  APP_MAJOR_VERSION: 4"))
+            assertTrue(workflow.contains("+${'$'}{APP_MAJOR_VERSION}.%y.%m%d%H%M"))
+            assertFalse(workflow.contains("+3.%y.%m%d%H%M"))
+        }
+    }
+
     private fun assertStableCiSigningFallback(script: String) {
         assertTrue(script.contains("RELEASE_STORE_FILE=./ci-release.keystore"))
         assertTrue(script.contains("RELEASE_KEY_ALIAS=wanjuan-ci-release"))

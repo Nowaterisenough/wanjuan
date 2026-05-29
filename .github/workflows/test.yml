@@ -12,6 +12,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  APP_MAJOR_VERSION: 4
+
 jobs:
   book-source-test:
     name: Book Source Tests
@@ -63,7 +66,7 @@ jobs:
         id: set-version
         shell: bash
         run: |
-          VERSION="$(date -d "8 hour" -u +3.%y.%m%d%H%M)"
+          VERSION="$(date -d "8 hour" -u +${APP_MAJOR_VERSION}.%y.%m%d%H%M)"
           echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
           echo "VERSION_NAME=${VERSION}"
 

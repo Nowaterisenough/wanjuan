@@ -11,6 +11,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
+env:
+  APP_MAJOR_VERSION: 4
+
 jobs:
   book-source-test:
     name: Book Source Tests
@@ -66,7 +69,7 @@ jobs:
         id: set-version
         shell: bash
         run: |
-          VERSION="$(date -d "8 hour" -u +3.%y.%m%d%H%M)"
+          VERSION="$(date -d "8 hour" -u +${APP_MAJOR_VERSION}.%y.%m%d%H%M)"
           echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "VERSION_NAME=${VERSION}"
@@ -224,6 +227,9 @@ jobs:
       - build
     if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: write
     env:
       VERSION: ${{ needs.build.outputs.version }}
     steps:
