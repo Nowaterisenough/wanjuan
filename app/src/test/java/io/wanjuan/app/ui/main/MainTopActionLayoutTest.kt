@@ -36,7 +36,7 @@ class MainTopActionLayoutTest {
 
         val explore = parseXml(repoFile("app/src/main/res/layout/fragment_explore.xml"))
         assertEquals(
-            3,
+            2,
             explore.elementsWithAndroidAttr("layout_width", "@dimen/main_top_action_button_gap").size
         )
 
@@ -45,6 +45,31 @@ class MainTopActionLayoutTest {
             3,
             rss.elementsWithAndroidAttr("layout_width", "@dimen/main_top_action_button_gap").size
         )
+    }
+
+    @Test
+    fun discoverPageSearchOnlyUsesMainSearchButton() {
+        val explore = parseXml(repoFile("app/src/main/res/layout/fragment_explore.xml"))
+        val titleBar = explore.elementById("title_bar")
+        assertEquals("", titleBar.appAttr("contentLayout"))
+        assertFalse(explore.hasElementById("btn_discover_source_search"))
+
+        val mainActivity = repoFile("app/src/main/java/io/wanjuan/app/ui/main/MainActivity.kt").readText()
+        val initView = mainActivity.substringAfter("private fun initView()")
+            .substringBefore("private fun scheduleLiquidGlassSetup")
+        val searchButtonBlock = initView.substringAfter("searchButton.setOnClickListener {")
+            .substringBefore("}")
+        val sideSearchButtonBlock = initView.substringAfter("sideSearchButton.setOnClickListener {")
+            .substringBefore("}")
+        val sideSearchRowBlock = mainActivity.substringAfter("sideSearchRow.setOnClickListener {")
+            .substringBefore("}")
+        assertTrue(mainActivity.contains("private fun openContextualSearch()"))
+        assertTrue(mainActivity.contains("(fragmentMap[idExplore] as? ExploreFragment)?.openSearchFromMain()"))
+        assertTrue(searchButtonBlock.contains("openContextualSearch()"))
+        assertTrue(sideSearchButtonBlock.contains("closeSideNavigation()"))
+        assertTrue(sideSearchButtonBlock.contains("openContextualSearch()"))
+        assertTrue(sideSearchRowBlock.contains("closeSideNavigation()"))
+        assertTrue(sideSearchRowBlock.contains("openContextualSearch()"))
     }
 
     @Test
@@ -160,6 +185,20 @@ class MainTopActionLayoutTest {
         }
         visit(this)
         return elements
+    }
+
+    private fun Element.hasElementById(id: String): Boolean {
+        if (androidAttr("id") == "@+id/$id" || androidAttr("id") == "@id/$id") {
+            return true
+        }
+        val children = childNodes
+        for (index in 0 until children.length) {
+            val child = children.item(index)
+            if (child is Element && child.hasElementById(id)) {
+                return true
+            }
+        }
+        return false
     }
 
     private fun Element.androidAttr(name: String): String =

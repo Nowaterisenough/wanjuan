@@ -466,9 +466,6 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
         binding.llDiscoverSourceSelect.setOnClickListener {
             showDiscoverSourceMenu()
         }
-        binding.btnDiscoverSourceSearch.setOnClickListener {
-            openDiscoverSearch()
-        }
         binding.btnDiscoverLayoutToggle.setOnClickListener {
             switchDiscoverBookLayout()
         }
@@ -483,20 +480,17 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
             openSelectedSourceLogin()
         }
         updateDiscoverTagFilterButtonState()
-        updateDiscoverSearchButtonState()
     }
 
     private fun updateDiscoverSourceNameWidth() {
         val rowWidth = binding.llDiscoverSourceRow.width
         if (rowWidth <= 0) return
         val actionsWidth = listOf(
-            binding.btnDiscoverSourceSearch,
             binding.btnDiscoverLayoutToggle,
             binding.btnDiscoverTagFilter,
             binding.btnDiscoverMore
         ).filter { it.isVisible }.sumOf { it.measuredWidth.takeIf { width -> width > 0 } ?: it.layoutParams.width }
         val visibleActionCount = listOf(
-            binding.btnDiscoverSourceSearch,
             binding.btnDiscoverLayoutToggle,
             binding.btnDiscoverTagFilter,
             binding.btnDiscoverMore
@@ -624,23 +618,15 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
         )
     }
 
-    private fun updateDiscoverSearchButtonState() {
-        val canSearch = !selectedDiscoverSource?.searchUrl.isNullOrBlank()
-        binding.btnDiscoverSourceSearch.isVisible = canSearch
-        binding.btnDiscoverSourceSearch.isEnabled = canSearch
-        binding.btnDiscoverSourceSearch.alpha = if (canSearch) 1f else 0.45f
-        binding.llDiscoverSourceRow.post(::updateDiscoverSourceNameWidth)
-    }
-
-    private fun openDiscoverSearch() {
-        val source = selectedDiscoverSource ?: return
+    fun openSearchFromMain(): Boolean {
+        if (!usingModernDiscovery) return false
+        val source = selectedDiscoverSource ?: return false
         if (source.searchUrl.isNullOrBlank()) {
             context?.toastOnUi(R.string.search_book_key)
-            return
+            return true
         }
-        startActivity<SearchActivity> {
-            putExtra("searchScope", "${source.bookSourceName}::${source.bookSourceUrl}")
-        }
+        SearchActivity.start(requireContext(), source)
+        return true
     }
 
     private fun observeDiscoverSources() {
@@ -672,7 +658,6 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
                         renderDiscoverMajorGroups()
                         binding.tvDiscoverSourceSelect.text = getString(R.string.explore_empty)
                         updateDiscoverLoginButtonState()
-                        updateDiscoverSearchButtonState()
                         updateDiscoverTagFilterButtonState()
                         clearDiscoverLoading()
                         return@collect
@@ -688,7 +673,6 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
                     } else {
                         updateDiscoverSourceTitle()
                         updateDiscoverLoginButtonState()
-                        updateDiscoverSearchButtonState()
                     }
                 }
         }
@@ -783,7 +767,6 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
                 }
                 selectedDiscoverSource = fullSource
                 updateDiscoverSourceTitle()
-                updateDiscoverSearchButtonState()
                 loadDiscoverKindsAndDefault()
             } finally {
                 if (isAdded && currentSourceVersion == discoverSourceVersion) {

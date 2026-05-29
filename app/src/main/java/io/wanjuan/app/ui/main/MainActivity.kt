@@ -332,11 +332,11 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
         setBottomNavigationSelection(getBottomNavigationItemId(initialPage), animate = false)
         applyBottomNavigationIcons()
         searchButton.setOnClickListener {
-            startActivity(Intent(this@MainActivity, SearchActivity::class.java))
+            openContextualSearch()
         }
         sideSearchButton.setOnClickListener {
             closeSideNavigation()
-            startActivity(Intent(this@MainActivity, SearchActivity::class.java))
+            openContextualSearch()
         }
         sideSearchButton.setOnLongClickListener {
             closeSideNavigation()
@@ -405,6 +405,16 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
             binding.bottomControls.postDelayed(delayMillis, action)
         } else {
             binding.bottomControls.post(action)
+        }
+    }
+
+    private fun openContextualSearch() {
+        val handledByCurrentPage = when (getFragmentId(pagePosition)) {
+            idExplore -> (fragmentMap[idExplore] as? ExploreFragment)?.openSearchFromMain() == true
+            else -> false
+        }
+        if (!handledByCurrentPage) {
+            startActivity(Intent(this, SearchActivity::class.java))
         }
     }
 
@@ -535,7 +545,7 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
         }
         sideSearchRow.setOnClickListener {
             closeSideNavigation()
-            startActivity(Intent(this@MainActivity, SearchActivity::class.java))
+            openContextualSearch()
         }
         sideNavAiRow.setOnClickListener {
             closeSideNavigation()

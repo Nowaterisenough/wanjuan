@@ -10,7 +10,6 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         app:attachToActivity="false"
-        app:contentLayout="@layout/view_search"
         app:layout_constraintTop_toTopOf="parent"
         app:title="@string/discovery" />
 
@@ -88,22 +87,6 @@
                         android:layout_width="0dp"
                         android:layout_height="1dp"
                         android:layout_weight="1" />
-
-                    <androidx.appcompat.widget.AppCompatImageButton
-                        android:id="@+id/btn_discover_source_search"
-                        android:layout_width="@dimen/discover_top_action_button_size"
-                        android:layout_height="@dimen/discover_top_action_button_size"
-                        android:background="@drawable/bg_discover_embedded_action"
-                        android:contentDescription="@string/search"
-                        android:padding="@dimen/discover_top_action_button_padding"
-                        android:scaleType="centerInside"
-                        android:src="@drawable/ic_lucide_search"
-                        android:tint="@color/primaryText"
-                        android:visibility="gone" />
-
-                    <Space
-                        android:layout_width="@dimen/main_top_action_button_gap"
-                        android:layout_height="1dp" />
 
                     <androidx.appcompat.widget.AppCompatImageButton
                         android:id="@+id/btn_discover_layout_toggle"
