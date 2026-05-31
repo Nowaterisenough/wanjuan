@@ -19,6 +19,9 @@ interface RuleSubDao {
     @Query("select * from ruleSubs where url = :url")
     fun findByUrl(url: String): RuleSub?
 
+    @Query("select * from ruleSubs where type = :type and url = :url limit 1")
+    fun findByTypeAndUrl(type: Int, url: String): RuleSub?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     fun insert(vararg ruleSub: RuleSub)
 
