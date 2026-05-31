@@ -12,7 +12,7 @@ class ParagraphRuleMigrationTest {
         val database = repoFile("app/src/main/java/io/wanjuan/app/data/AppDatabase.kt").readText()
         val migrations = repoFile("app/src/main/java/io/wanjuan/app/data/DatabaseMigrations.kt").readText()
 
-        assertTrue(database.contains("version = 93"))
+        assertTrue(database.contains("version = 94"))
         assertTrue(database.contains("ParagraphRule::class"))
         assertTrue(database.contains("BookParagraphRule::class"))
         assertTrue(database.contains("ParagraphRuleVar::class"))
@@ -21,8 +21,8 @@ class ParagraphRuleMigrationTest {
         assertTrue(migrations.contains("CREATE TABLE IF NOT EXISTS `paragraph_rules`"))
         assertTrue(migrations.contains("CREATE TABLE IF NOT EXISTS `book_paragraph_rules`"))
         assertTrue(migrations.contains("CREATE TABLE IF NOT EXISTS `paragraph_rule_vars`"))
-        assertTrue(repoFile("app/schemas/io.wanjuan.app.data.AppDatabase/93.json").isFile)
-        assertFalse(File(repoRoot(), "app/schemas/io.legado.app.data.AppDatabase/93.json").exists())
+        assertTrue(repoFile("app/schemas/io.wanjuan.app.data.AppDatabase/94.json").isFile)
+        assertFalse(File(repoRoot(), "app/schemas/io.legado.app.data.AppDatabase/94.json").exists())
     }
 
     @Test
