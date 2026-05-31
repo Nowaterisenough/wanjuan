@@ -1,12 +1,17 @@
 package io.wanjuan.app.sync
 
+import io.wanjuan.app.constant.AppLog
 import io.wanjuan.app.data.appDb
 import io.wanjuan.app.data.entities.Book
 import io.wanjuan.app.data.entities.BookProgress
+import io.wanjuan.app.help.config.AppConfig
 import io.wanjuan.app.sync.mapper.BookSyncMapper
 import io.wanjuan.app.sync.merge.SyncMerge
 import io.wanjuan.app.sync.model.SyncBookProgressPayload
 import io.wanjuan.app.sync.remote.WebDavSyncClient
+import io.wanjuan.app.utils.NetworkUtils
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 
 class ProgressSyncCoordinator(
     private val client: WebDavSyncClient,
@@ -29,9 +34,19 @@ class ProgressSyncCoordinator(
         )
     }
 
-    suspend fun pushProgress(book: Book) {
-        val payload = BookSyncMapper.toProgressPayload(book, deviceIdProvider())
-        client.upload("bookProgress/${payload.bookSyncId}.json", payload)
+    suspend fun pushProgress(book: Book, toast: Boolean = false): Boolean {
+        if (!AppConfig.syncBookProgress) return false
+        if (!NetworkUtils.isAvailable()) return false
+        return try {
+            val payload = BookSyncMapper.toProgressPayload(book, deviceIdProvider())
+            client.upload("bookProgress/${payload.bookSyncId}.json", payload)
+            book.syncTime = System.currentTimeMillis()
+            true
+        } catch (e: Exception) {
+            currentCoroutineContext().ensureActive()
+            AppLog.put("上传进度失败\n${e.localizedMessage}", e, toast)
+            false
+        }
     }
 
     fun applyProgress(book: Book, progress: BookProgress) {

@@ -11,6 +11,7 @@ import io.wanjuan.app.sync.mapper.BookSourceSyncMapper
 import io.wanjuan.app.sync.merge.SyncMerge
 import io.wanjuan.app.sync.model.SyncBookSource
 import io.wanjuan.app.sync.model.SyncBookSourcePayload
+import io.wanjuan.app.sync.model.SyncDeleteKeyPayload
 import io.wanjuan.app.sync.model.SyncObjectType
 import io.wanjuan.app.sync.model.SyncOrderPayload
 import io.wanjuan.app.sync.model.SyncTombstonePayload
@@ -22,6 +23,27 @@ class BookSourceSyncCoordinator(
     private val clock: SyncClock,
     private val deviceIdProvider: () -> String
 ) {
+
+    fun enqueueSource(source: BookSource) {
+        val payload = BookSourceSyncMapper.toPayload(source, deviceIdProvider(), clock.now())
+        repository.markDirty(SyncObjectType.BookSource, payload.sourceHash, payload, "upsert")
+    }
+
+    fun enqueueDelete(sourceUrl: String) {
+        val id = SyncIds.hashKey("book-source", sourceUrl)
+        repository.markDirty(SyncObjectType.BookSource, id, SyncDeleteKeyPayload(sourceUrl), "delete")
+    }
+
+    fun enqueueOrder(items: List<BookSourcePart>) {
+        val payload = SyncOrderPayload(
+            updatedAt = clock.now(),
+            updatedByDeviceId = deviceIdProvider(),
+            items = items.sortedBy { it.customOrder }.map {
+                SyncIds.hashKey("book-source", it.bookSourceUrl)
+            }
+        )
+        repository.markDirty(SyncObjectType.BookSourceOrder, "bookSources", payload, "order")
+    }
 
     suspend fun pushSource(source: BookSource) {
         val payload = BookSourceSyncMapper.toPayload(source, deviceIdProvider(), clock.now())

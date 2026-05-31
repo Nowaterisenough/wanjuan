@@ -19,6 +19,24 @@ class RuleSubSyncCoordinator(
     private val deviceIdProvider: () -> String
 ) {
 
+    fun enqueueRuleSub(ruleSub: RuleSub) {
+        val payload = RuleSubSyncMapper.toPayload(ruleSub, deviceIdProvider(), clock.now())
+        repository.markDirty(SyncObjectType.RuleSub, payload.ruleSubHash, payload, "upsert")
+    }
+
+    fun enqueueDelete(ruleSub: RuleSub) {
+        repository.markDirty(SyncObjectType.RuleSub, SyncIds.ruleSubId(ruleSub), null, "delete")
+    }
+
+    fun enqueueOrder(items: List<RuleSub>) {
+        val payload = SyncOrderPayload(
+            updatedAt = clock.now(),
+            updatedByDeviceId = deviceIdProvider(),
+            items = items.sortedBy { it.customOrder }.map { SyncIds.ruleSubId(it) }
+        )
+        repository.markDirty(SyncObjectType.RuleSubOrder, "ruleSubs", payload, "order")
+    }
+
     suspend fun pushSub(ruleSub: RuleSub) {
         val payload = RuleSubSyncMapper.toPayload(ruleSub, deviceIdProvider(), clock.now())
         recordLocalSubClock(payload)

@@ -71,6 +71,7 @@ import io.wanjuan.app.model.analyzeRule.AnalyzeRule.Companion.setCoroutineContex
 import io.wanjuan.app.utils.GSON
 import io.wanjuan.app.utils.fromJsonObject
 import io.wanjuan.app.utils.isJsonObject
+import io.wanjuan.app.sync.SyncManager
 import io.wanjuan.app.model.localBook.EpubFile
 import io.wanjuan.app.model.localBook.MobiFile
 import io.wanjuan.app.receiver.NetworkChangedListener
@@ -2154,7 +2155,7 @@ class ReadBookActivity : BaseReadBookActivity(),
         backupJob = lifecycleScope.launch(IO) {
             delay(300000)
             ReadBook.book?.let {
-                AppWebDav.uploadBookProgress(it)
+                SyncManager.progress.pushProgress(it)
                 ensureActive()
                 it.update()
                 Backup.autoBack(this@ReadBookActivity)

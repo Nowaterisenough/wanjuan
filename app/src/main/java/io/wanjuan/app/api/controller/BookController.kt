@@ -9,7 +9,6 @@ import io.wanjuan.app.data.appDb
 import io.wanjuan.app.data.entities.Book
 import io.wanjuan.app.data.entities.BookProgress
 import io.wanjuan.app.data.entities.BookSource
-import io.wanjuan.app.help.AppWebDav
 import io.wanjuan.app.help.CacheManager
 import io.wanjuan.app.help.book.BookHelp
 import io.wanjuan.app.help.book.ContentProcessor
@@ -21,6 +20,7 @@ import io.wanjuan.app.model.ImageProvider
 import io.wanjuan.app.model.ReadBook
 import io.wanjuan.app.model.localBook.LocalBook
 import io.wanjuan.app.model.webBook.WebBook
+import io.wanjuan.app.sync.SyncManager
 import io.wanjuan.app.utils.GSON
 import io.wanjuan.app.utils.cnCompare
 import io.wanjuan.app.utils.fromJsonObject
@@ -228,7 +228,7 @@ object BookController {
     suspend fun saveBook(postData: String?): ReturnData {
         val returnData = ReturnData()
         GSON.fromJsonObject<Book>(postData).getOrNull()?.let { book ->
-            AppWebDav.uploadBookProgress(book)
+            SyncManager.progress.pushProgress(book)
             book.save()
             return returnData.setData("")
         }
@@ -260,9 +260,8 @@ object BookController {
                     book.durChapterPos = bookProgress.durChapterPos
                     book.durChapterTitle = bookProgress.durChapterTitle
                     book.durChapterTime = bookProgress.durChapterTime
-                    AppWebDav.uploadBookProgress(bookProgress) {
-                        book.syncTime = System.currentTimeMillis()
-                    }
+                    SyncManager.progress.pushProgress(book)
+                    book.syncTime = System.currentTimeMillis()
                     appDb.bookDao.update(book)
                     ReadBook.book?.let {
                         if (it.name == bookProgress.name &&

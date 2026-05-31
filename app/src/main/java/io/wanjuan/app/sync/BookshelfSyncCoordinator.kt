@@ -23,6 +23,26 @@ class BookshelfSyncCoordinator(
         const val BookCatalogClockType = "bookCatalog"
     }
 
+    fun enqueueBookDelete(book: Book) {
+        val id = SyncIds.bookId(book)
+        repository.markDirty(SyncObjectType.Book, id, null, "delete")
+    }
+
+    fun enqueueBook(book: Book) {
+        val payload = BookSyncMapper.toBookPayload(book, deviceIdProvider(), clock.now(), clock.now())
+        recordLocalBookClocks(payload)
+        repository.markDirty(SyncObjectType.Book, payload.bookSyncId, payload, "upsert")
+    }
+
+    fun enqueueBookshelfOrder(books: List<Book>) {
+        val payload = SyncOrderPayload(
+            updatedAt = clock.now(),
+            updatedByDeviceId = deviceIdProvider(),
+            items = books.sortedBy { it.order }.map { SyncIds.bookId(it) }
+        )
+        repository.markDirty(SyncObjectType.BookshelfOrder, "bookshelf", payload, "order")
+    }
+
     suspend fun pushBook(
         book: Book,
         shelfUpdatedAt: Long = clock.now(),
@@ -34,6 +54,10 @@ class BookshelfSyncCoordinator(
             shelfUpdatedAt = shelfUpdatedAt,
             catalogUpdatedAt = catalogUpdatedAt
         )
+        pushBookPayload(payload)
+    }
+
+    suspend fun pushBookPayload(payload: SyncBookPayload) {
         recordLocalBookClocks(payload)
         client.upload("books/${payload.bookSyncId}.json", payload)
     }

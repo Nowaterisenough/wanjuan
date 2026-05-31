@@ -10,7 +10,6 @@ import io.wanjuan.app.data.entities.ReadRecentBook
 import io.wanjuan.app.data.entities.BookProgress
 import io.wanjuan.app.data.entities.BookSource
 import io.wanjuan.app.data.entities.ReadRecord
-import io.wanjuan.app.help.AppWebDav
 import io.wanjuan.app.help.ReadRecordDailyHelper
 import io.wanjuan.app.help.book.BookHelp
 import io.wanjuan.app.help.book.ContentProcessor
@@ -31,6 +30,7 @@ import io.wanjuan.app.model.localBook.TextFile
 import io.wanjuan.app.model.webBook.WebBook
 import io.wanjuan.app.service.BaseReadAloudService
 import io.wanjuan.app.service.CacheBookService
+import io.wanjuan.app.sync.SyncManager
 import io.wanjuan.app.ui.about.ReadRecordWidgetStore
 import io.wanjuan.app.ui.book.read.page.entities.TextChapter
 import io.wanjuan.app.ui.book.read.page.provider.ChapterProvider
@@ -273,13 +273,14 @@ object ReadBook : CoroutineScope by MainScope() {
     }
 
     fun uploadProgress(toast: Boolean = false, successAction: (() -> Unit)? = null) {
-        book?.let {
+        book?.let { book ->
             launch(IO) {
-                AppWebDav.uploadBookProgress(it, toast) {
-                    successAction?.invoke()
+                if (!SyncManager.progress.pushProgress(book, toast)) {
+                    return@launch
                 }
                 ensureActive()
-                it.update()
+                successAction?.invoke()
+                book.update()
             }
         }
     }
@@ -296,26 +297,20 @@ object ReadBook : CoroutineScope by MainScope() {
         if (!AppConfig.syncBookProgress) return
         val book = book ?: return
         Coroutine.async {
-            AppWebDav.getBookProgress(book)
+            SyncManager.progress.pullProgress(book)
         }.onError {
             AppLog.put("拉取阅读进度失败", it)
         }.onSuccess { progress ->
-            if (progress == null || progress.durChapterIndex < book.durChapterIndex ||
-                (progress.durChapterIndex == book.durChapterIndex
-                        && progress.durChapterPos < book.durChapterPos)
-            ) {
-                // 服务器没有进度或者进度比服务器快，上传现有进度
+            if (progress == null) {
                 Coroutine.async {
-                    AppWebDav.uploadBookProgress(BookProgress(book), uploadSuccessAction)
+                    if (!SyncManager.progress.pushProgress(book)) {
+                        return@async
+                    }
+                    uploadSuccessAction?.invoke()
                     book.update()
                 }
-            } else if (progress.durChapterIndex > book.durChapterIndex ||
-                progress.durChapterPos > book.durChapterPos
-            ) {
-                // 进度比服务器慢，执行传入动作
-                newProgressAction?.invoke(progress)
             } else {
-                syncSuccessAction?.invoke()
+                newProgressAction?.invoke(progress)
             }
         }
     }
