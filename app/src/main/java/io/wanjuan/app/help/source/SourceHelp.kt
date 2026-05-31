@@ -19,6 +19,8 @@ import io.wanjuan.app.model.ReadBook
 import io.wanjuan.app.model.ReadManga
 import io.wanjuan.app.model.VideoPlay
 import io.wanjuan.app.service.VideoPlayService
+import io.wanjuan.app.sync.SyncManager
+import io.wanjuan.app.sync.SyncScope
 import io.wanjuan.app.ui.video.VideoPlayerActivity
 import io.wanjuan.app.utils.EncoderUtils
 import io.wanjuan.app.utils.NetworkUtils
@@ -90,6 +92,9 @@ object SourceHelp {
     }
 
     private fun deleteBookSourceInternal(key: String) {
+        if (!SyncScope.isApplyingRemote) {
+            SyncManager.bookSources.enqueueDelete(key)
+        }
         appDb.bookSourceDao.delete(key)
         appDb.cacheDao.deleteSourceVariables(key)
         SourceConfig.removeSource(key)

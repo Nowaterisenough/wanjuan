@@ -32,6 +32,7 @@ import io.wanjuan.app.lib.permission.Permissions
 import io.wanjuan.app.lib.permission.PermissionsCompat
 import io.wanjuan.app.lib.prefs.fragment.PreferenceFragment
 import io.wanjuan.app.lib.theme.primaryColor
+import io.wanjuan.app.sync.SyncManager
 import io.wanjuan.app.ui.about.AppLogDialog
 import io.wanjuan.app.ui.file.HandleFileContract
 import io.wanjuan.app.ui.widget.dialog.WaitDialog
@@ -250,6 +251,10 @@ class BackupConfigFragment : PreferenceFragment(),
             PreferKey.restoreIgnore -> backupIgnore()
             "web_dav_backup" -> backup()
             "web_dav_restore" -> restore()
+            "web_dav_sync_now" -> {
+                SyncManager.syncNow()
+                appCtx.toastOnUi("已开始同步")
+            }
             "import_old" -> restoreOld.launch()
         }
         return super.onPreferenceTreeClick(preference)

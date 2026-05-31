@@ -69,6 +69,14 @@
             app:allowDividerBelow="false"
             app:iconSpaceReserved="false" />
 
+        <io.wanjuan.app.lib.prefs.Preference
+            android:key="web_dav_sync_now"
+            android:summary="立即上传本机待同步变更并拉取云端变更"
+            android:title="立即同步"
+            app:allowDividerAbove="false"
+            app:allowDividerBelow="false"
+            app:iconSpaceReserved="false" />
+
     </io.wanjuan.app.lib.prefs.PreferenceCategory>
 
     <io.wanjuan.app.lib.prefs.PreferenceCategory
@@ -112,15 +120,6 @@
             android:key="onlyLatestBackup"
             android:summary="@string/only_latest_backup_s"
             android:title="@string/only_latest_backup_t"
-            app:iconSpaceReserved="false" />
-
-        <io.wanjuan.app.lib.prefs.SwitchPreference
-            android:defaultValue="true"
-            android:key="autoCheckNewBackup"
-            android:summary="@string/auto_check_new_backup_s"
-            android:title="@string/auto_check_new_backup_t"
-            app:allowDividerAbove="false"
-            app:allowDividerBelow="false"
             app:iconSpaceReserved="false" />
 
     </io.wanjuan.app.lib.prefs.PreferenceCategory>

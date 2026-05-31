@@ -10,6 +10,7 @@ import io.wanjuan.app.data.entities.BookSourcePart
 import io.wanjuan.app.data.entities.toBookSource
 import io.wanjuan.app.help.source.BookSourcePrioritySorter
 import io.wanjuan.app.help.source.SourceHelp
+import io.wanjuan.app.sync.SyncManager
 import io.wanjuan.app.utils.FileUtils
 import io.wanjuan.app.utils.GSON
 import io.wanjuan.app.utils.cnCompare
@@ -38,6 +39,7 @@ class BookSourceViewModel(application: Application) : BaseViewModel(application)
                 it.copy(customOrder = minOrder - index)
             }
             appDb.bookSourceDao.upOrder(array)
+            SyncManager.bookSources.enqueueOrder(array)
         }
     }
 
@@ -49,6 +51,7 @@ class BookSourceViewModel(application: Application) : BaseViewModel(application)
                 it.copy(customOrder = maxOrder + index)
             }
             appDb.bookSourceDao.upOrder(array)
+            SyncManager.bookSources.enqueueOrder(array)
         }
     }
 
@@ -66,6 +69,7 @@ class BookSourceViewModel(application: Application) : BaseViewModel(application)
         if (items.isEmpty()) return
         execute {
             appDb.bookSourceDao.upOrder(items)
+            SyncManager.bookSources.enqueueOrder(items)
         }
     }
 

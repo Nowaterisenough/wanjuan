@@ -4,9 +4,6 @@ import android.net.Uri
 import io.wanjuan.app.R
 import io.wanjuan.app.constant.AppLog
 import io.wanjuan.app.constant.PreferKey
-import io.wanjuan.app.data.appDb
-import io.wanjuan.app.data.entities.Book
-import io.wanjuan.app.data.entities.BookProgress
 import io.wanjuan.app.exception.NoStackTraceException
 import io.wanjuan.app.help.config.AppConfig
 import io.wanjuan.app.help.storage.Backup
@@ -18,13 +15,10 @@ import io.wanjuan.app.lib.webdav.WebDavFile
 import io.wanjuan.app.model.remote.RemoteBookWebDav
 import io.wanjuan.app.utils.AlphanumComparator
 import io.wanjuan.app.utils.FileUtils
-import io.wanjuan.app.utils.GSON
 import io.wanjuan.app.utils.NetworkUtils
 import io.wanjuan.app.utils.UrlUtil
 import io.wanjuan.app.utils.compress.ZipUtils
-import io.wanjuan.app.utils.fromJsonObject
 import io.wanjuan.app.utils.getPrefString
-import io.wanjuan.app.utils.isJson
 import io.wanjuan.app.utils.normalizeFileName
 import io.wanjuan.app.utils.removePref
 import io.wanjuan.app.utils.toastOnUi
@@ -39,7 +33,6 @@ import java.io.File
  */
 object AppWebDav {
     private const val defaultWebDavUrl = "https://dav.jianguoyun.com/dav/"
-    private val bookProgressUrl get() = "${rootWebDavUrl}bookProgress/"
     private val exportsWebDavUrl get() = "${rootWebDavUrl}books/"
     private val bgWebDavUrl get() = "${rootWebDavUrl}background/"
     private val themesWebDavUrl get() = "${rootWebDavUrl}themes/"
@@ -53,6 +46,10 @@ object AppWebDav {
     val isOk get() = authorization != null
 
     val isJianGuoYun get() = rootWebDavUrl.startsWith(defaultWebDavUrl, true)
+
+    fun syncRootWebDavUrl(): String {
+        return rootWebDavUrl
+    }
 
     init {
         runBlocking {
@@ -83,7 +80,6 @@ object AppWebDav {
                 val mAuthorization = Authorization(account, password)
                 checkAuthorization(mAuthorization)
                 WebDav(rootWebDavUrl, mAuthorization).makeAsDir()
-                WebDav(bookProgressUrl, mAuthorization).makeAsDir()
                 WebDav(exportsWebDavUrl, mAuthorization).makeAsDir()
                 WebDav(bgWebDavUrl, mAuthorization).makeAsDir()
                 WebDav(themesWebDavUrl, mAuthorization).makeAsDir()
@@ -327,102 +323,6 @@ object AppWebDav {
         } catch (e: Exception) {
             currentCoroutineContext().ensureActive()
             AppLog.put("WebDav导出失败\n${e.localizedMessage}", e, true)
-        }
-    }
-
-    suspend fun uploadBookProgress(
-        book: Book,
-        toast: Boolean = false,
-        onSuccess: (() -> Unit)? = null
-    ) {
-        val authorization = authorization ?: return
-        if (!AppConfig.syncBookProgress) return
-        if (!NetworkUtils.isAvailable()) return
-        try {
-            val bookProgress = BookProgress(book)
-            val json = GSON.toJson(bookProgress)
-            val url = getProgressUrl(book.name, book.author)
-            WebDav(url, authorization).upload(json.toByteArray(), "application/json")
-            book.syncTime = System.currentTimeMillis()
-            onSuccess?.invoke()
-        } catch (e: Exception) {
-            currentCoroutineContext().ensureActive()
-            AppLog.put("上传进度失败\n${e.localizedMessage}", e, toast)
-        }
-    }
-
-    suspend fun uploadBookProgress(bookProgress: BookProgress, onSuccess: (() -> Unit)? = null) {
-        try {
-            val authorization = authorization ?: return
-            if (!AppConfig.syncBookProgress) return
-            if (!NetworkUtils.isAvailable()) return
-            val json = GSON.toJson(bookProgress)
-            val url = getProgressUrl(bookProgress.name, bookProgress.author)
-            WebDav(url, authorization).upload(json.toByteArray(), "application/json")
-            onSuccess?.invoke()
-        } catch (e: Exception) {
-            currentCoroutineContext().ensureActive()
-            AppLog.put("上传进度失败\n${e.localizedMessage}", e)
-        }
-    }
-
-    private fun getProgressUrl(name: String, author: String): String {
-        return bookProgressUrl + getProgressFileName(name, author)
-    }
-
-    private fun getProgressFileName(name: String, author: String): String {
-        return UrlUtil.replaceReservedChar("${name}_${author}".normalizeFileName()) + ".json"
-    }
-
-    /**
-     * 获取书籍进度
-     */
-    suspend fun getBookProgress(book: Book): BookProgress? {
-        val url = getProgressUrl(book.name, book.author)
-        kotlin.runCatching {
-            val authorization = authorization ?: return null
-            WebDav(url, authorization).download().let { byteArray ->
-                val json = String(byteArray)
-                if (json.isJson()) {
-                    return GSON.fromJsonObject<BookProgress>(json).getOrNull()
-                }
-            }
-        }.onFailure {
-            currentCoroutineContext().ensureActive()
-            AppLog.put("获取书籍进度失败\n${it.localizedMessage}", it)
-        }
-        return null
-    }
-
-    suspend fun downloadAllBookProgress() {
-        val authorization = authorization ?: return
-        if (!NetworkUtils.isAvailable()) return
-        val bookProgressFiles = WebDav(bookProgressUrl, authorization).listFiles()
-        val map = hashMapOf<String, WebDavFile>()
-        bookProgressFiles.forEach {
-            map[it.displayName] = it
-        }
-        appDb.bookDao.all.forEach { book ->
-            val progressFileName = getProgressFileName(book.name, book.author)
-            val webDavFile = map[progressFileName]
-            webDavFile ?: return
-            if (webDavFile.lastModify <= book.syncTime) {
-                //本地同步时间大于上传时间不用同步
-                return
-            }
-            getBookProgress(book)?.let { bookProgress ->
-                if (bookProgress.durChapterIndex > book.durChapterIndex
-                    || (bookProgress.durChapterIndex == book.durChapterIndex
-                            && bookProgress.durChapterPos > book.durChapterPos)
-                ) {
-                    book.durChapterIndex = bookProgress.durChapterIndex
-                    book.durChapterPos = bookProgress.durChapterPos
-                    book.durChapterTitle = bookProgress.durChapterTitle
-                    book.durChapterTime = bookProgress.durChapterTime
-                    book.syncTime = System.currentTimeMillis()
-                    appDb.bookDao.update(book)
-                }
-            }
         }
     }
 
