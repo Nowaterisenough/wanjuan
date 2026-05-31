@@ -2,7 +2,9 @@ package io.wanjuan.app.sync.remote
 
 import io.wanjuan.app.help.AppWebDav
 import io.wanjuan.app.lib.webdav.Authorization
+import io.wanjuan.app.lib.webdav.ObjectNotFoundException
 import io.wanjuan.app.lib.webdav.WebDav
+import io.wanjuan.app.lib.webdav.WebDavException
 import io.wanjuan.app.lib.webdav.WebDavFile
 import io.wanjuan.app.utils.GSON
 import io.wanjuan.app.utils.fromJsonObject
@@ -19,7 +21,9 @@ class WebDavSyncClient(
         private val SCHEME = Regex("^[A-Za-z][A-Za-z0-9+.-]*:")
     }
 
-    private fun rootUrl(): String = rootUrlProvider().trimEnd('/') + "/$SYNC_DIR"
+    private fun baseUrl(): String = rootUrlProvider().trimEnd('/') + "/"
+
+    private fun rootUrl(): String = baseUrl() + SYNC_DIR
 
     private fun resolve(relativePath: String, asDirectory: Boolean = false): String {
         val trimmed = relativePath.trim()
@@ -47,8 +51,10 @@ class WebDavSyncClient(
 
     suspend fun ensureDirs() {
         val authorization = authorizationProvider() ?: return
+        val syncRoot = baseUrl() + "sync/"
         val root = rootUrl()
         listOf(
+            syncRoot,
             root,
             "${root}devices/",
             "${root}books/",
@@ -75,8 +81,20 @@ class WebDavSyncClient(
     @PublishedApi
     internal suspend fun downloadJson(relativePath: String): String? {
         val authorization = authorizationProvider() ?: return null
-        val bytes = WebDav(resolve(relativePath), authorization).download()
+        val bytes = try {
+            WebDav(resolve(relativePath), authorization).download()
+        } catch (e: ObjectNotFoundException) {
+            return null
+        } catch (e: WebDavException) {
+            if (e.isNotFound()) return null
+            throw e
+        }
         return String(bytes, StandardCharsets.UTF_8)
+    }
+
+    private fun WebDavException.isNotFound(): Boolean {
+        return message?.contains("\n404:", ignoreCase = true) == true ||
+            message?.contains("code:404", ignoreCase = true) == true
     }
 
     suspend fun upload(relativePath: String, payload: Any) {
