@@ -153,7 +153,7 @@ class ReadBookViewModel(application: Application) : BaseViewModel(application) {
             ReadBook.chapterChanged = false
         } else if (!(isSameBook && BaseReadAloudService.isRun) && ReadBook.inBookshelf) {
             if (AppConfig.syncBookProgressPlus) {
-                ReadBook.syncProgress({ progress -> ReadBook.callBack?.sureNewProgress(progress) })
+                ReadBook.syncProgress()
             } else {
                 syncBookProgress(book)
             }
@@ -267,7 +267,7 @@ class ReadBookViewModel(application: Application) : BaseViewModel(application) {
             AppLog.put("拉取阅读进度失败《${book.name}》\n${it.localizedMessage}", it)
         }.onSuccess { progress ->
             progress ?: return@onSuccess
-            alertSync?.invoke(progress)
+            alertSync?.invoke(progress) ?: ReadBook.setProgress(progress)
         }
     }
 

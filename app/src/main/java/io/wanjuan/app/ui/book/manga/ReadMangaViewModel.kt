@@ -109,8 +109,7 @@ class ReadMangaViewModel(application: Application) : BaseViewModel(application) 
             ReadManga.chapterChanged = false
         } else if (ReadManga.inBookshelf) {
             if (AppConfig.syncBookProgressPlus) {
-                ReadManga.syncProgress(
-                    { progress -> ReadManga.mCallback?.sureNewProgress(progress) })
+                ReadManga.syncProgress()
             } else {
                 syncBookProgress(book)
             }
@@ -225,7 +224,7 @@ class ReadMangaViewModel(application: Application) : BaseViewModel(application) 
             AppLog.put("拉取阅读进度失败《${book.name}》\n${it.localizedMessage}", it)
         }.onSuccess { progress ->
             progress ?: return@onSuccess
-            alertSync?.invoke(progress)
+            alertSync?.invoke(progress) ?: ReadManga.setProgress(progress)
         }
     }
 

@@ -1000,7 +1000,7 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
         networkChangedListener.onNetworkChanged = {
             // 当网络是可用状态且无需初始化时同步进度（初始化中已有同步进度逻辑）
             if (AppConfig.syncBookProgressPlus && NetworkUtils.isAvailable() && !justInitData && ReadManga.inBookshelf) {
-                ReadManga.syncProgress({ progress -> sureNewProgress(progress) })
+                ReadManga.syncProgress()
             }
         }
         if (enableAutoScrollPage) {

@@ -314,7 +314,12 @@ object ReadBook : CoroutineScope by MainScope() {
                     book.update()
                 }
             } else {
-                newProgressAction?.invoke(progress)
+                if (newProgressAction != null) {
+                    newProgressAction(progress)
+                } else {
+                    setProgress(progress)
+                    syncSuccessAction?.invoke()
+                }
             }
         }
     }

@@ -393,7 +393,7 @@ class ReadBookActivity : BaseReadBookActivity(),
         networkChangedListener.onNetworkChanged = {
             // 褰撶綉缁滄槸鍙敤鐘舵€佷笖鏃犻渶鍒濆鍖栨椂鍚屾杩涘害锛堝垵濮嬪寲涓凡鏈夊悓姝ヨ繘搴﹂€昏緫锛?
             if (AppConfig.syncBookProgressPlus && NetworkUtils.isAvailable() && !justInitData && ReadBook.inBookshelf) {
-                ReadBook.syncProgress({ progress -> sureNewProgress(progress) })
+                ReadBook.syncProgress()
             }
         }
     }
