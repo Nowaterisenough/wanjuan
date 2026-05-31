@@ -27,6 +27,7 @@ import io.wanjuan.app.help.book.BookTagHelper
 import io.wanjuan.app.help.config.AppConfig
 import io.wanjuan.app.lib.theme.accentColor
 import io.wanjuan.app.lib.theme.primaryColor
+import io.wanjuan.app.sync.SyncManager
 import io.wanjuan.app.ui.book.info.BookInfoActivity
 import io.wanjuan.app.ui.main.MainViewModel
 import io.wanjuan.app.utils.cnCompare
@@ -107,6 +108,7 @@ class BooksFragment() : BaseFragment(R.layout.fragment_books),
         binding.refreshLayout.setProgressViewOffset(true, (-28).dpToPx(), 56.dpToPx())
         binding.refreshLayout.setOnRefreshListener {
             binding.refreshLayout.isRefreshing = false
+            SyncManager.syncNow()
             activityViewModel.upToc(booksAdapter.getItems(), onlyUpdateRead)
         }
         updateLayoutManager()

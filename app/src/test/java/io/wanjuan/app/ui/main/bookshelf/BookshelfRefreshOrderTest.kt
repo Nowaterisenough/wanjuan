@@ -8,12 +8,30 @@ import java.io.File
 class BookshelfRefreshOrderTest {
 
     @Test
+    fun bookshelfPullRefreshTriggersSync() {
+        val style1 = repoFile(
+            "app/src/main/java/io/wanjuan/app/ui/main/bookshelf/style1/books/BooksFragment.kt"
+        ).readText()
+        val style2 = repoFile(
+            "app/src/main/java/io/wanjuan/app/ui/main/bookshelf/style2/BookshelfFragment2.kt"
+        ).readText()
+
+        assertTrue(
+            "Style 1 pull refresh should trigger remote sync.",
+            style1.pullRefreshBlock().contains("SyncManager.syncNow()")
+        )
+        assertTrue(
+            "Style 2 pull refresh should trigger remote sync.",
+            style2.pullRefreshBlock().contains("SyncManager.syncNow()")
+        )
+    }
+
+    @Test
     fun style2PullRefreshUsesCurrentAdapterBookOrder() {
         val fragment = repoFile(
             "app/src/main/java/io/wanjuan/app/ui/main/bookshelf/style2/BookshelfFragment2.kt"
         ).readText()
-        val refreshBlock = fragment.substringAfter("binding.refreshLayout.setOnRefreshListener")
-            .substringBefore("updateLayoutManager()")
+        val refreshBlock = fragment.pullRefreshBlock()
 
         assertTrue(
             "Style 2 pull refresh should collect books from the current adapter list so the " +
@@ -52,5 +70,10 @@ class BookshelfRefreshOrderTest {
             .map { File(it, relativePath) }
             .firstOrNull { it.exists() }
             ?: File(relativePath)
+    }
+
+    private fun String.pullRefreshBlock(): String {
+        return substringAfter("binding.refreshLayout.setOnRefreshListener")
+            .substringBefore("updateLayoutManager()")
     }
 }

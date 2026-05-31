@@ -24,6 +24,7 @@ import io.wanjuan.app.help.config.AppConfig
 import io.wanjuan.app.lib.theme.accentColor
 import io.wanjuan.app.lib.theme.primaryColor
 import io.wanjuan.app.lib.theme.primaryTextColor
+import io.wanjuan.app.sync.SyncManager
 import io.wanjuan.app.ui.book.group.GroupEditDialog
 import io.wanjuan.app.ui.book.info.BookInfoActivity
 import io.wanjuan.app.ui.book.search.SearchActivity
@@ -114,6 +115,7 @@ class BookshelfFragment2() : BaseBookshelfFragment(R.layout.fragment_bookshelf2)
         binding.refreshLayout.setProgressViewOffset(true, (-28).dpToPx(), 56.dpToPx())
         binding.refreshLayout.setOnRefreshListener {
             binding.refreshLayout.isRefreshing = false
+            SyncManager.syncNow()
             activityViewModel.upToc(currentUpdateBooks(), onlyUpdateRead)
         }
         updateLayoutManager()
