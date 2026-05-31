@@ -21,7 +21,7 @@ class ProgressSyncCoordinator(
     suspend fun pullProgress(book: Book): BookProgress? {
         val id = SyncIds.bookId(book)
         val payload = client.download<SyncBookProgressPayload>("bookProgress/$id.json") ?: return null
-        if (!SyncMerge.remoteProgressWins(book.durChapterTime, payload.progressUpdatedAt)) {
+        if (!SyncMerge.remoteProgressWins(book.localProgressUpdatedAt(), payload.progressUpdatedAt)) {
             return null
         }
         return BookProgress(
@@ -34,13 +34,22 @@ class ProgressSyncCoordinator(
         )
     }
 
-    suspend fun pushProgress(book: Book, toast: Boolean = false): Boolean {
+    suspend fun pushProgress(book: Book, toast: Boolean = false, force: Boolean = false): Boolean {
         if (!AppConfig.syncBookProgress) return false
         if (!NetworkUtils.isAvailable()) return false
         return try {
-            val payload = BookSyncMapper.toProgressPayload(book, deviceIdProvider())
+            val id = SyncIds.bookId(book)
+            val localUpdatedAt = book.localProgressUpdatedAt()
+            if (!force) {
+                val remote = client.download<SyncBookProgressPayload>("bookProgress/$id.json")
+                if (remote != null && SyncMerge.remoteProgressWins(localUpdatedAt, remote.progressUpdatedAt)) {
+                    return false
+                }
+            }
+            val payloadUpdatedAt = localUpdatedAt.takeIf { it > 0L } ?: book.durChapterTime
+            val payload = BookSyncMapper.toProgressPayload(book, deviceIdProvider(), payloadUpdatedAt)
             client.upload("bookProgress/${payload.bookSyncId}.json", payload)
-            book.syncTime = System.currentTimeMillis()
+            book.syncTime = payload.progressUpdatedAt
             true
         } catch (e: Exception) {
             currentCoroutineContext().ensureActive()
@@ -55,7 +64,12 @@ class ProgressSyncCoordinator(
             book.durChapterPos = progress.durChapterPos
             book.durChapterTitle = progress.durChapterTitle
             book.durChapterTime = progress.durChapterTime
+            book.syncTime = progress.durChapterTime
             appDb.bookDao.update(book)
         }
+    }
+
+    private fun Book.localProgressUpdatedAt(): Long {
+        return syncTime
     }
 }

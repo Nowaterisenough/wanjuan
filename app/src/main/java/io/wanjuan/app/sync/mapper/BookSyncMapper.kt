@@ -23,7 +23,11 @@ object BookSyncMapper {
         )
     }
 
-    fun toProgressPayload(book: Book, deviceId: String): SyncBookProgressPayload {
+    fun toProgressPayload(
+        book: Book,
+        deviceId: String,
+        progressUpdatedAt: Long = book.syncTime.takeIf { it > 0L } ?: book.durChapterTime
+    ): SyncBookProgressPayload {
         return SyncBookProgressPayload(
             bookSyncId = SyncIds.bookId(book),
             name = book.name,
@@ -31,7 +35,7 @@ object BookSyncMapper {
             durChapterIndex = book.durChapterIndex,
             durChapterPos = book.durChapterPos,
             durChapterTitle = book.durChapterTitle,
-            progressUpdatedAt = book.durChapterTime,
+            progressUpdatedAt = progressUpdatedAt,
             updatedByDeviceId = deviceId
         )
     }

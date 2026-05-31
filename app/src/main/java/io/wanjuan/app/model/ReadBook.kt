@@ -231,7 +231,7 @@ object ReadBook : CoroutineScope by MainScope() {
         ) {
             durChapterIndex = progress.durChapterIndex
             durChapterPos = progress.durChapterPos
-            saveRead()
+            saveRead(progressUpdatedAt = progress.durChapterTime)
             clearTextChapter()
             callBack?.upContent()
             loadContent(resetPageOffset = true)
@@ -272,10 +272,14 @@ object ReadBook : CoroutineScope by MainScope() {
         nextTextChapter?.clearSearchResult()
     }
 
-    fun uploadProgress(toast: Boolean = false, successAction: (() -> Unit)? = null) {
+    fun uploadProgress(
+        toast: Boolean = false,
+        successAction: (() -> Unit)? = null,
+        force: Boolean = false
+    ) {
         book?.let { book ->
             launch(IO) {
-                if (!SyncManager.progress.pushProgress(book, toast)) {
+                if (!SyncManager.progress.pushProgress(book, toast, force)) {
                     return@launch
                 }
                 ensureActive()
@@ -1062,16 +1066,22 @@ object ReadBook : CoroutineScope by MainScope() {
         saveRead()
     }
 
-    fun saveRead(pageChanged: Boolean = false) {
+    fun saveRead(pageChanged: Boolean = false, progressUpdatedAt: Long? = null) {
         val book = book ?: return
         executor.execute {
             kotlin.runCatching {
                 book.lastCheckCount = 0
                 val durTime = System.currentTimeMillis()
-                book.durChapterTime = durTime
                 val chapterChanged = book.durChapterIndex != durChapterIndex
+                val progressChanged = chapterChanged || book.durChapterPos != durChapterPos
+                book.durChapterTime = durTime
                 book.durChapterIndex = durChapterIndex
                 book.durChapterPos = durChapterPos
+                if (progressUpdatedAt != null) {
+                    book.syncTime = progressUpdatedAt
+                } else if (progressChanged) {
+                    book.syncTime = durTime
+                }
                 if (!pageChanged || chapterChanged) {
                     appDb.bookChapterDao.getChapter(book.bookUrl, durChapterIndex)?.let {
                         book.durChapterTitle = it.getDisplayTitle(

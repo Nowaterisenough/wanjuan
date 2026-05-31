@@ -27,6 +27,16 @@ class SyncMapperTest {
     }
 
     @Test
+    fun bookProgressPrefersStoredProgressSyncTime() {
+        val book = Book(name = "N", author = "A", bookUrl = "u", origin = "o").apply {
+            durChapterTime = 123456L
+            syncTime = 234567L
+        }
+        val payload = BookSyncMapper.toProgressPayload(book, "device")
+        assertEquals(234567L, payload.progressUpdatedAt)
+    }
+
+    @Test
     fun bookPayloadUsesStableBookIdOnly() {
         val book = Book(name = "N", author = "A", bookUrl = "u", origin = "o")
         val payload = BookSyncMapper.toBookPayload(book, "device", shelfUpdatedAt = 10L, catalogUpdatedAt = 20L)

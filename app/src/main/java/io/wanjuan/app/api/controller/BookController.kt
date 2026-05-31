@@ -260,8 +260,8 @@ object BookController {
                     book.durChapterPos = bookProgress.durChapterPos
                     book.durChapterTitle = bookProgress.durChapterTitle
                     book.durChapterTime = bookProgress.durChapterTime
+                    book.syncTime = bookProgress.durChapterTime
                     SyncManager.progress.pushProgress(book)
-                    book.syncTime = System.currentTimeMillis()
                     appDb.bookDao.update(book)
                     ReadBook.book?.let {
                         if (it.name == bookProgress.name &&

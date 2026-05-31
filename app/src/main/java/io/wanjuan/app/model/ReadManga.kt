@@ -344,15 +344,21 @@ object ReadManga : CoroutineScope by MainScope() {
         preDownload()
     }
 
-    fun saveRead(pageChanged: Boolean = false) {
+    fun saveRead(pageChanged: Boolean = false, progressUpdatedAt: Long? = null) {
         executor.execute {
             kotlin.runCatching {
                 val book = book ?: return@execute
                 book.lastCheckCount = 0
-                book.durChapterTime = System.currentTimeMillis()
                 val chapterChanged = book.durChapterIndex != durChapterIndex
+                val progressChanged = chapterChanged || book.durChapterPos != durChapterPos
+                book.durChapterTime = System.currentTimeMillis()
                 book.durChapterIndex = durChapterIndex
                 book.durChapterPos = durChapterPos
+                if (progressUpdatedAt != null) {
+                    book.syncTime = progressUpdatedAt
+                } else if (progressChanged) {
+                    book.syncTime = book.durChapterTime
+                }
                 if (!pageChanged || chapterChanged) {
                     appDb.bookChapterDao.getChapter(book.bookUrl, durChapterIndex)?.let {
                         book.durChapterTitle = it.getDisplayTitle(
@@ -522,10 +528,14 @@ object ReadManga : CoroutineScope by MainScope() {
         }
     }
 
-    fun uploadProgress(toast: Boolean = false, successAction: (() -> Unit)? = null) {
+    fun uploadProgress(
+        toast: Boolean = false,
+        successAction: (() -> Unit)? = null,
+        force: Boolean = false
+    ) {
         book?.let { book ->
             launch(IO) {
-                if (!SyncManager.progress.pushProgress(book, toast)) {
+                if (!SyncManager.progress.pushProgress(book, toast, force)) {
                     return@launch
                 }
                 ensureActive()
@@ -579,7 +589,7 @@ object ReadManga : CoroutineScope by MainScope() {
                 durChapterPos = progress.durChapterPos
                 loadContent()
             }
-            saveRead()
+            saveRead(progressUpdatedAt = progress.durChapterTime)
         }
     }
 
