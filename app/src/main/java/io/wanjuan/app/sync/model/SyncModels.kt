@@ -131,6 +131,7 @@ data class SyncTombstonePayload(
     val objectId: String,
     val deletedAt: Long,
     val deletedByDeviceId: String,
+    val objectKey: String? = null,
     val reason: String = "user"
 )
 
