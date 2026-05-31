@@ -31,7 +31,6 @@ import io.wanjuan.app.data.entities.rule.ContentRule
 import io.wanjuan.app.data.entities.rule.ExploreRule
 import io.wanjuan.app.data.entities.rule.SearchRule
 import io.wanjuan.app.help.AppFreezeMonitor
-import io.wanjuan.app.help.AppWebDav
 import io.wanjuan.app.help.CrashHandler
 import io.wanjuan.app.help.DefaultData
 import io.wanjuan.app.help.DispatchersMonitor
@@ -51,6 +50,7 @@ import io.wanjuan.app.help.source.SourceHelp
 import io.wanjuan.app.help.storage.Backup
 import io.wanjuan.app.help.storage.RestoreJournal
 import io.wanjuan.app.model.BookCover
+import io.wanjuan.app.sync.SyncManager
 import io.wanjuan.app.utils.ChineseUtils
 import io.wanjuan.app.utils.LogUtils
 import io.wanjuan.app.utils.defaultSharedPreferences
@@ -122,10 +122,7 @@ class App : Application() {
             }
             //调整排序序号
             SourceHelp.adjustSortNumber()
-            //同步阅读记录
-            if (AppConfig.syncBookProgress) {
-                AppWebDav.downloadAllBookProgress()
-            }
+            SyncManager.onAppStart()
         }
     }
 

@@ -51,7 +51,6 @@ import io.wanjuan.app.data.appDb
 import io.wanjuan.app.data.entities.BookGroup
 import io.wanjuan.app.databinding.ActivityMainBinding
 import io.wanjuan.app.databinding.DialogEditTextBinding
-import io.wanjuan.app.help.AppWebDav
 import io.wanjuan.app.help.book.BookHelp
 import io.wanjuan.app.help.config.AppConfig
 import io.wanjuan.app.help.config.NavigationBarIconConfig
@@ -237,8 +236,6 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
             //设置本地密码
             setLocalPassword()
             notifyAppCrash()
-            //备份同步
-            backupSync()
             //设置回调
             viewModel.setActivityCallback(this@MainActivity)
             //自动更新书源
@@ -1574,28 +1571,6 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
                 showDialogFragment<CrashLogsDialog>()
             }
             noButton()
-        }
-    }
-
-    /**
-     * 备份同步
-     */
-    private fun backupSync() {
-        if (!AppConfig.autoCheckNewBackup) {
-            return
-        }
-        lifecycleScope.launch {
-            val lastBackupFile =
-                withContext(IO) { AppWebDav.lastBackUp().getOrNull() } ?: return@launch
-            if (lastBackupFile.lastModify - LocalConfig.lastBackup > DateUtils.MINUTE_IN_MILLIS) {
-                LocalConfig.lastBackup = lastBackupFile.lastModify
-                alert(R.string.restore, R.string.webdav_after_local_restore_confirm) {
-                    cancelButton()
-                    okButton {
-                        viewModel.restoreWebDav(lastBackupFile.displayName)
-                    }
-                }
-            }
         }
     }
 
