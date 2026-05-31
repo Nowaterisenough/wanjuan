@@ -54,6 +54,10 @@ object AppWebDav {
 
     val isJianGuoYun get() = rootWebDavUrl.startsWith(defaultWebDavUrl, true)
 
+    fun syncRootWebDavUrl(): String {
+        return rootWebDavUrl
+    }
+
     init {
         runBlocking {
             upConfig()
