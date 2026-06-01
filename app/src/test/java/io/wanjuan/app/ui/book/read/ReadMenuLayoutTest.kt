@@ -2340,6 +2340,23 @@ class ReadMenuLayoutTest {
     }
 
     @Test
+    fun liquidGlassRetriesDoNotStarveReaderIdleInitialization() {
+        val readMenu = repoFile("app/src/main/java/io/wanjuan/app/ui/book/read/ReadMenu.kt").readText()
+        val readActivity = repoFile("app/src/main/java/io/wanjuan/app/ui/book/read/ReadBookActivity.kt").readText()
+        val retryHelper = readMenu.substringAfter("private fun scheduleLiquidGlassSetup")
+            .substringBefore("private fun bottomTabGlassShell")
+
+        assertTrue(readActivity.contains("Looper.myQueue().addIdleHandler"))
+        assertTrue(readMenu.contains("private fun scheduleLiquidGlassSetup(anchor: View, block: () -> Unit)"))
+        assertTrue(readMenu.contains("private fun canScheduleLiquidGlassSetup(anchor: View): Boolean"))
+        assertTrue(retryHelper.contains("anchor.postOnAnimation"))
+        assertTrue(retryHelper.contains("this@ReadMenu.isShown"))
+        assertTrue(retryHelper.contains("anchor.isShown"))
+        assertFalse(readMenu.contains("if (!AppConfig.isEInkMode && titleBarGlassView.isVisible)"))
+        assertFalse(readMenu.contains("if (!AppConfig.isEInkMode && bottomTabGlassView.isVisible)"))
+    }
+
+    @Test
     fun oldPageAndMoreMenuIdsAreNotSecondaryTabs() {
         val readMenu = repoFile("app/src/main/java/io/wanjuan/app/ui/book/read/ReadMenu.kt").readText()
 

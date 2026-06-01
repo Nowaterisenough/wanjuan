@@ -4437,7 +4437,7 @@ class ReadMenu @JvmOverloads constructor(
         }
 
         syncTopBarGlassLayerHeight()
-        titleBarShell.post {
+        scheduleLiquidGlassSetup(titleBarShell) {
             syncTopBarGlassLayerHeight()
             setupTopBarFrostedGlassView(glassLevel)
         }
@@ -4451,10 +4451,8 @@ class ReadMenu @JvmOverloads constructor(
             !titleBarGlassView.isReadyForLiquidGlassConfig() ||
             syncTopBarGlassLayerHeight() <= 0
         ) {
-            titleBarShell.post {
-                if (!AppConfig.isEInkMode && titleBarGlassView.isVisible) {
-                    setupTopBarFrostedGlassView(glassLevel)
-                }
+            scheduleLiquidGlassSetup(titleBarShell) {
+                setupTopBarFrostedGlassView(glassLevel)
             }
             return@run
         }
@@ -4469,10 +4467,8 @@ class ReadMenu @JvmOverloads constructor(
             tintAlpha = bottomTabGlassTintAlpha(glassLevel),
             tintColor = bottomTabGlassTintColor()
         )) {
-            titleBarShell.post {
-                if (!AppConfig.isEInkMode && titleBarGlassView.isVisible) {
-                    setupTopBarFrostedGlassView(glassLevel)
-                }
+            scheduleLiquidGlassSetup(titleBarShell) {
+                setupTopBarFrostedGlassView(glassLevel)
             }
         }
     }
@@ -4523,7 +4519,7 @@ class ReadMenu @JvmOverloads constructor(
             bottomTabShellOverlay.background = bottomTabGlassShell(glassLevel)
             bottomTabIndicatorContainer.background = bottomTabIndicatorBackground()
             bottomTabGlassStyleKey = glassStyleKey
-            bottomTabBar.post {
+            scheduleLiquidGlassSetup(bottomTabBar) {
                 setupBottomTabFrostedGlassViews(glassLevel)
             }
         } else {
@@ -4534,7 +4530,7 @@ class ReadMenu @JvmOverloads constructor(
                 bottomTabShellOverlay.visible()
             }
             if (!boundBottomTabGlassViewIds.contains(bottomTabGlassView.id)) {
-                bottomTabBar.post {
+                scheduleLiquidGlassSetup(bottomTabBar) {
                     setupBottomTabFrostedGlassViews(glassLevel)
                 }
             }
@@ -4549,10 +4545,8 @@ class ReadMenu @JvmOverloads constructor(
             !bottomTabGlassView.isReadyForLiquidGlassConfig() ||
             !isBottomTabGlassLayerLaidOutAtStableHeight()
         ) {
-            bottomTabBar.post {
-                if (!AppConfig.isEInkMode && bottomTabGlassView.isVisible) {
-                    setupBottomTabFrostedGlassViews(glassLevel)
-                }
+            scheduleLiquidGlassSetup(bottomTabBar) {
+                setupBottomTabFrostedGlassViews(glassLevel)
             }
             return@run
         }
@@ -4569,10 +4563,8 @@ class ReadMenu @JvmOverloads constructor(
             tintAlpha = bottomTabGlassTintAlpha(glassLevel),
             tintColor = tintColor
         )) {
-            bottomTabBar.post {
-                if (!AppConfig.isEInkMode && bottomTabGlassView.isVisible) {
-                    setupBottomTabFrostedGlassViews(glassLevel)
-                }
+            scheduleLiquidGlassSetup(bottomTabBar) {
+                setupBottomTabFrostedGlassViews(glassLevel)
             }
         }
     }
@@ -4633,10 +4625,8 @@ class ReadMenu @JvmOverloads constructor(
             !layoutMarginAdjustPanel.isLaidOut ||
             !layoutMarginAdjustGlassView.isReadyForLiquidGlassConfig()
         ) {
-            layoutMarginAdjustPanel.post {
-                if (layoutMarginAdjustPanel.isVisible) {
-                    setupLayoutAdjustFrostedGlassViews(glassLevel, cornerRadius)
-                }
+            scheduleLiquidGlassSetup(layoutMarginAdjustPanel) {
+                setupLayoutAdjustFrostedGlassViews(glassLevel, cornerRadius)
             }
             return@run
         }
@@ -4651,10 +4641,8 @@ class ReadMenu @JvmOverloads constructor(
             tintAlpha = bottomTabGlassTintAlpha(glassLevel),
             tintColor = bottomTabGlassTintColor()
         )) {
-            layoutMarginAdjustPanel.post {
-                if (layoutMarginAdjustPanel.isVisible) {
-                    setupLayoutAdjustFrostedGlassViews(glassLevel, cornerRadius)
-                }
+            scheduleLiquidGlassSetup(layoutMarginAdjustPanel) {
+                setupLayoutAdjustFrostedGlassViews(glassLevel, cornerRadius)
             }
         }
     }
@@ -4702,6 +4690,21 @@ class ReadMenu @JvmOverloads constructor(
         liquidGlassView.invalidate()
         boundBottomTabGlassViewIds.add(liquidGlassView.id)
         return true
+    }
+
+    private fun scheduleLiquidGlassSetup(anchor: View, block: () -> Unit) {
+        if (!canScheduleLiquidGlassSetup(anchor)) {
+            return
+        }
+        anchor.postOnAnimation {
+            if (canScheduleLiquidGlassSetup(anchor)) {
+                block()
+            }
+        }
+    }
+
+    private fun canScheduleLiquidGlassSetup(anchor: View): Boolean {
+        return isAttachedToWindow && this@ReadMenu.isShown && anchor.isShown
     }
 
     private fun View.isReadyForLiquidGlassConfig(): Boolean {
