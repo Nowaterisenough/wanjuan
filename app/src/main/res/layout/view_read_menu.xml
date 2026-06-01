@@ -25,7 +25,7 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent">
 
-        <com.qmdeve.liquidglass.widget.LiquidGlassView
+        <io.wanjuan.app.ui.widget.SafeLiquidGlassView
             android:id="@+id/title_bar_glass_view"
             android:layout_width="match_parent"
             android:layout_height="0dp"
@@ -155,7 +155,7 @@
                 android:focusable="false"
                 android:scaleType="fitXY" />
 
-            <com.qmdeve.liquidglass.widget.LiquidGlassView
+            <io.wanjuan.app.ui.widget.SafeLiquidGlassView
                 android:id="@+id/layout_margin_adjust_glass_view"
                 android:layout_width="match_parent"
                 android:layout_height="0dp"
@@ -3561,7 +3561,7 @@
             android:clipToOutline="true"
             android:clipToPadding="true">
 
-            <com.qmdeve.liquidglass.widget.LiquidGlassView
+            <io.wanjuan.app.ui.widget.SafeLiquidGlassView
                 android:id="@+id/bottom_tab_glass_view"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"

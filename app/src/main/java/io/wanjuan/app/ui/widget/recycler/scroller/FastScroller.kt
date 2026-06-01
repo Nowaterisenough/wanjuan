@@ -50,6 +50,7 @@ class FastScroller : LinearLayout {
     private var mScrollbarAnimator: ViewPropertyAnimator? = null
     private var mBubbleAnimator: ViewPropertyAnimator? = null
     private var mRecyclerView: RecyclerView? = null
+    private var mObservedAdapter: RecyclerView.Adapter<*>? = null
     private lateinit var mBubbleView: TextView
     private lateinit var mHandleView: ImageView
     private lateinit var mTrackView: ImageView
@@ -59,10 +60,19 @@ class FastScroller : LinearLayout {
     private var mTrackImage: Drawable? = null
     private var mFastScrollStateChangeListener: FastScrollStateChangeListener? = null
     private val mScrollbarHider = Runnable { this.hideScrollbar() }
+    private val mAdapterDataObserver = object : RecyclerView.AdapterDataObserver() {
+        override fun onChanged() = postSyncScrollbarVisibility()
+        override fun onItemRangeChanged(positionStart: Int, itemCount: Int) = postSyncScrollbarVisibility()
+        override fun onItemRangeInserted(positionStart: Int, itemCount: Int) = postSyncScrollbarVisibility()
+        override fun onItemRangeRemoved(positionStart: Int, itemCount: Int) = postSyncScrollbarVisibility()
+        override fun onItemRangeMoved(fromPosition: Int, toPosition: Int, itemCount: Int) =
+            postSyncScrollbarVisibility()
+    }
 
     private val mScrollListener = object : RecyclerView.OnScrollListener() {
         override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
-            if (!mHandleView.isSelected && isEnabled) {
+            syncScrollbarVisibility()
+            if (!mHandleView.isSelected && isEnabled && isRecyclerScrollable()) {
                 setViewPositions(getScrollProportion(recyclerView))
             }
         }
@@ -70,6 +80,10 @@ class FastScroller : LinearLayout {
         override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
             super.onScrollStateChanged(recyclerView, newState)
             if (isEnabled) {
+                if (!isRecyclerScrollable()) {
+                    syncScrollbarVisibility()
+                    return
+                }
                 when (newState) {
                     RecyclerView.SCROLL_STATE_DRAGGING -> {
                         handler.removeCallbacks(mScrollbarHider)
@@ -171,18 +185,24 @@ class FastScroller : LinearLayout {
         mSectionIndexer = sectionIndexer
     }
 
+    fun onRecyclerViewAdapterChanged() {
+        updateObservedAdapter()
+    }
+
     fun attachRecyclerView(recyclerView: RecyclerView) {
         mRecyclerView = recyclerView
         mRecyclerView!!.addOnScrollListener(mScrollListener)
+        updateObservedAdapter()
         post {
             // set initial positions for bubble and handle
-            setViewPositions(getScrollProportion(mRecyclerView))
+            syncScrollbarVisibility()
         }
     }
 
     fun detachRecyclerView() {
         if (mRecyclerView != null) {
             mRecyclerView!!.removeOnScrollListener(mScrollListener)
+            unregisterObservedAdapter()
             mRecyclerView = null
         }
     }
@@ -194,7 +214,19 @@ class FastScroller : LinearLayout {
      */
     fun setFadeScrollbar(fadeScrollbar: Boolean) {
         mFadeScrollbar = fadeScrollbar
-        mScrollbar.visibility = if (fadeScrollbar) View.INVISIBLE else View.VISIBLE
+        syncScrollbarVisibility()
+    }
+
+    fun setHandleHorizontalPadding(start: Int, end: Int) {
+        ViewCompat.setPaddingRelative(
+            mHandleView,
+            start.coerceAtLeast(0),
+            mHandleView.paddingTop,
+            end.coerceAtLeast(0),
+            mHandleView.paddingBottom
+        )
+        updateViewHeights()
+        syncScrollbarVisibility()
     }
 
     /**
@@ -283,9 +315,67 @@ class FastScroller : LinearLayout {
         mFastScrollStateChangeListener = fastScrollStateChangeListener
     }
 
+    private fun updateObservedAdapter() {
+        val adapter = mRecyclerView?.adapter
+        if (mObservedAdapter === adapter) {
+            postSyncScrollbarVisibility()
+            return
+        }
+        unregisterObservedAdapter()
+        mObservedAdapter = adapter
+        adapter?.registerAdapterDataObserver(mAdapterDataObserver)
+        postSyncScrollbarVisibility()
+    }
+
+    private fun unregisterObservedAdapter() {
+        mObservedAdapter?.unregisterAdapterDataObserver(mAdapterDataObserver)
+        mObservedAdapter = null
+    }
+
+    private fun postSyncScrollbarVisibility() {
+        post { syncScrollbarVisibility() }
+    }
+
+    private fun syncScrollbarVisibility() {
+        val scrollable = isEnabled && isRecyclerScrollable()
+        if (!scrollable) {
+            removeCallbacks(mScrollbarHider)
+            cancelAnimation(mScrollbarAnimator)
+            mScrollbar.alpha = 0f
+            mScrollbar.translationX = scrollbarHideTranslation()
+            mScrollbar.visibility = View.INVISIBLE
+            hideBubble()
+            return
+        }
+        setViewPositions(getScrollProportion(mRecyclerView))
+        if (mFadeScrollbar && !mHandleView.isSelected) {
+            if (mScrollbar.visibility != View.VISIBLE) {
+                mScrollbar.visibility = View.INVISIBLE
+            }
+        } else {
+            cancelAnimation(mScrollbarAnimator)
+            mScrollbar.translationX = 0f
+            mScrollbar.alpha = 1f
+            mScrollbar.visibility = View.VISIBLE
+        }
+    }
+
+    private fun isRecyclerScrollable(): Boolean {
+        val recyclerView = mRecyclerView ?: return false
+        val scrollExtent = recyclerView.computeVerticalScrollExtent()
+            .takeIf { it > 0 }
+            ?: recyclerView.height
+        return recyclerView.computeVerticalScrollRange() > scrollExtent
+    }
+
+    private fun scrollbarHideTranslation(): Float {
+        return ViewCompat.getPaddingEnd(mHandleView).toFloat()
+    }
+
     override fun setEnabled(enabled: Boolean) {
         super.setEnabled(enabled)
         visibility = if (enabled) View.VISIBLE else View.INVISIBLE
+        syncScrollbarVisibility()
     }
 
     @Suppress("DEPRECATION")
@@ -293,6 +383,10 @@ class FastScroller : LinearLayout {
     override fun onTouchEvent(event: MotionEvent): Boolean {
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
+                if (!isRecyclerScrollable()) {
+                    syncScrollbarVisibility()
+                    return false
+                }
                 if (event.x < mHandleView.x - ViewCompat.getPaddingStart(mHandleView)) {
                     return false
                 }
@@ -368,7 +462,10 @@ class FastScroller : LinearLayout {
         recyclerView ?: return 0f
         val verticalScrollOffset = recyclerView.computeVerticalScrollOffset()
         val verticalScrollRange = recyclerView.computeVerticalScrollRange()
-        val rangeDiff = (verticalScrollRange - mViewHeight).toFloat()
+        val verticalScrollExtent = recyclerView.computeVerticalScrollExtent()
+            .takeIf { it > 0 }
+            ?: mViewHeight
+        val rangeDiff = (verticalScrollRange - verticalScrollExtent).toFloat()
         val proportion = verticalScrollOffset.toFloat() / if (rangeDiff > 0) rangeDiff else 1f
         return mViewHeight * proportion
     }
@@ -454,10 +551,8 @@ class FastScroller : LinearLayout {
 
     private fun showScrollbar() {
         mRecyclerView?.let { mRecyclerView ->
-            if (mRecyclerView.computeVerticalScrollRange() - mViewHeight > 0) {
-                val transX =
-                    resources.getDimensionPixelSize(R.dimen.fastscroll_scrollbar_padding_end)
-                        .toFloat()
+            if (isRecyclerScrollable()) {
+                val transX = scrollbarHideTranslation()
                 mScrollbar.translationX = transX
                 mScrollbar.visibility = View.VISIBLE
                 mScrollbarAnimator = mScrollbar.animate().translationX(0f).alpha(1f)
@@ -471,8 +566,7 @@ class FastScroller : LinearLayout {
     }
 
     private fun hideScrollbar() {
-        val transX =
-            resources.getDimensionPixelSize(R.dimen.fastscroll_scrollbar_padding_end).toFloat()
+        val transX = scrollbarHideTranslation()
         mScrollbarAnimator = mScrollbar.animate().translationX(transX).alpha(0f)
             .setDuration(sScrollbarAnimDuration.toLong())
             .setListener(object : AnimatorListenerAdapter() {

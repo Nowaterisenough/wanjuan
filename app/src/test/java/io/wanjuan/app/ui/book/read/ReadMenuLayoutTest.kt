@@ -887,6 +887,7 @@ class ReadMenuLayoutTest {
     @Test
     fun tocPanelListsUseFastDragScrollbars() {
         val layout = readMenuLayout()
+        val readMenu = repoFile("app/src/main/java/io/wanjuan/app/ui/book/read/ReadMenu.kt").readText()
         val tocRecycler = layout.elementById("rv_panel_toc")
         val bookmarkRecycler = layout.elementByTag("rv_panel_bookmarks")
         val fastScrollRecyclerView =
@@ -900,6 +901,8 @@ class ReadMenuLayoutTest {
             assertEquals("false", recycler.appAttr("showBubble"))
             assertEquals("18dp", recycler.androidAttr("paddingEnd"))
         }
+        assertTrue(readMenu.contains("rvPanelToc.setFastScrollHandlePadding(10.dpToPx(), 0)"))
+        assertTrue(readMenu.contains("?.setFastScrollHandlePadding(10.dpToPx(), 0)"))
     }
 
     @Test
@@ -916,6 +919,26 @@ class ReadMenuLayoutTest {
             "FastScrollRecyclerView must have android:id for FastScroller anchor. Missing: $missingIds",
             missingIds.isEmpty()
         )
+    }
+
+    @Test
+    fun fastScrollerHidesHandleWhenContentDoesNotOverflow() {
+        val fastScroller =
+            repoFile("app/src/main/java/io/wanjuan/app/ui/widget/recycler/scroller/FastScroller.kt")
+                .readText()
+        val fastScrollRecyclerView =
+            repoFile("app/src/main/java/io/wanjuan/app/ui/widget/recycler/scroller/FastScrollRecyclerView.kt")
+                .readText()
+
+        assertTrue(fastScroller.contains("private fun isRecyclerScrollable(): Boolean"))
+        assertTrue(fastScroller.contains("return recyclerView.computeVerticalScrollRange() > scrollExtent"))
+        assertTrue(fastScroller.contains("private fun syncScrollbarVisibility()"))
+        assertTrue(fastScroller.contains("val scrollable = isEnabled && isRecyclerScrollable()"))
+        assertTrue(fastScroller.contains("mScrollbar.visibility = View.INVISIBLE"))
+        assertTrue(fastScroller.contains("if (!isRecyclerScrollable()) {\n                    syncScrollbarVisibility()\n                    return false\n                }"))
+        assertTrue(fastScroller.contains("adapter?.registerAdapterDataObserver(mAdapterDataObserver)"))
+        assertTrue(fastScrollRecyclerView.contains("mFastScroller.onRecyclerViewAdapterChanged()"))
+        assertTrue(fastScrollRecyclerView.contains("fun setFastScrollHandlePadding(start: Int, end: Int)"))
     }
 
     @Test
@@ -1197,6 +1220,12 @@ class ReadMenuLayoutTest {
         assertTrue(readMenu.contains("private fun newFontSampleCard(withEndMargin: Boolean = true): ViewReadThemeCardBinding"))
         assertTrue(readMenu.contains("ViewReadThemeCardBinding.inflate("))
         assertTrue(readMenu.contains("binding.llFontSampleRow.addView(card.root, params)"))
+        assertTrue(readMenu.contains("private fun currentBackgroundColorFromConfig(): Int?"))
+        assertTrue(readMenu.contains("ReadBookConfig.durConfig.curBgDrawable(72.dpToPx(), 72.dpToPx())"))
+        assertTrue(readMenu.contains("private fun backgroundColorFromDrawable(drawable: Drawable?): Int?"))
+        assertTrue(readMenu.contains("is BitmapDrawable -> backgroundColorFromBitmapDrawable(drawable)"))
+        assertTrue(readMenu.contains("private fun backgroundColorFromRenderedDrawable(drawable: Drawable): Int?"))
+        assertTrue(readMenu.contains("drawable.draw(canvas)"))
         assertFalse(layoutXml.contains("font_card_source"))
         assertFalse(layoutXml.contains("font_card_add_custom"))
     }
@@ -1252,6 +1281,8 @@ class ReadMenuLayoutTest {
         assertTrue(readMenu.contains("binding.llPageAnimCardRow.addView(card.root, params)"))
         assertTrue(readMenu.contains("PageAnimPreviewDrawable"))
         assertTrue(readMenu.contains("private fun applyPageAnimSample(anim: Int?)"))
+        assertTrue(readMenu.contains("selectedStrokeWidth = 2.dpToPx().toFloat()"))
+        assertTrue(readMenu.contains("paint.strokeWidth = if (selected) selectedStrokeWidth else defaultStrokeWidth"))
         assertFalse(readMenu.contains("panelPageAnim.setOnClickListener"))
         assertFalse(readMenu.contains("showPageAnimConfig"))
     }
@@ -2247,7 +2278,65 @@ class ReadMenuLayoutTest {
         assertTrue(readMenu.contains("val currentHeight = binding.flExpandedPanel.height"))
         assertTrue(readMenu.contains("val thresholdHeight = tocFullscreenThresholdHeight()"))
         assertTrue(readMenu.contains("animateTocPanelTo(currentHeight)"))
+        assertTrue(readMenu.contains("return fullReadMenuHeight().coerceAtLeast(tocDefaultMinHeight())"))
+        assertTrue(readMenu.contains("private fun fullReadMenuHeight(): Int"))
+        assertTrue(readMenu.contains("private fun bottomTabBarHeightForPanel(panelHeight: Int): Int"))
+        assertTrue(readMenu.contains("private fun syncTocFullscreenChrome()"))
+        assertTrue(readMenu.contains("hideBottomTabIndicatorImmediately()"))
+        assertTrue(readMenu.contains("bottomTabNavViewport.gone()"))
+        assertTrue(readMenu.contains("bottomTabIndicatorContainer.invisible()"))
+        assertTrue(readMenu.contains("flExpandedPanel.bringToFront()"))
+        assertTrue(readMenu.contains("private fun syncTocFullscreenPanelInsets(fullscreen: Boolean)"))
+        assertTrue(readMenu.contains("readMenuNormalPaddingBottom = this@ReadMenu.paddingBottom"))
+        assertTrue(readMenu.contains("readMenuNormalPaddingBottom"))
+        assertTrue(readMenu.contains("bottomMenu.setPaddingRelative(0, bottomMenu.paddingTop, 0, 0)"))
+        assertTrue(readMenu.contains("private fun syncTocFullscreenGlassCorners(fullscreen: Boolean)"))
+        assertTrue(readMenu.contains("updateBottomTabGlassLayerHeight(tocFullPanelHeight())"))
+        assertTrue(readMenu.contains("private fun bottomTabGlassStableLayerHeight(panelHeight: Int): Int"))
+        assertTrue(readMenu.contains("val stablePanelHeight = panelHeight"))
+        assertTrue(readMenu.contains(".coerceAtLeast(rootHeight)"))
+        assertTrue(readMenu.contains("return (bottomTabCollapsedHeight() + stablePanelHeight)"))
+        assertTrue(readMenu.contains("private fun isBottomTabGlassLayerLaidOutAtStableHeight(): Boolean"))
+        assertTrue(readMenu.contains("!isBottomTabGlassLayerLaidOutAtStableHeight()"))
+        assertTrue(readMenu.contains("binding.bottomTabGlassView.height == bottomTabGlassLayerHeight"))
         assertFalse(readMenu.contains("val middleHeight = (tocDefaultPanelHeight() + tocFullPanelHeight()) / 2"))
+    }
+
+    @Test
+    fun tocFullscreenGlassCornerSyncWaitsForBoundLiquidGlass() {
+        val readMenu = repoFile("app/src/main/java/io/wanjuan/app/ui/book/read/ReadMenu.kt").readText()
+        val layoutXml = repoFile("app/src/main/res/layout/view_read_menu.xml").readText()
+        val safeGlassView = repoFile("app/src/main/java/io/wanjuan/app/ui/widget/SafeLiquidGlassView.kt").readText()
+        val cornerSync = readMenu.substringAfter("private fun syncTocFullscreenGlassCorners")
+            .substringBefore("private fun measureBottomPanelHeight")
+        val bottomGlassSetup = readMenu.substringAfter("private fun setupBottomTabFrostedGlassViews")
+            .substringBefore("private fun configureLayoutAdjustFrostedGlass")
+        val singleGlassSetup = readMenu.substringAfter("private fun setupBottomTabFrostedGlassView(")
+            .substringBefore("private fun bottomTabGlassShell")
+
+        assertTrue(readMenu.contains("private fun bottomTabGlassCornerRadius"))
+        assertTrue(cornerSync.contains("val radius = bottomTabGlassCornerRadius(fullscreen)"))
+        assertTrue(cornerSync.contains("boundBottomTabGlassViewIds.contains(bottomTabGlassView.id)"))
+        assertTrue(cornerSync.contains("bottomTabGlassView.isReadyForLiquidGlassConfig()"))
+        assertTrue(cornerSync.contains("bottomTabGlassView.setCornerRadius(radius)"))
+        assertTrue(bottomGlassSetup.contains("cornerRadius = bottomTabGlassCornerRadius()"))
+        assertTrue(readMenu.contains("private fun View.isReadyForLiquidGlassConfig(): Boolean"))
+        assertTrue(readMenu.contains("return isLaidOut && width > 0 && height > 0"))
+        assertTrue(bottomGlassSetup.contains("!bottomTabGlassView.isReadyForLiquidGlassConfig()"))
+        assertTrue(layoutXml.contains("io.wanjuan.app.ui.widget.SafeLiquidGlassView"))
+        assertTrue(safeGlassView.contains("class SafeLiquidGlassView"))
+        assertTrue(safeGlassView.contains("override fun onSizeChanged"))
+        assertFalse(layoutXml.contains("com.qmdeve.liquidglass.widget.LiquidGlassView"))
+        assertTrue(singleGlassSetup.contains("): Boolean"))
+        assertTrue(singleGlassSetup.contains("if (!target.isReadyForLiquidGlassConfig() || !liquidGlassView.isReadyForLiquidGlassConfig())"))
+        assertTrue(singleGlassSetup.contains("val shouldBind = !boundBottomTabGlassViewIds.contains(liquidGlassView.id)"))
+        assertTrue(singleGlassSetup.contains("boundBottomTabGlassViewIds.add(liquidGlassView.id)"))
+        assertTrue(
+            singleGlassSetup.indexOf("liquidGlassView.setCornerRadius(cornerRadius)") <
+                singleGlassSetup.indexOf("boundBottomTabGlassViewIds.add(liquidGlassView.id)")
+        )
+        assertFalse(singleGlassSetup.contains("if (boundBottomTabGlassViewIds.add(liquidGlassView.id))"))
+        assertFalse(cornerSync.contains("if (!AppConfig.isEInkMode) {\n            bottomTabGlassView.setCornerRadius(radius)\n        }"))
     }
 
     @Test

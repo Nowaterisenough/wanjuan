@@ -14,8 +14,11 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.PixelFormat
 import android.graphics.PorterDuff
+import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Typeface
+import android.graphics.drawable.BitmapDrawable
+import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
 import android.text.TextUtils
@@ -96,6 +99,7 @@ import io.wanjuan.app.ui.book.searchContent.SearchContentAdapter
 import io.wanjuan.app.ui.book.searchContent.SearchContentViewModel
 import io.wanjuan.app.ui.book.searchContent.SearchResult
 import io.wanjuan.app.ui.widget.number.NumberPickerDialog
+import io.wanjuan.app.ui.widget.recycler.scroller.FastScrollRecyclerView
 import io.wanjuan.app.ui.widget.seekbar.SeekBarChangeListener
 import io.wanjuan.app.utils.ChineseUtils
 import io.wanjuan.app.utils.ColorUtils
@@ -107,6 +111,7 @@ import io.wanjuan.app.utils.applyStatusBarPadding
 import io.wanjuan.app.utils.dpToPx
 import io.wanjuan.app.utils.getPrefBoolean
 import io.wanjuan.app.utils.getCompatColor
+import io.wanjuan.app.utils.getMeanColor
 import io.wanjuan.app.utils.getPrefString
 import io.wanjuan.app.utils.putPrefInt
 import io.wanjuan.app.utils.gone
@@ -201,6 +206,11 @@ class ReadMenu @JvmOverloads constructor(
     private var tocPanelPage: TocPanelPage = TocPanelPage.Chapters
     private var tocDragStartY: Float = 0f
     private var tocDragStartPanelHeight: Int = 0
+    private var tocFullscreenChromeApplied: Boolean = false
+    private var readMenuNormalPaddingBottom: Int = 0
+    private var bottomMenuNormalPaddingStart: Int = 0
+    private var bottomMenuNormalPaddingEnd: Int = 0
+    private var bottomMenuNormalPaddingBottom: Int = 0
     private val boundBottomTabGlassViewIds = hashSetOf<Int>()
     private val tocAdapter by lazy { ReadMenuTocAdapter(::openTocChapter) }
     private val bookmarkAdapter by lazy { ReadMenuBookmarkAdapter(::openBookmark) }
@@ -832,11 +842,14 @@ class ReadMenu @JvmOverloads constructor(
             rvPanelToc.layoutManager = LinearLayoutManager(context)
             rvPanelToc.adapter = tocAdapter
         }
+        rvPanelToc.setFastScrollHandlePadding(10.dpToPx(), 0)
         val bookmarkRecycler = taggedRecycler("rv_panel_bookmarks")
         if (bookmarkRecycler.adapter == null) {
             bookmarkRecycler.layoutManager = LinearLayoutManager(context)
             bookmarkRecycler.adapter = bookmarkAdapter
         }
+        (bookmarkRecycler as? FastScrollRecyclerView)
+            ?.setFastScrollHandlePadding(10.dpToPx(), 0)
         taggedText("tv_toc_tab_chapters").setOnClickListener {
             setTocPanelPage(TocPanelPage.Chapters)
         }
@@ -1000,6 +1013,7 @@ class ReadMenu @JvmOverloads constructor(
     private fun animateTocPanelTo(targetHeight: Int) {
         tocPanelFullscreen = targetHeight >= tocFullPanelHeight()
         updateBottomTabGlassLayerHeight(tocFullPanelHeight())
+        syncTocFullscreenChrome()
         animateBottomTabPanelHeight(
             targetPanelHeight = targetHeight,
             animate = !AppConfig.isEInkMode
@@ -1662,6 +1676,7 @@ class ReadMenu @JvmOverloads constructor(
         applyBottomNavigationColors()
         syncBottomNavigationSelection()
         updateBottomTabIndicator()
+        syncTocFullscreenChrome()
     }
 
     private fun updateExpandedPanelHeight(tab: BottomTab) = binding.run {
@@ -1757,13 +1772,15 @@ class ReadMenu @JvmOverloads constructor(
     }
 
     private fun tocFullPanelHeight(): Int {
-        val rootHeight = binding.vwMenuRoot.height
+        return fullReadMenuHeight().coerceAtLeast(tocDefaultMinHeight())
+    }
+
+    private fun fullReadMenuHeight(): Int {
+        return this@ReadMenu.height
             .takeIf { it > 0 }
+            ?: binding.vwMenuRoot.height
+                .takeIf { it > 0 }
             ?: resources.displayMetrics.heightPixels
-        val bottomBarHeight = bottomTabCollapsedHeight()
-        val bottomPadding = binding.bottomMenu.paddingBottom
-        return (rootHeight - bottomBarHeight - bottomPadding - 8.dpToPx())
-            .coerceAtLeast(tocDefaultMinHeight())
     }
 
     private fun tocDefaultMinHeight(): Int = 220.dpToPx()
@@ -1857,7 +1874,90 @@ class ReadMenu @JvmOverloads constructor(
 
     private fun setBottomTabPanelHeight(height: Int) {
         setExpandedPanelHeight(height)
-        setBottomTabBarHeight(bottomTabCollapsedHeight() + height)
+        setBottomTabBarHeight(bottomTabBarHeightForPanel(height))
+        syncTocFullscreenChrome()
+    }
+
+    private fun bottomTabBarHeightForPanel(panelHeight: Int): Int {
+        return if (isTocFullscreenActive()) {
+            panelHeight.coerceAtLeast(bottomTabCollapsedHeight())
+        } else {
+            bottomTabCollapsedHeight() + panelHeight
+        }
+    }
+
+    private fun isTocFullscreenActive(): Boolean {
+        return activeBottomTab == BottomTab.Toc && tocPanelFullscreen
+    }
+
+    private fun syncTocFullscreenChrome() = binding.run {
+        val fullscreen = isTocFullscreenActive()
+        syncTocFullscreenPanelInsets(fullscreen)
+        syncTocFullscreenGlassCorners(fullscreen)
+        if (fullscreen) {
+            hideBottomTabIndicatorImmediately()
+            bottomTabNavViewport.gone()
+            bottomTabIndicatorContainer.gone()
+            flExpandedPanel.bringToFront()
+        } else {
+            bottomTabNavViewport.visible()
+            if (bottomTabIndicatorContainer.visibility == View.GONE) {
+                bottomTabIndicatorContainer.invisible()
+            }
+            bottomTabIndicatorContainer.bringToFront()
+            bottomTabNavViewport.bringToFront()
+        }
+    }
+
+    private fun syncTocFullscreenPanelInsets(fullscreen: Boolean) = binding.run {
+        if (fullscreen) {
+            if (!tocFullscreenChromeApplied) {
+                readMenuNormalPaddingBottom = this@ReadMenu.paddingBottom
+                bottomMenuNormalPaddingStart = bottomMenu.paddingStart
+                bottomMenuNormalPaddingEnd = bottomMenu.paddingEnd
+                bottomMenuNormalPaddingBottom = bottomMenu.paddingBottom
+                tocFullscreenChromeApplied = true
+            }
+            this@ReadMenu.setPadding(
+                this@ReadMenu.paddingLeft,
+                this@ReadMenu.paddingTop,
+                this@ReadMenu.paddingRight,
+                0
+            )
+            bottomMenu.setPaddingRelative(0, bottomMenu.paddingTop, 0, 0)
+        } else if (tocFullscreenChromeApplied) {
+            this@ReadMenu.setPadding(
+                this@ReadMenu.paddingLeft,
+                this@ReadMenu.paddingTop,
+                this@ReadMenu.paddingRight,
+                readMenuNormalPaddingBottom
+            )
+            bottomMenu.setPaddingRelative(
+                bottomMenuNormalPaddingStart,
+                bottomMenu.paddingTop,
+                bottomMenuNormalPaddingEnd,
+                bottomMenuNormalPaddingBottom
+            )
+            tocFullscreenChromeApplied = false
+        }
+    }
+
+    private fun syncTocFullscreenGlassCorners(fullscreen: Boolean) = binding.run {
+        val radius = bottomTabGlassCornerRadius(fullscreen)
+        bottomTabBar.clipToOutline = !fullscreen
+        (bottomTabBar.background as? GradientDrawable)?.cornerRadius = radius
+        (bottomTabShellOverlay.background as? GradientDrawable)?.cornerRadius = radius
+        if (
+            !AppConfig.isEInkMode &&
+            boundBottomTabGlassViewIds.contains(bottomTabGlassView.id) &&
+            bottomTabGlassView.isReadyForLiquidGlassConfig()
+        ) {
+            bottomTabGlassView.setCornerRadius(radius)
+        }
+    }
+
+    private fun bottomTabGlassCornerRadius(fullscreen: Boolean = isTocFullscreenActive()): Float {
+        return if (fullscreen) 0f else 28f.dpToPx()
     }
 
     private fun measureBottomPanelHeight(view: View, maxHeight: Int): Int {
@@ -1893,13 +1993,28 @@ class ReadMenu @JvmOverloads constructor(
     }
 
     private fun updateBottomTabGlassLayerHeight(panelHeight: Int) = binding.run {
-        val targetHeight = bottomTabCollapsedHeight() + panelHeight.coerceAtLeast(0)
+        val targetHeight = bottomTabGlassStableLayerHeight(panelHeight)
         if (bottomTabGlassLayerHeight == targetHeight) {
             return@run
         }
         bottomTabGlassLayerHeight = targetHeight
         setBottomTabGlassLayerChildHeight(bottomTabGlassView, targetHeight)
         setBottomTabGlassLayerChildHeight(bottomTabShellOverlay, targetHeight)
+    }
+
+    private fun bottomTabGlassStableLayerHeight(panelHeight: Int): Int {
+        val rootHeight = fullReadMenuHeight()
+        val stablePanelHeight = panelHeight
+            .coerceAtLeast(rootHeight)
+            .coerceAtLeast(tocDefaultMinHeight())
+        return (bottomTabCollapsedHeight() + stablePanelHeight)
+            .coerceAtLeast(bottomTabCollapsedHeight())
+    }
+
+    private fun isBottomTabGlassLayerLaidOutAtStableHeight(): Boolean {
+        return bottomTabGlassLayerHeight > 0 &&
+                binding.bottomTabGlassView.height == bottomTabGlassLayerHeight &&
+                binding.bottomTabShellOverlay.height == bottomTabGlassLayerHeight
     }
 
     private fun setBottomTabGlassLayerChildHeight(view: View, height: Int) {
@@ -1993,7 +2108,7 @@ class ReadMenu @JvmOverloads constructor(
 
     private fun updateBottomTabIndicator() = binding.run {
         val tab = activeBottomTab
-        if (tab == null) {
+        if (tab == null || isTocFullscreenActive()) {
             hideBottomTabIndicator()
             return@run
         }
@@ -2245,6 +2360,16 @@ class ReadMenu @JvmOverloads constructor(
             return@run
         }
         fadeBottomTabIndicator()
+    }
+
+    private fun hideBottomTabIndicatorImmediately() = binding.run {
+        nextBottomTabIndicatorRequestToken()
+        bottomTabIndicatorContainer.removeCallbacks(hideBottomTabIndicatorRunnable)
+        bottomTabIndicatorContainer.animate().cancel()
+        bottomTabIndicatorContainer.alpha = 0f
+        bottomTabIndicatorContainer.scaleX = 1f
+        bottomTabIndicatorContainer.scaleY = 1f
+        bottomTabIndicatorContainer.gone()
     }
 
     private fun fadeBottomTabIndicator() = binding.run {
@@ -3353,7 +3478,9 @@ class ReadMenu @JvmOverloads constructor(
             menuTextColor = textColor,
             accentColor = context.accentColor,
             anim = sample.anim,
-            selected = selected
+            selected = selected,
+            selectedStrokeWidth = 2.dpToPx().toFloat(),
+            defaultStrokeWidth = 1.dpToPx().toFloat()
         )
         card.tvThemeCardTitle.isGone = true
         card.tvThemeCardBody.isGone = true
@@ -3936,9 +4063,55 @@ class ReadMenu @JvmOverloads constructor(
                 Color.parseColor(ReadBookConfig.durConfig.curBgStr())
             }.getOrDefault(context.getCompatColor(R.color.background))
         } else {
-            ReadBookConfig.bgMeanColor.takeIf { it != 0 }
+            currentBackgroundColorFromConfig()
+                ?: ReadBookConfig.bgMeanColor.takeIf { it != 0 }
+                ?: backgroundColorFromDrawable(ReadBookConfig.bg)
                 ?: context.getCompatColor(R.color.background)
         }
+    }
+
+    private fun currentBackgroundColorFromConfig(): Int? {
+        return kotlin.runCatching {
+            backgroundColorFromDrawable(ReadBookConfig.durConfig.curBgDrawable(72.dpToPx(), 72.dpToPx()))
+        }.getOrNull()?.also {
+            ReadBookConfig.bgMeanColor = it
+        }
+    }
+
+    private fun backgroundColorFromDrawable(drawable: Drawable?): Int? {
+        return when (drawable) {
+            is ColorDrawable -> drawable.color
+            is BitmapDrawable -> backgroundColorFromBitmapDrawable(drawable)
+                ?: backgroundColorFromRenderedDrawable(drawable)
+
+            null -> null
+            else -> backgroundColorFromRenderedDrawable(drawable)
+        }?.takeIf { it != Color.TRANSPARENT }
+    }
+
+    private fun backgroundColorFromBitmapDrawable(drawable: BitmapDrawable): Int? {
+        return if (drawable.colorFilter == null) {
+            drawable.bitmap
+                ?.takeUnless { it.isRecycled }
+                ?.getMeanColor()
+        } else {
+            null
+        }
+    }
+
+    private fun backgroundColorFromRenderedDrawable(drawable: Drawable): Int? {
+        return kotlin.runCatching {
+            val size = 72.dpToPx().coerceAtLeast(1)
+            val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+            val oldBounds = Rect(drawable.bounds)
+            val canvas = Canvas(bitmap)
+            drawable.setBounds(0, 0, size, size)
+            drawable.draw(canvas)
+            drawable.setBounds(oldBounds)
+            val color = bitmap.getMeanColor()
+            bitmap.recycle()
+            color
+        }.getOrNull()
     }
 
     private fun updateBackgroundControlsFromConfig() = binding.run {
@@ -4270,12 +4443,22 @@ class ReadMenu @JvmOverloads constructor(
         }
     }
 
-    private fun setupTopBarFrostedGlassView(glassLevel: Float) = binding.run {
+    private fun setupTopBarFrostedGlassView(glassLevel: Float): Unit = binding.run {
         val target = bottomTabGlassTarget()
-        if (!target.isLaidOut || !titleBarShell.isLaidOut || syncTopBarGlassLayerHeight() <= 0) {
+        if (
+            !target.isReadyForLiquidGlassConfig() ||
+            !titleBarShell.isLaidOut ||
+            !titleBarGlassView.isReadyForLiquidGlassConfig() ||
+            syncTopBarGlassLayerHeight() <= 0
+        ) {
+            titleBarShell.post {
+                if (!AppConfig.isEInkMode && titleBarGlassView.isVisible) {
+                    setupTopBarFrostedGlassView(glassLevel)
+                }
+            }
             return@run
         }
-        setupBottomTabFrostedGlassView(
+        if (!setupBottomTabFrostedGlassView(
             liquidGlassView = titleBarGlassView,
             target = target,
             cornerRadius = 0f,
@@ -4285,7 +4468,13 @@ class ReadMenu @JvmOverloads constructor(
             dispersion = (0.18f + glassLevel * 0.16f).coerceAtMost(0.42f),
             tintAlpha = bottomTabGlassTintAlpha(glassLevel),
             tintColor = bottomTabGlassTintColor()
-        )
+        )) {
+            titleBarShell.post {
+                if (!AppConfig.isEInkMode && titleBarGlassView.isVisible) {
+                    setupTopBarFrostedGlassView(glassLevel)
+                }
+            }
+        }
     }
 
     private fun syncTopBarGlassLayerHeight(): Int = binding.run {
@@ -4304,6 +4493,7 @@ class ReadMenu @JvmOverloads constructor(
 
     private fun configureBottomTabFrostedGlass() = binding.run {
         bottomTabBar.clipToOutline = true
+        updateBottomTabGlassLayerHeight(tocFullPanelHeight())
         if (AppConfig.isEInkMode) {
             val glassStyleKey = "eink:$bgColor:$textColor:${context.accentColor}"
             if (bottomTabGlassStyleKey != glassStyleKey) {
@@ -4351,24 +4541,40 @@ class ReadMenu @JvmOverloads constructor(
         }
     }
 
-    private fun setupBottomTabFrostedGlassViews(glassLevel: Float) = binding.run {
+    private fun setupBottomTabFrostedGlassViews(glassLevel: Float): Unit = binding.run {
         val target = bottomTabGlassTarget()
-        if (!target.isLaidOut || !bottomTabBar.isLaidOut) {
+        if (
+            !target.isReadyForLiquidGlassConfig() ||
+            !bottomTabBar.isLaidOut ||
+            !bottomTabGlassView.isReadyForLiquidGlassConfig() ||
+            !isBottomTabGlassLayerLaidOutAtStableHeight()
+        ) {
+            bottomTabBar.post {
+                if (!AppConfig.isEInkMode && bottomTabGlassView.isVisible) {
+                    setupBottomTabFrostedGlassViews(glassLevel)
+                }
+            }
             return@run
         }
         val tintColor = bottomTabGlassTintColor()
 
-        setupBottomTabFrostedGlassView(
+        if (!setupBottomTabFrostedGlassView(
             liquidGlassView = bottomTabGlassView,
             target = target,
-            cornerRadius = 28f.dpToPx(),
+            cornerRadius = bottomTabGlassCornerRadius(),
             refractionHeight = (12f + glassLevel * 8f).dpToPx(),
             refractionOffset = (34f + glassLevel * 18f).dpToPx(),
             blurRadius = (22f + glassLevel * 30f).dpToPx(),
             dispersion = (0.18f + glassLevel * 0.16f).coerceAtMost(0.42f),
             tintAlpha = bottomTabGlassTintAlpha(glassLevel),
             tintColor = tintColor
-        )
+        )) {
+            bottomTabBar.post {
+                if (!AppConfig.isEInkMode && bottomTabGlassView.isVisible) {
+                    setupBottomTabFrostedGlassViews(glassLevel)
+                }
+            }
+        }
     }
 
     private fun configureLayoutAdjustFrostedGlass() = binding.run {
@@ -4420,12 +4626,21 @@ class ReadMenu @JvmOverloads constructor(
         }
     }
 
-    private fun setupLayoutAdjustFrostedGlassViews(glassLevel: Float, cornerRadius: Float) = binding.run {
+    private fun setupLayoutAdjustFrostedGlassViews(glassLevel: Float, cornerRadius: Float): Unit = binding.run {
         val target = bottomTabGlassTarget()
-        if (!target.isLaidOut || !layoutMarginAdjustPanel.isLaidOut || !layoutMarginAdjustGlassView.isLaidOut) {
+        if (
+            !target.isReadyForLiquidGlassConfig() ||
+            !layoutMarginAdjustPanel.isLaidOut ||
+            !layoutMarginAdjustGlassView.isReadyForLiquidGlassConfig()
+        ) {
+            layoutMarginAdjustPanel.post {
+                if (layoutMarginAdjustPanel.isVisible) {
+                    setupLayoutAdjustFrostedGlassViews(glassLevel, cornerRadius)
+                }
+            }
             return@run
         }
-        setupBottomTabFrostedGlassView(
+        if (!setupBottomTabFrostedGlassView(
             liquidGlassView = layoutMarginAdjustGlassView,
             target = target,
             cornerRadius = cornerRadius,
@@ -4435,7 +4650,13 @@ class ReadMenu @JvmOverloads constructor(
             dispersion = (0.18f + glassLevel * 0.16f).coerceAtMost(0.42f),
             tintAlpha = bottomTabGlassTintAlpha(glassLevel),
             tintColor = bottomTabGlassTintColor()
-        )
+        )) {
+            layoutMarginAdjustPanel.post {
+                if (layoutMarginAdjustPanel.isVisible) {
+                    setupLayoutAdjustFrostedGlassViews(glassLevel, cornerRadius)
+                }
+            }
+        }
     }
 
     private fun bottomTabGlassTarget(): ViewGroup {
@@ -4456,8 +4677,12 @@ class ReadMenu @JvmOverloads constructor(
         dispersion: Float,
         tintAlpha: Float,
         tintColor: FloatArray
-    ) {
-        if (boundBottomTabGlassViewIds.add(liquidGlassView.id)) {
+    ): Boolean {
+        if (!target.isReadyForLiquidGlassConfig() || !liquidGlassView.isReadyForLiquidGlassConfig()) {
+            return false
+        }
+        val shouldBind = !boundBottomTabGlassViewIds.contains(liquidGlassView.id)
+        if (shouldBind) {
             liquidGlassView.bind(target)
         }
         liquidGlassView.setCornerRadius(cornerRadius)
@@ -4475,6 +4700,12 @@ class ReadMenu @JvmOverloads constructor(
         liquidGlassView.isClickable = false
         liquidGlassView.isFocusable = false
         liquidGlassView.invalidate()
+        boundBottomTabGlassViewIds.add(liquidGlassView.id)
+        return true
+    }
+
+    private fun View.isReadyForLiquidGlassConfig(): Boolean {
+        return isLaidOut && width > 0 && height > 0
     }
 
     private fun bottomTabGlassShell(glassLevel: Float): GradientDrawable {
@@ -5240,7 +5471,9 @@ class ReadMenu @JvmOverloads constructor(
         private val menuTextColor: Int,
         private val accentColor: Int,
         private val anim: Int?,
-        private val selected: Boolean
+        private val selected: Boolean,
+        private val selectedStrokeWidth: Float,
+        private val defaultStrokeWidth: Float
     ) : Drawable() {
         private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
         private val path = Path()
@@ -5257,7 +5490,7 @@ class ReadMenu @JvmOverloads constructor(
             paint.color = ColorUtils.adjustAlpha(menuTextColor, 0.045f)
             canvas.drawRoundRect(rect, radius, radius, paint)
             paint.style = Paint.Style.STROKE
-            paint.strokeWidth = if (selected) 2.5f else 1.2f
+            paint.strokeWidth = if (selected) selectedStrokeWidth else defaultStrokeWidth
             paint.color = if (selected) accentColor else ColorUtils.adjustAlpha(menuTextColor, 0.14f)
             canvas.drawRoundRect(rect, radius, radius, paint)
 
@@ -5378,7 +5611,7 @@ class ReadMenu @JvmOverloads constructor(
             paint.color = pageColor
             canvas.drawRoundRect(page, 7f, 7f, paint)
             paint.style = Paint.Style.STROKE
-            paint.strokeWidth = if (highlighted) 2f else 1.2f
+            paint.strokeWidth = if (highlighted) selectedStrokeWidth else defaultStrokeWidth
             paint.color = if (highlighted) {
                 ColorUtils.adjustAlpha(accentColor, 0.78f)
             } else {

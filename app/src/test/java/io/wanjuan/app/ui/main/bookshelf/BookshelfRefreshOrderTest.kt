@@ -130,7 +130,7 @@ class BookshelfRefreshOrderTest {
         }
         layouts.forEach { layout ->
             assertTrue(layout.contains("@+id/vw_cover_pending_overlay"))
-            assertTrue(layout.contains("#66000000"))
+            assertTrue(layout.contains("#99000000"))
             assertTrue(layout.contains("layout_constraintTop_toTopOf=\"@id/iv_cover\""))
         }
     }

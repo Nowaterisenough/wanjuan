@@ -43,6 +43,7 @@ class FastScrollRecyclerView : RecyclerView {
         } else if (adapter == null) {
             setSectionIndexer(null)
         }
+        mFastScroller.onRecyclerViewAdapterChanged()
     }
 
 
@@ -79,6 +80,10 @@ class FastScrollRecyclerView : RecyclerView {
      */
     fun setHideScrollbar(hideScrollbar: Boolean) {
         mFastScroller.setFadeScrollbar(hideScrollbar)
+    }
+
+    fun setFastScrollHandlePadding(start: Int, end: Int) {
+        mFastScroller.setHandleHorizontalPadding(start, end)
     }
 
     /**
