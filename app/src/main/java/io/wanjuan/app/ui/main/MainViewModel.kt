@@ -55,6 +55,7 @@ class MainViewModel(application: Application) : BaseViewModel(application) {
     private var poolSize = min(threadCount, AppConst.MAX_THREAD)
     private var upTocPool = Executors.newFixedThreadPool(poolSize).asCoroutineDispatcher()
     private val waitUpTocBooks = LinkedList<String>()
+    private val waitUpTocBookSet = ConcurrentHashMap.newKeySet<String>()
     private val onUpTocBooks = ConcurrentHashMap.newKeySet<String>()
     private val pullProgressAfterTocBooks = ConcurrentHashMap.newKeySet<String>()
     private val eventListenerSource = ConcurrentHashMap<BookSource, Boolean>()
@@ -97,6 +98,10 @@ class MainViewModel(application: Application) : BaseViewModel(application) {
 
     fun isUpdate(bookUrl: String): Boolean {
         return onUpTocBooks.contains(bookUrl)
+    }
+
+    fun isWaitingUpdate(bookUrl: String): Boolean {
+        return waitUpTocBookSet.contains(bookUrl)
     }
 
     fun upAllBookToc() {
@@ -150,6 +155,8 @@ class MainViewModel(application: Application) : BaseViewModel(application) {
             }
             if (!waitUpTocBooks.contains(book.bookUrl) && !onUpTocBooks.contains(book.bookUrl)) {
                 waitUpTocBooks.add(book.bookUrl)
+                waitUpTocBookSet.add(book.bookUrl)
+                postEvent(EventBus.UP_BOOKSHELF, book.bookUrl)
             }
         }
         if (upTocJob == null) {
@@ -163,10 +170,12 @@ class MainViewModel(application: Application) : BaseViewModel(application) {
         upTocJob = viewModelScope.launch(upTocPool) {
             flow {
                 while (true) {
-                    emit(waitUpTocBooks.poll() ?: break)
+                    val bookUrl = waitUpTocBooks.poll() ?: break
+                    emit(bookUrl)
                 }
             }.onEachParallel(threadCount) {
                 onUpTocBooks.add(it)
+                waitUpTocBookSet.remove(it)
                 postEvent(EventBus.UP_BOOKSHELF, it)
                 updateToc(it)
             }.onEach {

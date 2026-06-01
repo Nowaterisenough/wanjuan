@@ -105,7 +105,9 @@ class BooksAdapterList(context: Context, callBack: CallBack) :
         }
 
         private fun upRefresh(binding: ItemBookshelfListBinding, item: Book) {
-            if (!item.isLocal && callBack.isUpdate(item.bookUrl)) {
+            val updating = !item.isLocal && callBack.isUpdate(item.bookUrl)
+            binding.vwCoverPendingOverlay.visible(!updating && !item.isLocal && callBack.isWaitingUpdate(item.bookUrl))
+            if (updating) {
                 binding.bvUnread.invisible()
                 binding.rlLoading.visible()
             } else {
@@ -175,7 +177,9 @@ class BooksAdapterList(context: Context, callBack: CallBack) :
         }
 
         private fun upRefresh(binding: ItemBookshelfList2Binding, item: Book) {
-            if (!item.isLocal && callBack.isUpdate(item.bookUrl)) {
+            val updating = !item.isLocal && callBack.isUpdate(item.bookUrl)
+            binding.vwCoverPendingOverlay.visible(!updating && !item.isLocal && callBack.isWaitingUpdate(item.bookUrl))
+            if (updating) {
                 binding.bvUnread.invisible()
                 binding.rlLoading.visible()
             } else {

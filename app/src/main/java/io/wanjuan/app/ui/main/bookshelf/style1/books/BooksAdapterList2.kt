@@ -11,8 +11,10 @@ import io.wanjuan.app.databinding.ItemBookshelfList2Binding
 import io.wanjuan.app.help.book.isUpError
 import io.wanjuan.app.help.book.isLocal
 import io.wanjuan.app.help.config.AppConfig
+import io.wanjuan.app.utils.gone
 import io.wanjuan.app.utils.invisible
 import io.wanjuan.app.utils.toTimeAgo
+import io.wanjuan.app.utils.visible
 import splitties.views.onLongClick
 
 /**
@@ -68,7 +70,9 @@ class BooksAdapterList2(
     }
 
     private fun upRefresh(binding: ItemBookshelfList2Binding, item: Book) {
-        if (!item.isLocal && callBack.isUpdate(item.bookUrl)) {
+        val updating = !item.isLocal && callBack.isUpdate(item.bookUrl)
+        binding.vwCoverPendingOverlay.visible(!updating && !item.isLocal && callBack.isWaitingUpdate(item.bookUrl))
+        if (updating) {
             binding.bvUnread.invisible()
             binding.rlLoading.visible()
         } else {

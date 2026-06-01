@@ -397,6 +397,10 @@ class BooksFragment() : BaseFragment(R.layout.fragment_books),
         return activityViewModel.isUpdate(bookUrl)
     }
 
+    override fun isWaitingUpdate(bookUrl: String): Boolean {
+        return activityViewModel.isWaitingUpdate(bookUrl)
+    }
+
     @SuppressLint("NotifyDataSetChanged")
     override fun observeLiveBus() {
         super.observeLiveBus()

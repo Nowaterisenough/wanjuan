@@ -94,5 +94,6 @@ abstract class BaseBooksAdapter<VB : ViewBinding>(context: Context) :
         fun open(book: Book)
         fun openBookInfo(book: Book)
         fun isUpdate(bookUrl: String): Boolean
+        fun isWaitingUpdate(bookUrl: String): Boolean
     }
 }

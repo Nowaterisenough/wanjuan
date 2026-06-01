@@ -41,6 +41,17 @@
                 tools:ignore="UnusedAttribute,ImageContrastCheck"
                 tools:layout_editor_absoluteX="4dp" />
 
+            <View
+                android:id="@+id/vw_cover_pending_overlay"
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:background="#66000000"
+                android:visibility="gone"
+                app:layout_constraintBottom_toBottomOf="@id/iv_cover"
+                app:layout_constraintEnd_toEndOf="@id/iv_cover"
+                app:layout_constraintStart_toStartOf="@id/iv_cover"
+                app:layout_constraintTop_toTopOf="@id/iv_cover" />
+
             <TextView
                 android:id="@+id/tv_name"
                 android:layout_width="0dp"
@@ -102,6 +113,5 @@
         tools:layout_editor_absoluteX="0dp" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
-
 
 

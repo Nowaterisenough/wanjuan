@@ -415,6 +415,10 @@ class BookshelfFragment2() : BaseBookshelfFragment(R.layout.fragment_bookshelf2)
         return activityViewModel.isUpdate(bookUrl)
     }
 
+    override fun isWaitingUpdate(bookUrl: String): Boolean {
+        return activityViewModel.isWaitingUpdate(bookUrl)
+    }
+
     fun getItemCount(): Int {
         return if (groupId == BookGroup.IdRoot) {
             bookGroups.size + books.size

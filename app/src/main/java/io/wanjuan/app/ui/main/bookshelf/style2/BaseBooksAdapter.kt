@@ -164,6 +164,7 @@ abstract class BaseBooksAdapter<VH : RecyclerView.ViewHolder>(
         fun onItemClick(item: Any)
         fun onItemLongClick(item: Any)
         fun isUpdate(bookUrl: String): Boolean
+        fun isWaitingUpdate(bookUrl: String): Boolean
         fun getItems(): List<Any>
     }
 }

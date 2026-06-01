@@ -95,6 +95,46 @@ class BookshelfRefreshOrderTest {
         )
     }
 
+    @Test
+    fun waitingRefreshBooksShowCoverOverlay() {
+        val main = repoFile("app/src/main/java/io/wanjuan/app/ui/main/MainViewModel.kt").readText()
+        val style1Base = repoFile(
+            "app/src/main/java/io/wanjuan/app/ui/main/bookshelf/style1/books/BaseBooksAdapter.kt"
+        ).readText()
+        val style2Base = repoFile(
+            "app/src/main/java/io/wanjuan/app/ui/main/bookshelf/style2/BaseBooksAdapter.kt"
+        ).readText()
+        val adapters = listOf(
+            "app/src/main/java/io/wanjuan/app/ui/main/bookshelf/style1/books/BooksAdapterGrid.kt",
+            "app/src/main/java/io/wanjuan/app/ui/main/bookshelf/style1/books/BooksAdapterList.kt",
+            "app/src/main/java/io/wanjuan/app/ui/main/bookshelf/style1/books/BooksAdapterList2.kt",
+            "app/src/main/java/io/wanjuan/app/ui/main/bookshelf/style2/BooksAdapterGrid.kt",
+            "app/src/main/java/io/wanjuan/app/ui/main/bookshelf/style2/BooksAdapterList.kt"
+        ).map { repoFile(it).readText() }
+        val layouts = listOf(
+            "app/src/main/res/layout/item_bookshelf_grid.xml",
+            "app/src/main/res/layout/item_bookshelf_grid2.xml",
+            "app/src/main/res/layout/item_bookshelf_list.xml",
+            "app/src/main/res/layout/item_bookshelf_list2.xml"
+        ).map { repoFile(it).readText() }
+
+        assertTrue(main.contains("waitUpTocBookSet"))
+        assertTrue(main.contains("fun isWaitingUpdate(bookUrl: String)"))
+        assertTrue(main.contains("waitUpTocBookSet.add(book.bookUrl)"))
+        assertTrue(main.contains("waitUpTocBookSet.remove(bookUrl)"))
+        assertTrue(style1Base.contains("fun isWaitingUpdate(bookUrl: String): Boolean"))
+        assertTrue(style2Base.contains("fun isWaitingUpdate(bookUrl: String): Boolean"))
+        adapters.forEach { adapter ->
+            assertTrue(adapter.contains("vwCoverPendingOverlay.visible"))
+            assertTrue(adapter.contains("callBack.isWaitingUpdate(item.bookUrl)"))
+        }
+        layouts.forEach { layout ->
+            assertTrue(layout.contains("@+id/vw_cover_pending_overlay"))
+            assertTrue(layout.contains("#66000000"))
+            assertTrue(layout.contains("layout_constraintTop_toTopOf=\"@id/iv_cover\""))
+        }
+    }
+
     private fun repoFile(relativePath: String): File {
         return generateSequence(File("").absoluteFile) { it.parentFile }
             .map { File(it, relativePath) }

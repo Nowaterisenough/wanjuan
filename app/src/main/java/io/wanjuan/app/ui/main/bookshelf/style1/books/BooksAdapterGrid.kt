@@ -89,7 +89,9 @@ class BooksAdapterGrid(context: Context, private val callBack: CallBack) :
     private fun upRefresh(binding: ViewBinding, item: Book) {
         when (binding) {
             is ItemBookshelfGridBinding -> binding.run {
-                if (!item.isLocal && callBack.isUpdate(item.bookUrl)) {
+                val updating = !item.isLocal && callBack.isUpdate(item.bookUrl)
+                vwCoverPendingOverlay.visible(!updating && !item.isLocal && callBack.isWaitingUpdate(item.bookUrl))
+                if (updating) {
                     bvUnread.invisible()
                     rlLoading.visible()
                 } else {
@@ -105,7 +107,9 @@ class BooksAdapterGrid(context: Context, private val callBack: CallBack) :
                 }
             }
             is ItemBookshelfGrid2Binding -> binding.run {
-                if (!item.isLocal && callBack.isUpdate(item.bookUrl)) {
+                val updating = !item.isLocal && callBack.isUpdate(item.bookUrl)
+                vwCoverPendingOverlay.visible(!updating && !item.isLocal && callBack.isWaitingUpdate(item.bookUrl))
+                if (updating) {
                     bvUnread.invisible()
                     rlLoading.visible()
                 } else {
