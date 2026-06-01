@@ -27,6 +27,7 @@ import io.wanjuan.app.model.ReadBook
 import io.wanjuan.app.model.ReadManga
 import io.wanjuan.app.model.webBook.WebBook
 import io.wanjuan.app.service.CacheBookService
+import io.wanjuan.app.sync.SyncManager
 import io.wanjuan.app.utils.onEachParallel
 import io.wanjuan.app.utils.postEvent
 import kotlinx.coroutines.Job
@@ -55,6 +56,7 @@ class MainViewModel(application: Application) : BaseViewModel(application) {
     private var upTocPool = Executors.newFixedThreadPool(poolSize).asCoroutineDispatcher()
     private val waitUpTocBooks = LinkedList<String>()
     private val onUpTocBooks = ConcurrentHashMap.newKeySet<String>()
+    private val pullProgressAfterTocBooks = ConcurrentHashMap.newKeySet<String>()
     private val eventListenerSource = ConcurrentHashMap<BookSource, Boolean>()
     val onUpBooksLiveData = MutableLiveData<Int>()
     private var upTocJob: Job? = null
@@ -99,7 +101,11 @@ class MainViewModel(application: Application) : BaseViewModel(application) {
 
     fun upAllBookToc() {
         execute {
-            addToWaitUp(appDb.bookDao.hasUpdateBooks, AppConfig.onlyUpdateRead)
+            addToWaitUp(
+                appDb.bookDao.hasUpdateBooks,
+                AppConfig.onlyUpdateRead,
+                pullProgressAfterUpdate = false
+            )
         }
     }
 
@@ -117,20 +123,31 @@ class MainViewModel(application: Application) : BaseViewModel(application) {
         }
     }
 
-    fun upToc(books: List<Book>, onlyUpdateRead: Boolean) {
+    fun upToc(
+        books: List<Book>,
+        onlyUpdateRead: Boolean,
+        pullProgressAfterUpdate: Boolean = false
+    ) {
         execute(context = upTocPool) {
             books.filter {
                 !it.isLocal && it.canUpdate
             }.let {
-                addToWaitUp(it, onlyUpdateRead)
+                addToWaitUp(it, onlyUpdateRead, pullProgressAfterUpdate)
             }
         }
     }
 
     @Synchronized
-    private fun addToWaitUp(books: List<Book>, onlyUpdateRead: Boolean) {
+    private fun addToWaitUp(
+        books: List<Book>,
+        onlyUpdateRead: Boolean,
+        pullProgressAfterUpdate: Boolean
+    ) {
         books.forEach { book ->
             if (onlyUpdateRead && book.getUnreadChapterNum() > 0) return@forEach
+            if (pullProgressAfterUpdate) {
+                pullProgressAfterTocBooks.add(book.bookUrl)
+            }
             if (!waitUpTocBooks.contains(book.bookUrl) && !onUpTocBooks.contains(book.bookUrl)) {
                 waitUpTocBooks.add(book.bookUrl)
             }
@@ -172,9 +189,13 @@ class MainViewModel(application: Application) : BaseViewModel(application) {
     }
 
     private suspend fun updateToc(bookUrl: String) {
-        val book = appDb.bookDao.getBook(bookUrl) ?: return
+        val book = appDb.bookDao.getBook(bookUrl) ?: run {
+            pullProgressAfterTocBooks.remove(bookUrl)
+            return
+        }
         val source = appDb.bookSourceDao.getBookSource(book.origin)
         if (source == null) {
+            pullProgressAfterTocBooks.remove(bookUrl)
             if (!book.isUpError) {
                 book.addType(BookType.updateError)
                 appDb.bookDao.update(book)
@@ -208,8 +229,12 @@ class MainViewModel(application: Application) : BaseViewModel(application) {
             appDb.bookChapterDao.insert(*toc.toTypedArray())
             ReadBook.onChapterListUpdated(book)
             ReadManga.onChapterListUpdated(book)
+            if (pullProgressAfterTocBooks.remove(bookUrl)) {
+                pullRemoteProgressAfterToc(book)
+            }
             addDownload(source, book)
         }.onFailure {
+            pullProgressAfterTocBooks.remove(bookUrl)
             currentCoroutineContext().ensureActive()
             AppLog.put("${book.name} 更新目录失败\n${it.localizedMessage}", it)
             //这里可能因为时间太长书籍信息已经更改,所以重新获取
@@ -217,6 +242,21 @@ class MainViewModel(application: Application) : BaseViewModel(application) {
                 book.addType(BookType.updateError)
                 appDb.bookDao.update(book)
             }
+        }
+    }
+
+    private suspend fun pullRemoteProgressAfterToc(book: Book) {
+        if (!AppConfig.syncBookProgress) return
+        kotlin.runCatching {
+            SyncManager.progress.pullProgress(book)
+        }.onSuccess { progress ->
+            progress ?: return@onSuccess
+            if (progress.durChapterIndex in 0..book.lastChapterIndex) {
+                SyncManager.progress.applyProgress(book, progress)
+            }
+        }.onFailure {
+            currentCoroutineContext().ensureActive()
+            AppLog.put("拉取阅读进度失败《${book.name}》\n${it.localizedMessage}", it)
         }
     }
 

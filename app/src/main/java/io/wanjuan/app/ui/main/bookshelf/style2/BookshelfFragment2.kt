@@ -116,7 +116,11 @@ class BookshelfFragment2() : BaseBookshelfFragment(R.layout.fragment_bookshelf2)
         binding.refreshLayout.setOnRefreshListener {
             binding.refreshLayout.isRefreshing = false
             SyncManager.syncNow()
-            activityViewModel.upToc(currentUpdateBooks(), onlyUpdateRead)
+            activityViewModel.upToc(
+                currentUpdateBooks(),
+                onlyUpdateRead,
+                pullProgressAfterUpdate = true
+            )
         }
         updateLayoutManager()
         binding.rvBookshelf.adapter = booksAdapter

@@ -109,7 +109,11 @@ class BooksFragment() : BaseFragment(R.layout.fragment_books),
         binding.refreshLayout.setOnRefreshListener {
             binding.refreshLayout.isRefreshing = false
             SyncManager.syncNow()
-            activityViewModel.upToc(booksAdapter.getItems(), onlyUpdateRead)
+            activityViewModel.upToc(
+                booksAdapter.getItems(),
+                onlyUpdateRead,
+                pullProgressAfterUpdate = true
+            )
         }
         updateLayoutManager()
         booksAdapter.stateRestorationPolicy = StateRestorationPolicy.PREVENT_WHEN_EMPTY
