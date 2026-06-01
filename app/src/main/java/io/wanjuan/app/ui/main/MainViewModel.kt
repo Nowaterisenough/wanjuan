@@ -109,7 +109,8 @@ class MainViewModel(application: Application) : BaseViewModel(application) {
             addToWaitUp(
                 appDb.bookDao.hasUpdateBooks,
                 AppConfig.onlyUpdateRead,
-                pullProgressAfterUpdate = false
+                pullProgressAfterUpdate = false,
+                retryUpdateErrorBooks = false
             )
         }
     }
@@ -137,7 +138,12 @@ class MainViewModel(application: Application) : BaseViewModel(application) {
             books.filter {
                 !it.isLocal && it.canUpdate
             }.let {
-                addToWaitUp(it, onlyUpdateRead, pullProgressAfterUpdate)
+                addToWaitUp(
+                    it,
+                    onlyUpdateRead,
+                    pullProgressAfterUpdate,
+                    retryUpdateErrorBooks = true
+                )
             }
         }
     }
@@ -146,10 +152,14 @@ class MainViewModel(application: Application) : BaseViewModel(application) {
     private fun addToWaitUp(
         books: List<Book>,
         onlyUpdateRead: Boolean,
-        pullProgressAfterUpdate: Boolean
+        pullProgressAfterUpdate: Boolean,
+        retryUpdateErrorBooks: Boolean
     ) {
         books.forEach { book ->
-            if (onlyUpdateRead && book.getUnreadChapterNum() > 0) return@forEach
+            val skipUnreadBook = onlyUpdateRead &&
+                    book.getUnreadChapterNum() > 0 &&
+                    !(retryUpdateErrorBooks && book.isUpError)
+            if (skipUnreadBook) return@forEach
             if (pullProgressAfterUpdate) {
                 pullProgressAfterTocBooks.add(book.bookUrl)
             }

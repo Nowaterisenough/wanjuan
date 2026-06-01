@@ -96,6 +96,32 @@ class BookshelfRefreshOrderTest {
     }
 
     @Test
+    fun manualRefreshRetriesUpdateErrorBooksEvenWhenOnlyUpdateReadIsEnabled() {
+        val main = repoFile("app/src/main/java/io/wanjuan/app/ui/main/MainViewModel.kt").readText()
+        val autoRefreshBlock = main.substringAfter("fun upAllBookToc()")
+            .substringBefore("fun ruleSubsUp()")
+        val manualRefreshBlock = main.substringAfter("fun upToc(")
+            .substringBefore("@Synchronized")
+        val addToWaitBlock = main.substringAfter("private fun addToWaitUp(")
+            .substringBefore("private fun startUpTocJob()")
+
+        assertTrue(
+            "Manual bookshelf refresh should retry books that already have an update-error badge.",
+            manualRefreshBlock.contains("retryUpdateErrorBooks = true")
+        )
+        assertTrue(
+            "Automatic startup refresh should keep the original only-update-read behavior.",
+            autoRefreshBlock.contains("retryUpdateErrorBooks = false")
+        )
+        assertTrue(
+            "Only-update-read filtering should not skip update-error books during manual retry.",
+            addToWaitBlock.contains("retryUpdateErrorBooks") &&
+                    addToWaitBlock.contains("book.isUpError") &&
+                    addToWaitBlock.contains("!(retryUpdateErrorBooks && book.isUpError)")
+        )
+    }
+
+    @Test
     fun waitingRefreshBooksShowCoverOverlay() {
         val main = repoFile("app/src/main/java/io/wanjuan/app/ui/main/MainViewModel.kt").readText()
         val style1Base = repoFile(
