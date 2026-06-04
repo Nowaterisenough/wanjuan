@@ -36,6 +36,30 @@ class ExploreShowActivitySourceTest {
         assertFalse(loadBody.contains("discoverBooks.addAll(newBooks)\n                    discoverBookAdapter.setItems(discoverBooks.toList())"))
     }
 
+    @Test
+    fun discoverPageCountBadgeIsScopedToImageResultsAndPageLikeText() {
+        val adapter = repoFile("app/src/main/java/io/wanjuan/app/ui/book/explore/ExploreShowAdapter.kt").readText()
+
+        assertTrue(adapter.contains("private fun SearchBook.discoveryPageCountText()"))
+        assertTrue(adapter.contains("BookType.image"))
+        assertTrue(adapter.contains("pageCountRegex"))
+        assertTrue(adapter.contains("wordCount?.trim()"))
+        assertTrue(adapter.contains("tvPageCount.isVisible"))
+    }
+
+    @Test
+    fun discoverPageCountViewsExistInGridAndListLayouts() {
+        val grid = repoFile("app/src/main/res/layout/item_explore_book_grid.xml").readText()
+        val list = repoFile("app/src/main/res/layout/item_search.xml").readText()
+
+        assertTrue(grid.contains("android:id=\"@+id/tv_page_count\""))
+        assertTrue(grid.contains("@drawable/bg_discover_page_count_capsule"))
+        assertTrue(grid.contains("android:layout_gravity=\"bottom|end\""))
+        assertTrue(list.contains("android:id=\"@+id/tv_page_count\""))
+        assertTrue(list.indexOf("android:id=\"@+id/tv_name\"") < list.indexOf("android:id=\"@+id/tv_page_count\""))
+        assertTrue(list.indexOf("android:id=\"@+id/tv_page_count\"") < list.indexOf("android:id=\"@+id/tv_author\""))
+    }
+
     private fun repoFile(relativePath: String): File {
         return generateSequence(File("").absoluteFile) { it.parentFile }
             .map { File(it, relativePath) }

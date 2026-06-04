@@ -86,6 +86,26 @@
         app:layout_constraintTop_toBottomOf="@+id/tv_name">
 
         <TextView
+            android:id="@+id/tv_page_count"
+            android:layout_width="wrap_content"
+            android:layout_height="22dp"
+            android:layout_marginBottom="6dp"
+            android:background="@drawable/bg_discover_page_count_capsule"
+            android:ellipsize="end"
+            android:gravity="center"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:maxWidth="160dp"
+            android:minWidth="42dp"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:textColor="@android:color/white"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:visibility="gone"
+            tools:text="120P" />
+
+        <TextView
             android:id="@+id/tv_author"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

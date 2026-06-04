@@ -3,11 +3,13 @@ package io.wanjuan.app.ui.book.explore
 import android.content.Context
 import android.os.Bundle
 import android.view.ViewGroup
+import android.widget.TextView
 import androidx.core.view.isVisible
 import androidx.viewbinding.ViewBinding
 import io.wanjuan.app.R
 import io.wanjuan.app.base.adapter.ItemViewHolder
 import io.wanjuan.app.base.adapter.RecyclerAdapter
+import io.wanjuan.app.constant.BookType
 import io.wanjuan.app.data.entities.SearchBook
 import io.wanjuan.app.databinding.ItemExploreBookGridBinding
 import io.wanjuan.app.databinding.ItemSearchBinding
@@ -60,6 +62,7 @@ class ExploreShowAdapter(context: Context, val callBack: CallBack) :
     private fun bindList(binding: ItemSearchBinding, item: SearchBook) {
         binding.run {
             tvName.text = item.name
+            bindPageCount(tvPageCount, item)
             tvAuthor.text = context.getString(R.string.author_show, item.author)
             ivInBookshelf.isVisible = callBack.isInBookshelf(item)
             if (item.latestChapterTitle.isNullOrEmpty()) {
@@ -69,7 +72,7 @@ class ExploreShowAdapter(context: Context, val callBack: CallBack) :
                 tvLasted.visible()
             }
             tvIntroduce.text = item.trimIntro(context)
-            val kinds = item.getKindList()
+            val kinds = item.discoveryKindList()
             if (kinds.isEmpty()) {
                 llKind.gone()
             } else {
@@ -87,6 +90,7 @@ class ExploreShowAdapter(context: Context, val callBack: CallBack) :
         binding.run {
             val isCompact = gridColumns >= 3
             tvName.text = item.name
+            bindPageCount(tvPageCount, item)
             tvAuthor.text = context.getString(R.string.author_show, item.author)
             if (item.latestChapterTitle.isNullOrEmpty()) {
                 tvLasted.gone()
@@ -94,7 +98,7 @@ class ExploreShowAdapter(context: Context, val callBack: CallBack) :
                 tvLasted.text = context.getString(R.string.lasted_show, item.latestChapterTitle)
                 tvLasted.visible()
             }
-            val kinds = item.getKindList()
+            val kinds = item.discoveryKindList()
             if (isCompact || kinds.isEmpty()) {
                 llKind.gone()
             } else {
@@ -114,6 +118,25 @@ class ExploreShowAdapter(context: Context, val callBack: CallBack) :
                 AppConfig.loadCoverOnlyWifi
             )
         }
+    }
+
+    private fun bindPageCount(tvPageCount: TextView, item: SearchBook) {
+        val text = item.discoveryPageCountText()
+        tvPageCount.isVisible = text != null
+        tvPageCount.text = text.orEmpty()
+    }
+
+    private fun SearchBook.discoveryKindList(): List<String> {
+        val pageCount = discoveryPageCountText()
+        return getKindList().filterNot { it == pageCount }
+    }
+
+    private fun SearchBook.discoveryPageCountText(): String? {
+        if (type and BookType.image == 0) {
+            return null
+        }
+        val text = wordCount?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        return text.takeIf { pageCountRegex.containsMatchIn(it) }
     }
 
     private fun bindListChange(binding: ItemSearchBinding, item: SearchBook, bundle: Bundle) {
@@ -142,5 +165,9 @@ class ExploreShowAdapter(context: Context, val callBack: CallBack) :
         fun isInBookshelf(book: SearchBook): Boolean
 
         fun showBookInfo(book: SearchBook)
+    }
+
+    companion object {
+        private val pageCountRegex = Regex("""\d+\s*(?:P|p|页|頁|張|张)""")
     }
 }

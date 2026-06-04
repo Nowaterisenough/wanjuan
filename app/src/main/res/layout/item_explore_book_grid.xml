@@ -40,6 +40,27 @@
             android:src="@color/md_green_600"
             android:visibility="invisible" />
 
+        <TextView
+            android:id="@+id/tv_page_count"
+            android:layout_width="wrap_content"
+            android:layout_height="24dp"
+            android:layout_gravity="bottom|end"
+            android:layout_margin="6dp"
+            android:background="@drawable/bg_discover_page_count_capsule"
+            android:ellipsize="end"
+            android:gravity="center"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:maxWidth="88dp"
+            android:minWidth="42dp"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:textColor="@android:color/white"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:visibility="gone"
+            tools:text="120P" />
+
     </FrameLayout>
 
     <TextView
