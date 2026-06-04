@@ -14,6 +14,7 @@ import io.wanjuan.app.exception.NoStackTraceException
 import io.wanjuan.app.help.http.newCallResponseBody
 import io.wanjuan.app.help.http.okHttpClient
 import io.wanjuan.app.help.source.SourceHelp
+import io.wanjuan.app.help.source.CloudflareVerification
 import io.wanjuan.app.help.source.SourceVerificationHelp
 import io.wanjuan.app.model.analyzeRule.AnalyzeUrl
 import io.wanjuan.app.utils.ACache
@@ -86,7 +87,7 @@ class WebViewModel(application: Application) : BaseViewModel(application) {
     fun shouldAutoReturnCloudflarePage(url: String?): Boolean {
         val title = intent?.getStringExtra("title") ?: return false
         return sourceVerificationEnable && refetchAfterSuccess &&
-            title.contains("cloudflare", ignoreCase = true) &&
+            CloudflareVerification.isCloudflareTitle(title) &&
             URLUtil.isNetworkUrl(url)
     }
 
@@ -154,7 +155,7 @@ class WebViewModel(application: Application) : BaseViewModel(application) {
                 baseUrl to html.orEmpty()
             }
         }.onSuccess { result ->
-            if (result.second.isBlank() || result.second.isCloudflareVerificationBody()) {
+            if (result.second.isBlank() || CloudflareVerification.isChallengeBody(result.second)) {
                 saveCurrentWebViewVerificationResult(webView, success)
             } else {
                 html = result.second
@@ -177,16 +178,9 @@ class WebViewModel(application: Application) : BaseViewModel(application) {
         }
     }
 
-    private fun String.isCloudflareVerificationBody(): Boolean {
-        return contains("_cf_chl_opt", ignoreCase = true) ||
-            contains("cf_chl", ignoreCase = true) ||
-            contains("cf-chl", ignoreCase = true) ||
-            contains("challenge-platform", ignoreCase = true) ||
-            contains("Just a moment", ignoreCase = true) ||
-            contains("Checking your browser", ignoreCase = true) ||
-            contains("cf_clearance", ignoreCase = true) ||
-            contains("cf-ray", ignoreCase = true) ||
-            contains("Attention Required", ignoreCase = true)
+    fun isCloudflareVerificationResult(result: String?): Boolean {
+        val html = StringEscapeUtils.unescapeJson(result.orEmpty()).trim('"')
+        return CloudflareVerification.isChallengeBody(html)
     }
 
     fun disableSource(block: () -> Unit) {

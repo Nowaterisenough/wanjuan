@@ -30,6 +30,7 @@ import io.wanjuan.app.help.webView.WebJsExtensions.Companion.nameCache
 import io.wanjuan.app.help.webView.WebJsExtensions.Companion.nameJava
 import io.wanjuan.app.help.webView.WebJsExtensions.Companion.nameSource
 import io.wanjuan.app.help.webView.WebViewPool
+import io.wanjuan.app.help.http.CookieManager as AppCookieManager
 import io.wanjuan.app.model.Debug
 import io.wanjuan.app.utils.get
 import io.wanjuan.app.utils.runOnUI
@@ -62,7 +63,8 @@ class BackstageWebView(
     private val cacheFirst: Boolean = false,
     private val timeout: Long? = null,
     private val result: String? = null,
-    private val isRule: Boolean = false
+    private val isRule: Boolean = false,
+    private val applyStoredCookie: Boolean = false
 ) {
 
     private val mHandler = Handler(Looper.getMainLooper())
@@ -160,6 +162,9 @@ class BackstageWebView(
         settings.blockNetworkImage = true
         settings.userAgentString = headerMap?.get(AppConst.UA_NAME, true) ?: AppConfig.userAgent
         settings.cacheMode = if(cacheFirst) WebSettings.LOAD_CACHE_ELSE_NETWORK else WebSettings.LOAD_DEFAULT
+        if (applyStoredCookie) url?.let {
+            AppCookieManager.applyToWebView(it)
+        }
         if (sourceRegex.isNullOrBlank() && overrideUrlRegex.isNullOrBlank()) {
             webView.webViewClient = HtmlWebViewClient()
         } else {
@@ -213,11 +218,12 @@ class BackstageWebView(
             result?.let {
                 view.evaluateJavascript("window.result = $nameCache.getFromMemory('webview_result')", null)
             }
-            val runnable = runnable ?: EvalJsRunnable(view, url, getJs()).also {
-                runnable = it
+            runnable?.let {
+                mHandler.removeCallbacks(it)
             }
-            mHandler.removeCallbacks(runnable)
-            mHandler.postDelayed(runnable, 100L + delayTime)
+            val nextRunnable = EvalJsRunnable(view, url, getJs())
+            runnable = nextRunnable
+            mHandler.postDelayed(nextRunnable, 100L + delayTime)
         }
 
         @SuppressLint("WebViewClientOnReceivedSslError")

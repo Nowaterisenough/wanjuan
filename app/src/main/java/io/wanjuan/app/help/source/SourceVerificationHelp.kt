@@ -5,10 +5,12 @@ import io.wanjuan.app.data.entities.BaseSource
 import io.wanjuan.app.exception.NoStackTraceException
 import io.wanjuan.app.help.CacheManager
 import io.wanjuan.app.help.IntentData
+import io.wanjuan.app.help.http.BackstageWebView
 import io.wanjuan.app.ui.association.VerificationCodeActivity
 import io.wanjuan.app.ui.browser.WebViewActivity
 import io.wanjuan.app.utils.isMainThread
 import io.wanjuan.app.utils.startActivity
+import kotlinx.coroutines.runBlocking
 import splitties.init.appCtx
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
@@ -22,6 +24,8 @@ import kotlin.time.Duration.Companion.minutes
 object SourceVerificationHelp {
 
     private val waitTime = 1.minutes.inWholeNanoseconds
+    private const val cloudflareSilentDelayTime = 7000L
+    private const val cloudflareSilentTimeout = 20000L
     private val browserVerificationStates = ConcurrentHashMap<String, BrowserVerificationState>()
     private val singleVerificationLock = Any()
 
@@ -56,7 +60,9 @@ object SourceVerificationHelp {
         require(url.length < 64 * 1024) { "getVerificationResult parameter url too long" }
         check(!isMainThread) { "getVerificationResult must be called on a background thread" }
 
-        val shareBrowserVerification = useBrowser && refetchAfterSuccess && html == null
+        val shareBrowserVerification = useBrowser &&
+            html == null &&
+            (refetchAfterSuccess || CloudflareVerification.isCloudflareTitle(title))
         if (!shareBrowserVerification) {
             return synchronized(singleVerificationLock) {
                 performVerification(source, url, title, useBrowser, refetchAfterSuccess, html)
@@ -96,6 +102,12 @@ object SourceVerificationHelp {
     ): Pair<String, String> {
         clearResult(source.getKey())
 
+        if (useBrowser && html == null && CloudflareVerification.isCloudflareTitle(title)) {
+            tryResolveCloudflareSilently(source, url)?.let {
+                return it
+            }
+        }
+
         if (!useBrowser) {
             appCtx.startActivity<VerificationCodeActivity> {
                 putExtra("imageUrl", url)
@@ -120,6 +132,35 @@ object SourceVerificationHelp {
         clearResult(source.getKey())
         if (result.second.isEmpty()) throw NoStackTraceException("验证结果为空")
         return result
+    }
+
+    private fun tryResolveCloudflareSilently(
+        source: BaseSource,
+        url: String
+    ): Pair<String, String>? {
+        return kotlin.runCatching {
+            AppLog.putDebug("${source.getTag()} Cloudflare: 后台尝试自动验证...")
+            val response = runBlocking {
+                BackstageWebView(
+                    url = url,
+                    tag = source.getKey(),
+                    headerMap = source.getHeaderMap(true),
+                    delayTime = cloudflareSilentDelayTime,
+                    timeout = cloudflareSilentTimeout,
+                    applyStoredCookie = true
+                ).getStrResponse()
+            }
+            val body = response.body.orEmpty()
+            if (body.isNotBlank() && !CloudflareVerification.isChallengeBody(body)) {
+                AppLog.putDebug("${source.getTag()} Cloudflare: 后台自动验证通过")
+                response.url to body
+            } else {
+                AppLog.putDebug("${source.getTag()} Cloudflare: 后台验证后仍需人工处理")
+                null
+            }
+        }.onFailure {
+            AppLog.putDebug("${source.getTag()} Cloudflare: 后台自动验证失败 ${it.localizedMessage}")
+        }.getOrNull()
     }
 
     private fun waitForSharedBrowserVerification(

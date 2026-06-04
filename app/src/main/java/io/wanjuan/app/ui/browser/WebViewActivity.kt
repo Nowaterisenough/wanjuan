@@ -468,8 +468,8 @@ class WebViewActivity : VMBaseActivity<ActivityWebViewBinding, WebViewModel>() {
                 } else {
                     binding.titleBar.title = intent.getStringExtra("title")
                 }
-                view.evaluateJavascript("!!window._cf_chl_opt") {
-                    if (it == "true") {
+                view.evaluateJavascript("document.documentElement.outerHTML") {
+                    if (viewModel.isCloudflareVerificationResult(it)) {
                         isCloudflareChallenge = true
                     } else if (isCloudflareChallenge && viewModel.shouldAutoReturnAfterCloudflareChallenge()) {
                         returnVerificationResultAndFinish()
