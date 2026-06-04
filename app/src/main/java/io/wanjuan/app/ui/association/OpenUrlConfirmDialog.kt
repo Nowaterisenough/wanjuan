@@ -1,24 +1,19 @@
 package io.wanjuan.app.ui.association
 
-import android.content.Intent
 import android.os.Bundle
 import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
 import androidx.appcompat.widget.Toolbar
-import androidx.core.net.toUri
 import androidx.fragment.app.viewModels
 import io.wanjuan.app.R
 import io.wanjuan.app.base.BaseDialogFragment
-import io.wanjuan.app.constant.AppLog
 import io.wanjuan.app.databinding.DialogOpenUrlConfirmBinding
 import io.wanjuan.app.lib.dialogs.alert
 import io.wanjuan.app.lib.theme.primaryColor
 import io.wanjuan.app.utils.applyTint
 import io.wanjuan.app.utils.setLayout
-import io.wanjuan.app.utils.toastOnUi
 import io.wanjuan.app.utils.viewbindingdelegate.viewBinding
-import splitties.init.appCtx
 
 class OpenUrlConfirmDialog() : BaseDialogFragment(R.layout.dialog_open_url_confirm),
     Toolbar.OnMenuItemClickListener {
@@ -70,34 +65,8 @@ class OpenUrlConfirmDialog() : BaseDialogFragment(R.layout.dialog_open_url_confi
         binding.message.text = "正在请求跳转链接/应用，是否跳转？"
         binding.btnNegative.setOnClickListener { dismiss() }
         binding.btnPositive.setOnClickListener {
-            openUrl()
+            OpenUrlLauncher.open(requireContext(), viewModel.uri, viewModel.mimeType)
             dismiss()
-        }
-    }
-
-    private fun openUrl() {
-        try {
-            val uri = viewModel.uri.toUri()
-            val mimeType = viewModel.mimeType
-            // 创建目标 Intent 并设置类型
-            val targetIntent = Intent(Intent.ACTION_VIEW).apply {
-                // 同时设置 Data 和 Type
-                if (!mimeType.isNullOrBlank()) {
-                    setDataAndType(uri, mimeType)
-                } else {
-                    data = uri
-                }
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-
-            // 验证是否有应用可以处理
-            if (targetIntent.resolveActivity(appCtx.packageManager) != null) {
-                startActivity(targetIntent)
-            } else {
-                toastOnUi(R.string.can_not_open)
-            }
-        } catch (e: Exception) {
-            AppLog.put("打开链接失败", e, true)
         }
     }
 
