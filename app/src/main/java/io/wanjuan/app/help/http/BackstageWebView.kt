@@ -189,8 +189,9 @@ class BackstageWebView(
 
     private fun setCookie(url: String) {
         tag?.let {
+            val cookie = CookieManager.getInstance().getCookie(url)
+            CookieStore.cacheCookie(it, cookie)
             Coroutine.async(executeContext = IO) {
-                val cookie = CookieManager.getInstance().getCookie(url)
                 CookieStore.setCookie(it, cookie)
             }
         }

@@ -350,7 +350,7 @@ interface JsExtensions : JsEncodeUtils {
                         headerMapF = analyzeUrl?.headerMap,
                         source = getSource(),
                         coroutineContext = context
-                    ).getStrResponseAwait(useWebView = false, skipRateLimit = true)
+                    ).getStrResponseAwait(useWebView = false)
                 }
                 response.url to (response.body ?: "")
             }

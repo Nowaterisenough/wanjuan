@@ -20,13 +20,18 @@ import io.wanjuan.app.utils.splitNotBlank
 @Keep
 object CookieStore : CookieManagerInterface {
 
+    fun cacheCookie(url: String, cookie: String?) {
+        val domain = NetworkUtils.getSubDomain(url)
+        CacheManager.putMemory("${domain}_cookie", cookie ?: "")
+    }
+
     /**
      *保存cookie到数据库，会自动识别url的二级域名
      */
     override fun setCookie(url: String, cookie: String?) {
         try {
+            cacheCookie(url, cookie)
             val domain = NetworkUtils.getSubDomain(url)
-            CacheManager.putMemory("${domain}_cookie", cookie ?: "")
             val cookieBean = Cookie(domain, cookie ?: "")
             appDb.cookieDao.insert(cookieBean)
         } catch (e: Exception) {

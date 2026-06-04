@@ -183,9 +183,24 @@ object SourceVerificationHelp {
         if (result.first == url || refetchAfterSharedVerification == null) {
             return result
         }
-        return refetchAfterSharedVerification(url).also {
-            if (it.second.isEmpty()) throw NoStackTraceException("verification result is empty")
+        val refetched = kotlin.runCatching {
+            refetchAfterSharedVerification(url)
+        }.getOrElse { error ->
+            AppLog.putDebug("${source.getTag()} Cloudflare: 共享验证后重新请求失败, 改用后台 WebView ${error.localizedMessage}")
+            tryResolveCloudflareSilently(source, url)?.let {
+                return it
+            }
+            throw error
         }
+        val body = refetched.second
+        if (body.isBlank() || CloudflareVerification.isChallengeBody(body)) {
+            AppLog.putDebug("${source.getTag()} Cloudflare: 共享验证后仍是验证页或空页面, 后台等待跳转...")
+            tryResolveCloudflareSilently(source, url)?.let {
+                return it
+            }
+            throw NoStackTraceException("Cloudflare 验证后仍未获取到有效页面")
+        }
+        return refetched
     }
 
     /**

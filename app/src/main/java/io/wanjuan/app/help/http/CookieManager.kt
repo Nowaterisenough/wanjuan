@@ -143,11 +143,13 @@ object CookieManager {
     fun applyToWebView(url: String) {
         val baseUrl = NetworkUtils.getBaseUrl(url) ?: return
         val cookies = CookieStore.getCookie(url).splitNotBlank(";")
+        if (cookies.isEmpty()) return
         val cookieManager = CookieManager.getInstance()
         cookieManager.removeSessionCookies(null)
         cookies.forEach {
             cookieManager.setCookie(baseUrl, it)
         }
+        cookieManager.flush()
     }
 
     fun List<Cookie>.getString() = buildString {
