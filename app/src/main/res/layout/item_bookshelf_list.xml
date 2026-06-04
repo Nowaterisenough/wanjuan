@@ -37,6 +37,17 @@
         app:layout_constraintStart_toStartOf="@id/iv_cover"
         app:layout_constraintTop_toTopOf="@id/iv_cover" />
 
+    <io.wanjuan.app.ui.widget.anima.RotateLoading
+        android:id="@+id/rl_loading"
+        android:layout_width="34dp"
+        android:layout_height="34dp"
+        android:visibility="invisible"
+        app:layout_constraintBottom_toBottomOf="@id/iv_cover"
+        app:layout_constraintEnd_toEndOf="@id/iv_cover"
+        app:layout_constraintStart_toStartOf="@id/iv_cover"
+        app:layout_constraintTop_toTopOf="@id/iv_cover"
+        app:loading_width="3dp" />
+
     <FrameLayout
         android:id="@+id/fl_has_new"
         android:layout_width="wrap_content"
@@ -54,15 +65,6 @@
             android:layout_margin="5dp"
             android:includeFontPadding="false"
             android:scrollbars="none"
-            tools:ignore="RtlHardcoded" />
-
-        <io.wanjuan.app.ui.widget.anima.RotateLoading
-            android:id="@+id/rl_loading"
-            android:layout_width="26dp"
-            android:layout_height="26dp"
-            android:layout_gravity="right"
-            android:visibility="invisible"
-            app:loading_width="2dp"
             tools:ignore="RtlHardcoded" />
     </FrameLayout>
 

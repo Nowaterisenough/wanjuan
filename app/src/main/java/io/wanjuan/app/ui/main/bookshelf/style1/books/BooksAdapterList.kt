@@ -68,7 +68,8 @@ class BooksAdapterList(
 
     private fun upRefresh(binding: ItemBookshelfListBinding, item: Book) {
         val updating = !item.isLocal && callBack.isUpdate(item.bookUrl)
-        binding.vwCoverPendingOverlay.visible(!updating && !item.isLocal && callBack.isWaitingUpdate(item.bookUrl))
+        val waitingUpdate = !item.isLocal && callBack.isWaitingUpdate(item.bookUrl)
+        binding.vwCoverPendingOverlay.visible(updating || waitingUpdate)
         if (updating) {
             binding.bvUnread.invisible()
             binding.rlLoading.visible()
