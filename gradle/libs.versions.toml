@@ -78,7 +78,7 @@ recyclerview = "1.4.0"
 #noinspection GradleDependency
 viewpager2 = "1.1.0"
 #noinspection GradleDependency
-firebaseBom = "34.13.0"
+firebaseBom = "34.14.1"
 [libraries]
 
 activity-activity = { module = "androidx.activity:activity", version.ref = "activity" }
