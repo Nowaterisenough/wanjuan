@@ -857,7 +857,9 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
         } else {
             result.map { it.copy(group = getString(R.string.discover_group_other)) }
         }
-        return normalized.distinctBy { "${it.group}|${it.kind.type}|${it.kind.title}|${it.kind.url}|${it.kind.action}" }
+        return normalized.distinctBy {
+            "${it.group}|${it.kind.type}|${it.kind.title}|${it.kind.url}|${it.kind.action}|${it.kind.loadMoreAction}"
+        }
     }
 
     private fun isDiscoverMajorGroupKind(kind: ExploreKind): Boolean {
@@ -955,7 +957,8 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
         val showGridColumns = normalizeDiscoverBookLayout(AppConfig.modernDiscoveryLayout) == DISCOVER_LAYOUT_GRID
         if (rows.isEmpty() && !showGridColumns) return
         val itemMap = discoverSettingItems.associateBy { it.toDiscoverRowUi().name }
-        RowUiDialog.show(
+        var settingsDialog: androidx.appcompat.app.AlertDialog? = null
+        settingsDialog = RowUiDialog.show(
             requireContext(),
             RowUiDialog.Config(
                 title = getString(R.string.discovery_settings_title),
@@ -979,6 +982,16 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
                         handleDiscoverButtonTag(item)
                     } else {
                         selectDiscoverSettingUrl(item)
+                    }
+                }
+
+                override fun onLoadMore(rowUi: RowUi) {
+                    val item = itemMap[rowUi.name] ?: return
+                    handleDiscoverSelectLoadMore(item) {
+                        settingsDialog?.dismiss()
+                        if (isAdded) {
+                            binding.root.post { showDiscoverSettingsDialog() }
+                        }
                     }
                 }
             }
@@ -1041,6 +1054,7 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
             name = if (type == RowUi.Type.select) kind.title else text,
             type = type,
             action = kind.action,
+            loadMoreAction = kind.loadMoreAction,
             chars = kind.chars,
             default = kind.default,
             viewName = kind.viewName,
@@ -1135,6 +1149,44 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
                 return@launch
             } catch (e: Throwable) {
                 AppLog.put("发现选项执行失败", e)
+                if (isAdded) {
+                    showDiscoverRuleExecutionError(item.text)
+                }
+            } finally {
+                refreshController.finish()
+            }
+        }
+    }
+
+    private fun handleDiscoverSelectLoadMore(
+        item: DiscoverTagItem,
+        onRefreshed: () -> Unit
+    ) {
+        val source = selectedDiscoverSource ?: return
+        val action = item.kind.loadMoreAction?.takeIf { it.isNotBlank() } ?: return
+        val infoMap = getDiscoverInfoMap(source.bookSourceUrl)
+        val refreshController = DiscoverRefreshController()
+        discoverActionJob?.cancel()
+        discoverActionJob = viewLifecycleOwner.lifecycleScope.launch {
+            try {
+                withContext(IO) {
+                    runScriptWithContext {
+                        source.evalJS(action) {
+                            put(
+                                "java",
+                                discoverJsExtensions(source, refreshController)
+                            )
+                            put("infoMap", infoMap)
+                        }
+                    }
+                    source.clearExploreKindsCache()
+                }
+                loadDiscoverKindsAndDefault()
+                onRefreshed()
+            } catch (_: CancellationException) {
+                return@launch
+            } catch (e: Throwable) {
+                AppLog.put("发现下拉加载更多失败", e)
                 if (isAdded) {
                     showDiscoverRuleExecutionError(item.text)
                 }

@@ -196,6 +196,49 @@ class BookSourceConfigTest {
         assertFalse("Jmcomic content should not keep the old album thumbnail selector", contentRule.contains("thumb-overlay-albums"))
     }
 
+    @Test
+    fun missavActressListStaysInSettingsAndLoadsMoreFromSelectScroll() {
+        val sourceText = repoFile("tests/shareBookSource.json").readText()
+        val missavSource = sourceObject(sourceText, """"bookSourceUrl": "https://missav.ws/"""")
+        val exploreUrl = fieldValue(missavSource, "exploreUrl")
+
+        assertTrue("MissAV source should exist", missavSource.isNotBlank())
+        assertTrue("MissAV actress selector should be a settings select", exploreUrl.contains("\\\"type\\\": \\\"select\\\""))
+        assertTrue("MissAV actress selector should declare dropdown load-more behavior", exploreUrl.contains("loadMoreAction"))
+        assertTrue("MissAV actress list should be parsed from the site instead of staying fixed", exploreUrl.contains("loadMissAvActressPage"))
+        assertTrue("MissAV should keep the general actress list entry", exploreUrl.contains("path('/actresses')"))
+        assertTrue("MissAV should keep the actress ranking entry", exploreUrl.contains("path('/actresses/ranking')"))
+        assertFalse(
+            "MissAV should not emit every actress as a discovery category",
+            exploreUrl.contains("Object.keys(actressMap).forEach")
+        )
+        assertFalse(
+            "MissAV should not group the actress selector as a discovery category section",
+            exploreUrl.contains("heading('女优')")
+        )
+    }
+
+    @Test
+    fun rowUiSelectSupportsDropdownLoadMoreActions() {
+        val rowUi = repoFile("app/src/main/java/io/wanjuan/app/data/entities/rule/RowUi.kt").readText()
+        val exploreKind = repoFile("app/src/main/java/io/wanjuan/app/data/entities/rule/ExploreKind.kt").readText()
+        val rowUiForm = repoFile("app/src/main/java/io/wanjuan/app/ui/widget/RowUiForm.kt").readText()
+        val rowUiViewFactory = repoFile("app/src/main/java/io/wanjuan/app/ui/widget/RowUiViewFactory.kt").readText()
+        val rowUiDialog = repoFile("app/src/main/java/io/wanjuan/app/ui/widget/RowUiDialog.kt").readText()
+        val exploreFragment = repoFile("app/src/main/java/io/wanjuan/app/ui/main/explore/ExploreFragment.kt").readText()
+        val sourceLoginDialog = repoFile("app/src/main/java/io/wanjuan/app/ui/login/SourceLoginDialog.kt").readText()
+
+        assertTrue("RowUi should carry select load-more JavaScript", rowUi.contains("loadMoreAction"))
+        assertTrue("ExploreKind should carry select load-more JavaScript", exploreKind.contains("loadMoreAction"))
+        assertTrue("RowUiForm should expose load-more callbacks", rowUiForm.contains("fun onLoadMore(rowUi: RowUi)"))
+        assertTrue("RowUiForm should forward select load-more callbacks", rowUiForm.contains("callback.onLoadMore(rowUi)"))
+        assertTrue("RowUiViewFactory should accept a select load-more callback", rowUiViewFactory.contains("onLoadMore"))
+        assertTrue("RowUiViewFactory should trigger load-more while rendering the dropdown tail", rowUiViewFactory.contains("position == count - 1"))
+        assertTrue("RowUiDialog should surface load-more events", rowUiDialog.contains("fun onLoadMore(rowUi: RowUi)"))
+        assertTrue("Discovery settings should execute load-more actions", exploreFragment.contains("handleDiscoverSelectLoadMore"))
+        assertTrue("Source login settings should execute load-more actions", sourceLoginDialog.contains("rowUi.loadMoreAction"))
+    }
+
     private fun repoFile(relativePath: String): File {
         return generateSequence(File("").absoluteFile) { it.parentFile }
             .map { File(it, relativePath) }

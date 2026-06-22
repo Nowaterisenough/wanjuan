@@ -20,6 +20,7 @@ object RowUiForm {
     interface Callback {
         fun onValueChanged(rowUi: RowUi, value: String) = Unit
         fun onAction(rowUi: RowUi, isLongClick: Boolean) = Unit
+        fun onLoadMore(rowUi: RowUi) = Unit
         fun resolveViewName(rowUi: RowUi, fallback: String, apply: (String) -> Unit) {
             apply(fallback)
         }
@@ -121,14 +122,18 @@ object RowUiForm {
             ?: emptyList()
         val options = chars.ifEmpty { listOf(rowUi.default.orEmpty()) }
         val binding = RowUiViewFactory.selectView(
-            inflater,
-            container,
-            rowUi,
-            options,
-            values[rowUi.name] ?: rowUi.default
-        ) { value ->
-            callback.onValueChanged(rowUi, value)
-        }
+            inflater = inflater,
+            parent = container,
+            rowUi = rowUi,
+            chars = options,
+            selectedValue = values[rowUi.name] ?: rowUi.default,
+            onSelected = { value ->
+                callback.onValueChanged(rowUi, value)
+            },
+            onLoadMore = rowUi.loadMoreAction?.takeIf { it.isNotBlank() }?.let {
+                { callback.onLoadMore(rowUi) }
+            }
+        )
         return FormRow(binding.root) {
             rowUi.style().apply {
                 when (layout_justifySelf) {

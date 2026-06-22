@@ -7,6 +7,7 @@ data class RowUi(
     val name: String = "",
     val type: String = "text",
     val action: String? = null,
+    val loadMoreAction: String? = null,
     val chars: Array<String?>? = null,
     val default: String? = null,
     var viewName: String? = null,
@@ -50,6 +51,7 @@ data class RowUi(
             return other.name == name
                     && other.type == type
                     && other.action == action
+                    && other.loadMoreAction == loadMoreAction
                     && other.default == default
         }
         return false
@@ -58,6 +60,7 @@ data class RowUi(
     override fun hashCode(): Int {
         var result = name.hashCode() + type.hashCode()
         result = 31 * result + (action?.hashCode() ?: 0)
+        result = 31 * result + (loadMoreAction?.hashCode() ?: 0)
         result = 31 * result + (default?.hashCode() ?: 0)
         return result
     }

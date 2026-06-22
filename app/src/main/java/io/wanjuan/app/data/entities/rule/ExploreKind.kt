@@ -8,6 +8,7 @@ data class ExploreKind(
     val url: String? = null,
     val type: String = "url",
     val action: String? = null,
+    val loadMoreAction: String? = null,
     val chars: Array<String?>? = null,
     val default: String? = null,
     var viewName: String? = null,
@@ -35,6 +36,7 @@ data class ExploreKind(
                     && other.type == type
                     && other.url == url
                     && other.action == action
+                    && other.loadMoreAction == loadMoreAction
                     && other.default == default
         }
         return false
@@ -44,6 +46,7 @@ data class ExploreKind(
         var result = title.hashCode() + type.hashCode()
         result = 31 * result + (url?.hashCode() ?: 0)
         result = 31 * result + (action?.hashCode() ?: 0)
+        result = 31 * result + (loadMoreAction?.hashCode() ?: 0)
         result = 31 * result + (default?.hashCode() ?: 0)
         return result
     }

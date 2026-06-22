@@ -284,6 +284,10 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true),
                     handleButtonClick(source, rowUi.action, rowUi.name, isLongClick)
                 }
 
+                override fun onLoadMore(rowUi: RowUi) {
+                    handleButtonClick(source, rowUi.loadMoreAction, rowUi.name, false)
+                }
+
                 override fun resolveViewName(
                     rowUi: RowUi,
                     fallback: String,

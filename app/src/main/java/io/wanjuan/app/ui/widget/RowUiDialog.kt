@@ -33,6 +33,7 @@ object RowUiDialog {
     interface Callback {
         fun onValueChanged(rowUi: RowUi, value: String) = Unit
         fun onAction(rowUi: RowUi, isLongClick: Boolean) = Unit
+        fun onLoadMore(rowUi: RowUi) = Unit
     }
 
     fun show(
@@ -85,6 +86,10 @@ object RowUiDialog {
                         rowUi.type == RowUi.Type.toggle && config.dismissOnToggle -> dialog?.dismiss()
                         rowUi.type != RowUi.Type.toggle && config.dismissOnAction -> dialog?.dismiss()
                     }
+                }
+
+                override fun onLoadMore(rowUi: RowUi) {
+                    callback.onLoadMore(rowUi)
                 }
             }
         )

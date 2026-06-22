@@ -40,7 +40,8 @@ object RowUiViewFactory {
         rowUi: RowUi,
         chars: List<String>,
         selectedValue: String?,
-        onSelected: (String) -> Unit
+        onSelected: (String) -> Unit,
+        onLoadMore: (() -> Unit)? = null
     ): ItemSelectorSingleBinding {
         val binding = ItemSelectorSingleBinding.inflate(inflater, parent, false)
         applyModernRowUiStyle(rowUi, binding.root)
@@ -50,6 +51,8 @@ object RowUiViewFactory {
             R.layout.item_text_common,
             chars
         ) {
+            private var loadMoreRequested = false
+
             override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
                 return super.getView(position, convertView, parent).apply {
                     applyUiBodyTypeface(context)
@@ -59,6 +62,10 @@ object RowUiViewFactory {
             override fun getDropDownView(position: Int, convertView: View?, parent: ViewGroup): View {
                 return super.getDropDownView(position, convertView, parent).apply {
                     applyUiBodyTypeface(context)
+                    if (onLoadMore != null && !loadMoreRequested && position == count - 1) {
+                        loadMoreRequested = true
+                        post { onLoadMore.invoke() }
+                    }
                 }
             }
         }
