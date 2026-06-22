@@ -1202,12 +1202,9 @@ class ReadBookActivity : BaseReadBookActivity(),
         }
         val glassLevel = ReaderBottomGlassStyle.glassLevel()
         val cornerRadius = 28f.dpToPx()
-        setupChapterMinimapControlGlassView(
-            button = binding.chapterProgressMinimapShell,
+        setupChapterMinimapTrackGlassView(
             glassView = binding.chapterProgressMinimapGlassView,
-            shellOverlay = binding.chapterProgressMinimapShellOverlay,
-            glassLevel = glassLevel,
-            cornerRadius = cornerRadius
+            glassLevel = glassLevel
         )
         setupChapterMinimapControlGlassView(
             button = binding.btnChapterMinimapPrevious,
@@ -1223,6 +1220,22 @@ class ReadBookActivity : BaseReadBookActivity(),
             glassLevel = glassLevel,
             cornerRadius = cornerRadius
         )
+    }
+
+    private fun setupChapterMinimapTrackGlassView(
+        glassView: LiquidGlassView,
+        glassLevel: Float
+    ) {
+        val shouldBind = !boundChapterMinimapGlassViewIds.contains(glassView.id)
+        if (ReaderBottomGlassStyle.configureLiquidGlass(
+            liquidGlassView = glassView,
+            target = binding.readContentContainer,
+            cornerRadius = 0f,
+            bindTarget = shouldBind,
+            glassLevel = glassLevel
+        )) {
+            boundChapterMinimapGlassViewIds.add(glassView.id)
+        }
     }
 
     private fun setupChapterMinimapControlGlassView(
@@ -1341,6 +1354,9 @@ class ReadBookActivity : BaseReadBookActivity(),
         }
         val minimapHeight = 300.dpToPx().coerceAtMost(maxMinimapHeight)
         val panelHeight = minimapHeight + controlsTopMargin + controlsHeight
+        binding.chapterProgressMinimapHost.updateLayoutParams<ViewGroup.LayoutParams> {
+            height = minimapHeight
+        }
         binding.chapterProgressMinimap.updateLayoutParams<ViewGroup.LayoutParams> {
             height = minimapHeight
         }

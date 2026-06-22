@@ -4460,9 +4460,9 @@ class ReadMenu @JvmOverloads constructor(
             liquidGlassView = titleBarGlassView,
             target = target,
             cornerRadius = 0f,
-            refractionHeight = (12f + glassLevel * 8f).dpToPx(),
-            refractionOffset = (34f + glassLevel * 18f).dpToPx(),
-            blurRadius = (22f + glassLevel * 30f).dpToPx(),
+            refractionHeight = (12f + glassLevel * 10f).dpToPx(),
+            refractionOffset = (36f + glassLevel * 18f).dpToPx(),
+            blurRadius = (6f + glassLevel * 12f).dpToPx(),
             dispersion = (0.18f + glassLevel * 0.16f).coerceAtMost(0.42f),
             tintAlpha = bottomTabGlassTintAlpha(glassLevel),
             tintColor = bottomTabGlassTintColor()
@@ -4556,9 +4556,9 @@ class ReadMenu @JvmOverloads constructor(
             liquidGlassView = bottomTabGlassView,
             target = target,
             cornerRadius = bottomTabGlassCornerRadius(),
-            refractionHeight = (12f + glassLevel * 8f).dpToPx(),
-            refractionOffset = (34f + glassLevel * 18f).dpToPx(),
-            blurRadius = (22f + glassLevel * 30f).dpToPx(),
+            refractionHeight = (12f + glassLevel * 10f).dpToPx(),
+            refractionOffset = (36f + glassLevel * 18f).dpToPx(),
+            blurRadius = (6f + glassLevel * 12f).dpToPx(),
             dispersion = (0.18f + glassLevel * 0.16f).coerceAtMost(0.42f),
             tintAlpha = bottomTabGlassTintAlpha(glassLevel),
             tintColor = tintColor
@@ -4634,9 +4634,9 @@ class ReadMenu @JvmOverloads constructor(
             liquidGlassView = layoutMarginAdjustGlassView,
             target = target,
             cornerRadius = cornerRadius,
-            refractionHeight = (12f + glassLevel * 8f).dpToPx(),
-            refractionOffset = (34f + glassLevel * 18f).dpToPx(),
-            blurRadius = (22f + glassLevel * 30f).dpToPx(),
+            refractionHeight = (12f + glassLevel * 10f).dpToPx(),
+            refractionOffset = (36f + glassLevel * 18f).dpToPx(),
+            blurRadius = (6f + glassLevel * 12f).dpToPx(),
             dispersion = (0.18f + glassLevel * 0.16f).coerceAtMost(0.42f),
             tintAlpha = bottomTabGlassTintAlpha(glassLevel),
             tintColor = bottomTabGlassTintColor()
@@ -4716,36 +4716,21 @@ class ReadMenu @JvmOverloads constructor(
     }
 
     private fun readBottomTabGlassShell(glassLevel: Float, cornerRadius: Float): GradientDrawable {
-        val isDark = bottomTabUseDarkGlass()
-        val surfaceColor = if (isDark) {
-            bottomTabDarkGlassSurfaceColor()
-        } else {
-            ColorUtils.blendColors(Color.WHITE, context.accentColor, 0.05f)
-        }
-        val topAlpha = if (isDark) {
-            0.34f + glassLevel * 0.12f
-        } else {
-            0.16f + glassLevel * 0.09f
-        }
-        val centerAlpha = if (isDark) {
-            0.28f + glassLevel * 0.10f
-        } else {
-            0.11f + glassLevel * 0.07f
-        }
-        val bottomAlpha = if (isDark) {
-            0.20f + glassLevel * 0.08f
-        } else {
-            0.07f + glassLevel * 0.05f
-        }
+        val surfaceColor = bottomTabGlassSurfaceColor()
+        val topAlpha = (0.32f + glassLevel * 0.44f).coerceIn(0f, 0.86f)
+        val centerAlpha = (0.24f + glassLevel * 0.38f).coerceIn(0f, 0.74f)
+        val bottomAlpha = (0.18f + glassLevel * 0.32f).coerceIn(0f, 0.66f)
+        val strokeAlpha = (0.22f + glassLevel * 0.22f).coerceIn(0f, 0.58f)
         return GradientDrawable(
             GradientDrawable.Orientation.TOP_BOTTOM,
             intArrayOf(
-                ColorUtils.withAlpha(surfaceColor, topAlpha.coerceAtMost(if (isDark) 0.46f else 0.25f)),
-                ColorUtils.withAlpha(surfaceColor, centerAlpha.coerceAtMost(if (isDark) 0.38f else 0.18f)),
-                ColorUtils.withAlpha(surfaceColor, bottomAlpha.coerceAtMost(if (isDark) 0.28f else 0.12f))
+                ColorUtils.withAlpha(surfaceColor, topAlpha),
+                ColorUtils.withAlpha(surfaceColor, centerAlpha),
+                ColorUtils.withAlpha(surfaceColor, bottomAlpha)
             )
         ).apply {
             this.cornerRadius = cornerRadius
+            setStroke(1.dpToPx(), ColorUtils.withAlpha(surfaceColor, strokeAlpha))
         }
     }
 
@@ -4754,20 +4739,13 @@ class ReadMenu @JvmOverloads constructor(
     }
 
     private fun readBottomTabGlassFallbackShell(glassLevel: Float, cornerRadius: Float): GradientDrawable {
-        val isDark = bottomTabUseDarkGlass()
-        val surfaceColor = if (isDark) {
-            bottomTabDarkGlassSurfaceColor()
-        } else {
-            ColorUtils.blendColors(Color.WHITE, context.accentColor, 0.05f)
-        }
-        val alpha = if (isDark) {
-            0.36f + glassLevel * 0.10f
-        } else {
-            0.14f + glassLevel * 0.10f
-        }
+        val surfaceColor = bottomTabGlassSurfaceColor()
+        val alpha = (0.24f + glassLevel * 0.38f).coerceIn(0f, 0.74f)
+        val strokeAlpha = (0.22f + glassLevel * 0.22f).coerceIn(0f, 0.58f)
         return GradientDrawable().apply {
             this.cornerRadius = cornerRadius
-            setColor(ColorUtils.withAlpha(surfaceColor, alpha.coerceAtMost(if (isDark) 0.46f else 0.24f)))
+            setColor(ColorUtils.withAlpha(surfaceColor, alpha))
+            setStroke(1.dpToPx(), ColorUtils.withAlpha(surfaceColor, strokeAlpha))
         }
     }
 
@@ -4779,16 +4757,17 @@ class ReadMenu @JvmOverloads constructor(
         return readBottomTabGlassFallbackShell(glassLevel, cornerRadius)
     }
 
-    private fun bottomTabDarkGlassSurfaceColor(): Int {
-        return Color.rgb(8, 10, 14)
+    private fun bottomTabGlassSurfaceColor(): Int {
+        val baseColor = bgColor
+        return if (ColorUtils.isColorLight(baseColor)) {
+            ColorUtils.blendColors(baseColor, Color.WHITE, 0.72f)
+        } else {
+            ColorUtils.blendColors(baseColor, Color.BLACK, 0.24f)
+        }
     }
 
     private fun bottomTabGlassTintAlpha(glassLevel: Float): Float {
-        return if (bottomTabUseDarkGlass()) {
-            (0.12f + glassLevel * 0.14f).coerceAtMost(0.26f)
-        } else {
-            (0.06f + glassLevel * 0.10f).coerceAtMost(0.16f)
-        }
+        return 0.12f + glassLevel * 0.18f
     }
 
     private fun bottomTabGlassTintColor(): FloatArray {

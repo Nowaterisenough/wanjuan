@@ -48,25 +48,18 @@
         android:visibility="gone">
 
         <FrameLayout
-            android:id="@+id/manga_progress_minimap_shell"
+            android:id="@+id/manga_progress_minimap_host"
             android:layout_width="56dp"
             android:layout_height="wrap_content"
             android:clipChildren="false"
             android:clipToOutline="false"
             android:clipToPadding="false">
 
-            <io.wanjuan.app.ui.widget.SafeLiquidGlassView
+            <com.qmdeve.liquidglass.widget.LiquidGlassView
                 android:id="@+id/manga_progress_minimap_glass_view"
-                android:layout_width="match_parent"
+                android:layout_width="46dp"
                 android:layout_height="match_parent"
-                android:clickable="false"
-                android:focusable="false" />
-
-            <View
-                android:id="@+id/manga_progress_minimap_shell_overlay"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:background="@drawable/bg_liquid_glass_shell_overlay"
+                android:layout_gravity="center_horizontal"
                 android:clickable="false"
                 android:focusable="false" />
 

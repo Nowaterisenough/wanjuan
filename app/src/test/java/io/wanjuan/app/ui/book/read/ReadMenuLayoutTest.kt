@@ -1490,7 +1490,7 @@ class ReadMenuLayoutTest {
         val chapterProvider = repoFile("app/src/main/java/io/wanjuan/app/ui/book/read/page/provider/ChapterProvider.kt").readText()
         val textChapterLayout = repoFile("app/src/main/java/io/wanjuan/app/ui/book/read/page/provider/TextChapterLayout.kt").readText()
         val minimapPanel = layout.elementById("chapter_progress_minimap_panel")
-        val minimapShell = layout.elementById("chapter_progress_minimap_shell")
+        val minimapHost = layout.elementById("chapter_progress_minimap_host")
         val minimap = layout.elementById("chapter_progress_minimap")
         val minimapControls = layout.elementById("chapter_progress_minimap_controls")
         val previousButton = layout.elementById("btn_chapter_minimap_previous")
@@ -1512,16 +1512,16 @@ class ReadMenuLayoutTest {
         assertEquals("300dp", minimap.androidAttr("layout_height"))
         assertEquals("true", minimap.androidAttr("clickable"))
         assertEquals("@string/chapter_progress_minimap", minimap.androidAttr("contentDescription"))
-        assertEquals("FrameLayout", minimapShell.tagName)
-        assertEquals("56dp", minimapShell.androidAttr("layout_width"))
-        assertEquals("300dp", minimapShell.androidAttr("layout_height"))
-        assertTrue(minimapShell.hasAncestor(minimapPanel))
-        assertTrue(minimap.hasAncestor(minimapShell))
-        assertTrue(layout.elementById("chapter_progress_minimap_glass_view").hasAncestor(minimapShell))
-        assertTrue(layout.elementById("chapter_progress_minimap_shell_overlay").hasAncestor(minimapShell))
-        assertTrue(layout.elementById("chapter_progress_minimap_glass_view").isBefore(layout.elementById("chapter_progress_minimap_shell_overlay")))
-        assertTrue(layout.elementById("chapter_progress_minimap_shell_overlay").isBefore(minimap))
-        assertTrue(minimapShell.isBefore(minimapControls))
+        assertEquals("FrameLayout", minimapHost.tagName)
+        assertEquals("56dp", minimapHost.androidAttr("layout_width"))
+        assertEquals("300dp", minimapHost.androidAttr("layout_height"))
+        assertTrue(minimapHost.hasAncestor(minimapPanel))
+        assertTrue(minimap.hasAncestor(minimapHost))
+        assertEquals("46dp", layout.elementById("chapter_progress_minimap_glass_view").androidAttr("layout_width"))
+        assertTrue(layout.elementById("chapter_progress_minimap_glass_view").hasAncestor(minimapHost))
+        assertTrue(layout.elementById("chapter_progress_minimap_glass_view").isBefore(minimap))
+        assertTrue(runCatching { layout.elementById("chapter_progress_minimap_shell_overlay") }.isFailure)
+        assertTrue(minimapHost.isBefore(minimapControls))
         assertEquals("vertical", minimapControls.androidAttr("orientation"))
         assertEquals("68dp", minimapControls.androidAttr("layout_width"))
         assertEquals("wrap_content", minimapControls.androidAttr("layout_height"))
@@ -1565,7 +1565,7 @@ class ReadMenuLayoutTest {
         assertTrue(readActivity.contains("if (!ViewCompat.isLaidOut(binding.readContentContainer) || glassViews.any { !ViewCompat.isLaidOut(it) })"))
         assertTrue(readActivity.contains("binding.chapterProgressMinimapPanel.post"))
         assertTrue(readActivity.contains("binding.chapterProgressMinimapGlassView"))
-        assertTrue(readActivity.contains("binding.chapterProgressMinimapShellOverlay"))
+        assertFalse(readActivity.contains("binding.chapterProgressMinimapShellOverlay"))
         assertTrue(readActivity.contains("binding.chapterMinimapPreviousGlassView"))
         assertTrue(readActivity.contains("binding.chapterMinimapNextGlassView"))
         assertTrue(readActivity.contains("ReaderBottomGlassStyle.configureLiquidGlass"))
@@ -1579,6 +1579,7 @@ class ReadMenuLayoutTest {
         assertTrue(readActivity.contains("ReadBook.curTextChapter?.pageSize"))
         assertTrue(readActivity.contains("textChapter.getContent()"))
         assertTrue(readActivity.contains("binding.chapterProgressMinimap.updateChapter("))
+        assertFalse(minimapView.contains("trackPaint.color = ColorUtils.setAlphaComponent(Color.rgb(18, 24, 32), 86)"))
         assertTrue(readActivity.contains("ReadBook.durPageIndex"))
         assertFalse(readActivity.contains("AppConfig.progressBarBehavior)"))
         assertFalse(readActivity.contains("chapterProgressDragThrottle"))
@@ -1685,7 +1686,7 @@ class ReadMenuLayoutTest {
         val webtoonFrame = layout.elementById("webtoon_frame")
         val mangaMenuView = layout.elementById("manga_menu")
         val minimapPanel = layout.elementById("manga_progress_minimap_panel")
-        val minimapShell = layout.elementById("manga_progress_minimap_shell")
+        val minimapHost = layout.elementById("manga_progress_minimap_host")
         val minimap = layout.elementById("manga_progress_minimap")
         val minimapControls = layout.elementById("manga_progress_minimap_controls")
         val previousButton = layout.elementById("btn_manga_minimap_previous")
@@ -1708,16 +1709,16 @@ class ReadMenuLayoutTest {
         assertEquals("true", minimap.androidAttr("clickable"))
         assertEquals("true", minimap.androidAttr("focusable"))
         assertEquals("@string/manga_progress_minimap", minimap.androidAttr("contentDescription"))
-        assertEquals("FrameLayout", minimapShell.tagName)
-        assertEquals("56dp", minimapShell.androidAttr("layout_width"))
-        assertEquals("wrap_content", minimapShell.androidAttr("layout_height"))
-        assertTrue(minimapShell.hasAncestor(minimapPanel))
-        assertTrue(minimap.hasAncestor(minimapShell))
-        assertTrue(layout.elementById("manga_progress_minimap_glass_view").hasAncestor(minimapShell))
-        assertTrue(layout.elementById("manga_progress_minimap_shell_overlay").hasAncestor(minimapShell))
-        assertTrue(layout.elementById("manga_progress_minimap_glass_view").isBefore(layout.elementById("manga_progress_minimap_shell_overlay")))
-        assertTrue(layout.elementById("manga_progress_minimap_shell_overlay").isBefore(minimap))
-        assertTrue(minimapShell.isBefore(minimapControls))
+        assertEquals("FrameLayout", minimapHost.tagName)
+        assertEquals("56dp", minimapHost.androidAttr("layout_width"))
+        assertEquals("wrap_content", minimapHost.androidAttr("layout_height"))
+        assertTrue(minimapHost.hasAncestor(minimapPanel))
+        assertTrue(minimap.hasAncestor(minimapHost))
+        assertEquals("46dp", layout.elementById("manga_progress_minimap_glass_view").androidAttr("layout_width"))
+        assertTrue(layout.elementById("manga_progress_minimap_glass_view").hasAncestor(minimapHost))
+        assertTrue(layout.elementById("manga_progress_minimap_glass_view").isBefore(minimap))
+        assertTrue(runCatching { layout.elementById("manga_progress_minimap_shell_overlay") }.isFailure)
+        assertTrue(minimapHost.isBefore(minimapControls))
         assertEquals("vertical", minimapControls.androidAttr("orientation"))
         assertEquals("68dp", minimapControls.androidAttr("layout_width"))
         assertEquals("wrap_content", minimapControls.androidAttr("layout_height"))
@@ -1793,7 +1794,7 @@ class ReadMenuLayoutTest {
         assertTrue(mangaActivity.contains("if (!ViewCompat.isLaidOut(binding.webtoonFrame) || glassViews.any { !ViewCompat.isLaidOut(it) })"))
         assertTrue(mangaActivity.contains("binding.mangaProgressMinimapPanel.post"))
         assertTrue(mangaActivity.contains("binding.mangaProgressMinimapGlassView"))
-        assertTrue(mangaActivity.contains("binding.mangaProgressMinimapShellOverlay"))
+        assertFalse(mangaActivity.contains("binding.mangaProgressMinimapShellOverlay"))
         assertTrue(mangaActivity.contains("binding.mangaMinimapPreviousGlassView"))
         assertTrue(mangaActivity.contains("binding.mangaMinimapCurrentGlassView"))
         assertTrue(mangaActivity.contains("binding.mangaMinimapNextGlassView"))
@@ -1812,6 +1813,7 @@ class ReadMenuLayoutTest {
         assertTrue(mangaActivity.contains("updateMangaMinimapCurrentChapterButton()"))
         assertTrue(mangaActivity.contains("ReadManga.curMangaChapter?.chapter?.title.orEmpty()"))
         assertTrue(mangaActivity.contains("binding.mangaProgressMinimap.updatePages(imageUrls, ReadManga.book?.origin, ReadManga.durChapterPos, progressRatio)"))
+        assertFalse(minimapView.contains("trackPaint.color = ColorUtils.setAlphaComponent(Color.rgb(18, 24, 32), 86)"))
         assertTrue(mangaActivity.contains("binding.mangaProgressMinimapPanel.gone(!show || pageCount <= 1)"))
         assertTrue(mangaActivity.contains("private fun currentMangaImageUrls(): List<String>"))
         assertTrue(mangaActivity.contains("ReadManga.curMangaChapter?.pages?.filterIsInstance<MangaPage>()"))
@@ -2219,12 +2221,12 @@ class ReadMenuLayoutTest {
     }
 
     @Test
-    fun readerGlassChromeUsesMoreTransparentAlphaRecipe() {
+    fun readerGlassChromeMatchesBookshelfBottomGlassRecipe() {
         val readMenu = repoFile("app/src/main/java/io/wanjuan/app/ui/book/read/ReadMenu.kt").readText()
         val mangaMenu = repoFile("app/src/main/java/io/wanjuan/app/ui/book/read/MangaMenu.kt").readText()
         val minimapButtons = repoFile("app/src/main/java/io/wanjuan/app/ui/book/read/ReaderBottomGlassStyle.kt").readText()
 
-        listOf(readMenu, mangaMenu, minimapButtons).forEach(::assertMoreTransparentGlassRecipe)
+        listOf(readMenu, mangaMenu, minimapButtons).forEach(::assertBookshelfBottomGlassRecipe)
     }
 
     @Test
@@ -2328,7 +2330,6 @@ class ReadMenuLayoutTest {
     fun tocFullscreenGlassCornerSyncWaitsForBoundLiquidGlass() {
         val readMenu = repoFile("app/src/main/java/io/wanjuan/app/ui/book/read/ReadMenu.kt").readText()
         val layoutXml = repoFile("app/src/main/res/layout/view_read_menu.xml").readText()
-        val safeGlassView = repoFile("app/src/main/java/io/wanjuan/app/ui/widget/SafeLiquidGlassView.kt").readText()
         val cornerSync = readMenu.substringAfter("private fun syncTocFullscreenGlassCorners")
             .substringBefore("private fun measureBottomPanelHeight")
         val bottomGlassSetup = readMenu.substringAfter("private fun setupBottomTabFrostedGlassViews")
@@ -2345,10 +2346,8 @@ class ReadMenuLayoutTest {
         assertTrue(readMenu.contains("private fun View.isReadyForLiquidGlassConfig(): Boolean"))
         assertTrue(readMenu.contains("return isLaidOut && width > 0 && height > 0"))
         assertTrue(bottomGlassSetup.contains("!bottomTabGlassView.isReadyForLiquidGlassConfig()"))
-        assertTrue(layoutXml.contains("io.wanjuan.app.ui.widget.SafeLiquidGlassView"))
-        assertTrue(safeGlassView.contains("class SafeLiquidGlassView"))
-        assertTrue(safeGlassView.contains("override fun onSizeChanged"))
-        assertFalse(layoutXml.contains("com.qmdeve.liquidglass.widget.LiquidGlassView"))
+        assertTrue(layoutXml.contains("com.qmdeve.liquidglass.widget.LiquidGlassView"))
+        assertFalse(layoutXml.contains("io.wanjuan.app.ui.widget.SafeLiquidGlassView"))
         assertTrue(singleGlassSetup.contains("): Boolean"))
         assertTrue(singleGlassSetup.contains("if (!target.isReadyForLiquidGlassConfig() || !liquidGlassView.isReadyForLiquidGlassConfig())"))
         assertTrue(singleGlassSetup.contains("val shouldBind = !boundBottomTabGlassViewIds.contains(liquidGlassView.id)"))
@@ -2389,25 +2388,27 @@ class ReadMenuLayoutTest {
     }
 
     @Test
-    fun darkBottomTabGlassUsesNearBlackSurfaceAndTint() {
+    fun darkBottomTabGlassUsesBookshelfSurfaceBlendAndTint() {
         val readMenu = repoFile("app/src/main/java/io/wanjuan/app/ui/book/read/ReadMenu.kt").readText()
 
-        assertTrue(readMenu.contains("private fun bottomTabDarkGlassSurfaceColor(): Int"))
-        assertTrue(readMenu.contains("Color.rgb(8, 10, 14)"))
+        assertTrue(readMenu.contains("private fun bottomTabGlassSurfaceColor(): Int"))
+        assertTrue(readMenu.contains("ColorUtils.blendColors(baseColor, Color.WHITE, 0.72f)"))
+        assertTrue(readMenu.contains("ColorUtils.blendColors(baseColor, Color.BLACK, 0.24f)"))
         assertTrue(readMenu.contains("private fun bottomTabGlassTintColor(): FloatArray"))
         assertTrue(readMenu.contains("floatArrayOf(0.08f, 0.10f, 0.14f)"))
-        assertTrue(readMenu.contains("0.52f + glassLevel * 0.18f"))
+        assertTrue(readMenu.contains("0.12f + glassLevel * 0.18f"))
     }
 
     @Test
-    fun bottomTabShellDoesNotDrawOuterStroke() {
+    fun bottomTabShellDrawsBookshelfGlassStroke() {
         val readMenu = repoFile("app/src/main/java/io/wanjuan/app/ui/book/read/ReadMenu.kt").readText()
         val glassShell = readMenu.substringAfter("private fun bottomTabGlassShell")
             .substringBefore("private fun bottomTabGlassFallbackShell")
         val eInkShell = readMenu.substringAfter("if (AppConfig.isEInkMode)")
             .substringBefore("return@run")
 
-        assertFalse(glassShell.contains("setStroke("))
+        assertTrue(glassShell.contains("val strokeAlpha = (0.22f + glassLevel * 0.22f).coerceIn(0f, 0.58f)"))
+        assertTrue(glassShell.contains("setStroke(1.dpToPx(), ColorUtils.withAlpha(surfaceColor, strokeAlpha))"))
         assertFalse(eInkShell.contains("1.dpToPx()"))
     }
 
@@ -3269,9 +3270,9 @@ class ReadMenuLayoutTest {
         assertTrue(readMenu.contains("layoutAdjustGlassFallbackShell(glassLevel, cornerRadius)"))
         assertTrue(readMenu.contains("return readBottomTabGlassShell(glassLevel, cornerRadius)"))
         assertTrue(readMenu.contains("return readBottomTabGlassFallbackShell(glassLevel, cornerRadius)"))
-        assertTrue(readMenu.contains("refractionHeight = (12f + glassLevel * 8f).dpToPx()"))
-        assertTrue(readMenu.contains("refractionOffset = (34f + glassLevel * 18f).dpToPx()"))
-        assertTrue(readMenu.contains("blurRadius = (22f + glassLevel * 30f).dpToPx()"))
+        assertTrue(readMenu.contains("refractionHeight = (12f + glassLevel * 10f).dpToPx()"))
+        assertTrue(readMenu.contains("refractionOffset = (36f + glassLevel * 18f).dpToPx()"))
+        assertTrue(readMenu.contains("blurRadius = (6f + glassLevel * 12f).dpToPx()"))
         assertTrue(readMenu.contains("tintAlpha = bottomTabGlassTintAlpha(glassLevel)"))
         assertFalse(
             Regex("""private fun bottomTabGlassShell\(glassLevel: Float\): GradientDrawable \{\s*return layoutAdjustGlassShell""")
@@ -3555,7 +3556,19 @@ class ReadMenuLayoutTest {
     private fun Element.appAttr(name: String): String =
         getAttributeNS(APP_NAMESPACE, name)
 
-    private fun assertMoreTransparentGlassRecipe(source: String) {
+    private fun assertBookshelfBottomGlassRecipe(source: String) {
+        listOf(
+            "0.32f + glassLevel * 0.44f",
+            "0.24f + glassLevel * 0.38f",
+            "0.18f + glassLevel * 0.32f",
+            "0.22f + glassLevel * 0.22f",
+            "0.12f + glassLevel * 0.18f",
+            "Color.WHITE, 0.72f",
+            "Color.BLACK, 0.24f",
+            "setStroke(1.dpToPx()"
+        ).forEach { expected ->
+            assertTrue("Missing bookshelf glass recipe value: $expected", source.contains(expected))
+        }
         listOf(
             "0.34f + glassLevel * 0.12f",
             "0.16f + glassLevel * 0.09f",
@@ -3566,11 +3579,7 @@ class ReadMenuLayoutTest {
             "0.36f + glassLevel * 0.10f",
             "0.14f + glassLevel * 0.10f",
             "(0.12f + glassLevel * 0.14f).coerceAtMost(0.26f)",
-            "(0.06f + glassLevel * 0.10f).coerceAtMost(0.16f)"
-        ).forEach { expected ->
-            assertTrue("Missing transparent glass recipe value: $expected", source.contains(expected))
-        }
-        listOf(
+            "(0.06f + glassLevel * 0.10f).coerceAtMost(0.16f)",
             "0.42f + glassLevel * 0.14f",
             "0.22f + glassLevel * 0.12f",
             "0.35f + glassLevel * 0.13f",
@@ -3591,7 +3600,7 @@ class ReadMenuLayoutTest {
             "(0.22f + glassLevel * 0.22f).coerceAtMost(0.44f)",
             "(0.12f + glassLevel * 0.18f).coerceAtMost(0.30f)"
         ).forEach { oldValue ->
-            assertFalse("Old opaque glass recipe value is still present: $oldValue", source.contains(oldValue))
+            assertFalse("Old non-bookshelf glass recipe value is still present: $oldValue", source.contains(oldValue))
         }
     }
 

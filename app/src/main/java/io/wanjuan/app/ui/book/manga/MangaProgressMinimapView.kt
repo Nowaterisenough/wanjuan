@@ -34,7 +34,6 @@ class MangaProgressMinimapView @JvmOverloads constructor(
     private val trackRect = RectF()
     private val thumbRect = RectF()
     private val pageRect = RectF()
-    private val trackPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val outlinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
         strokeWidth = 1f.dpToPx()
@@ -363,8 +362,6 @@ class MangaProgressMinimapView @JvmOverloads constructor(
     }
 
     private fun drawTrack(canvas: Canvas) {
-        trackPaint.color = ColorUtils.setAlphaComponent(Color.rgb(18, 24, 32), 86)
-        canvas.drawRect(trackRect, trackPaint)
         outlinePaint.color = ColorUtils.setAlphaComponent(Color.WHITE, 42)
         canvas.drawRect(trackRect, outlinePaint)
     }

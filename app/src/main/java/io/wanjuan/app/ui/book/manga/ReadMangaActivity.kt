@@ -477,12 +477,9 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
         }
         val glassLevel = ReaderBottomGlassStyle.glassLevel()
         val cornerRadius = 28f.dpToPx()
-        setupMangaMinimapControlGlassView(
-            button = binding.mangaProgressMinimapShell,
+        setupMangaMinimapTrackGlassView(
             glassView = binding.mangaProgressMinimapGlassView,
-            shellOverlay = binding.mangaProgressMinimapShellOverlay,
-            glassLevel = glassLevel,
-            cornerRadius = cornerRadius
+            glassLevel = glassLevel
         )
         setupMangaMinimapControlGlassView(
             button = binding.btnMangaMinimapPrevious,
@@ -505,6 +502,22 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
             glassLevel = glassLevel,
             cornerRadius = cornerRadius
         )
+    }
+
+    private fun setupMangaMinimapTrackGlassView(
+        glassView: LiquidGlassView,
+        glassLevel: Float
+    ) {
+        val shouldBind = !boundMangaMinimapGlassViewIds.contains(glassView.id)
+        if (ReaderBottomGlassStyle.configureLiquidGlass(
+            liquidGlassView = glassView,
+            target = binding.webtoonFrame,
+            cornerRadius = 0f,
+            bindTarget = shouldBind,
+            glassLevel = glassLevel
+        )) {
+            boundMangaMinimapGlassViewIds.add(glassView.id)
+        }
     }
 
     private fun setupMangaMinimapControlGlassView(

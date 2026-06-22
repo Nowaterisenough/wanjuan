@@ -256,9 +256,9 @@ class MangaMenu @JvmOverloads constructor(
             liquidGlassView = titleBarGlassView,
             target = target,
             cornerRadius = 0f,
-            refractionHeight = (12f + glassLevel * 8f).dpToPx(),
-            refractionOffset = (34f + glassLevel * 18f).dpToPx(),
-            blurRadius = (22f + glassLevel * 30f).dpToPx(),
+            refractionHeight = (12f + glassLevel * 10f).dpToPx(),
+            refractionOffset = (36f + glassLevel * 18f).dpToPx(),
+            blurRadius = (6f + glassLevel * 12f).dpToPx(),
             dispersion = (0.18f + glassLevel * 0.16f).coerceAtMost(0.42f),
             tintAlpha = topBarGlassTintAlpha(glassLevel),
             tintColor = topBarGlassTintColor()
@@ -316,44 +316,44 @@ class MangaMenu @JvmOverloads constructor(
     }
 
     private fun topBarGlassShell(glassLevel: Float): GradientDrawable {
-        val isDark = topBarUseDarkGlass()
-        val surfaceColor = if (isDark) {
-            Color.rgb(8, 10, 14)
-        } else {
-            ColorUtils.blendColors(Color.WHITE, context.accentColor, 0.05f)
-        }
-        val topAlpha = if (isDark) 0.34f + glassLevel * 0.12f else 0.16f + glassLevel * 0.09f
-        val centerAlpha = if (isDark) 0.28f + glassLevel * 0.10f else 0.11f + glassLevel * 0.07f
-        val bottomAlpha = if (isDark) 0.20f + glassLevel * 0.08f else 0.07f + glassLevel * 0.05f
+        val surfaceColor = topBarGlassSurfaceColor()
+        val topAlpha = (0.32f + glassLevel * 0.44f).coerceIn(0f, 0.86f)
+        val centerAlpha = (0.24f + glassLevel * 0.38f).coerceIn(0f, 0.74f)
+        val bottomAlpha = (0.18f + glassLevel * 0.32f).coerceIn(0f, 0.66f)
+        val strokeAlpha = (0.22f + glassLevel * 0.22f).coerceIn(0f, 0.58f)
         return GradientDrawable(
             GradientDrawable.Orientation.TOP_BOTTOM,
             intArrayOf(
-                ColorUtils.withAlpha(surfaceColor, topAlpha.coerceAtMost(if (isDark) 0.46f else 0.25f)),
-                ColorUtils.withAlpha(surfaceColor, centerAlpha.coerceAtMost(if (isDark) 0.38f else 0.18f)),
-                ColorUtils.withAlpha(surfaceColor, bottomAlpha.coerceAtMost(if (isDark) 0.28f else 0.12f))
+                ColorUtils.withAlpha(surfaceColor, topAlpha),
+                ColorUtils.withAlpha(surfaceColor, centerAlpha),
+                ColorUtils.withAlpha(surfaceColor, bottomAlpha)
             )
-        )
+        ).apply {
+            setStroke(1.dpToPx(), ColorUtils.withAlpha(surfaceColor, strokeAlpha))
+        }
     }
 
     private fun topBarGlassFallbackShell(glassLevel: Float): GradientDrawable {
-        val isDark = topBarUseDarkGlass()
-        val surfaceColor = if (isDark) {
-            Color.rgb(8, 10, 14)
-        } else {
-            ColorUtils.blendColors(Color.WHITE, context.accentColor, 0.05f)
-        }
-        val alpha = if (isDark) 0.36f + glassLevel * 0.10f else 0.14f + glassLevel * 0.10f
+        val surfaceColor = topBarGlassSurfaceColor()
+        val alpha = (0.24f + glassLevel * 0.38f).coerceIn(0f, 0.74f)
+        val strokeAlpha = (0.22f + glassLevel * 0.22f).coerceIn(0f, 0.58f)
         return GradientDrawable().apply {
-            setColor(ColorUtils.withAlpha(surfaceColor, alpha.coerceAtMost(if (isDark) 0.46f else 0.24f)))
+            setColor(ColorUtils.withAlpha(surfaceColor, alpha))
+            setStroke(1.dpToPx(), ColorUtils.withAlpha(surfaceColor, strokeAlpha))
+        }
+    }
+
+    private fun topBarGlassSurfaceColor(): Int {
+        val baseColor = bgColor
+        return if (ColorUtils.isColorLight(baseColor)) {
+            ColorUtils.blendColors(baseColor, Color.WHITE, 0.72f)
+        } else {
+            ColorUtils.blendColors(baseColor, Color.BLACK, 0.24f)
         }
     }
 
     private fun topBarGlassTintAlpha(glassLevel: Float): Float {
-        return if (topBarUseDarkGlass()) {
-            (0.12f + glassLevel * 0.14f).coerceAtMost(0.26f)
-        } else {
-            (0.06f + glassLevel * 0.10f).coerceAtMost(0.16f)
-        }
+        return 0.12f + glassLevel * 0.18f
     }
 
     private fun topBarGlassTintColor(): FloatArray {
