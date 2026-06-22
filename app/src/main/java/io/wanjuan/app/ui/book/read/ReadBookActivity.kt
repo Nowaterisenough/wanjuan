@@ -1188,6 +1188,7 @@ class ReadBookActivity : BaseReadBookActivity(),
 
     private fun setupChapterMinimapControlGlass() {
         val glassViews = listOf(
+            binding.chapterProgressMinimapGlassView,
             binding.chapterMinimapPreviousGlassView,
             binding.chapterMinimapNextGlassView
         )
@@ -1201,6 +1202,13 @@ class ReadBookActivity : BaseReadBookActivity(),
         }
         val glassLevel = ReaderBottomGlassStyle.glassLevel()
         val cornerRadius = 28f.dpToPx()
+        setupChapterMinimapControlGlassView(
+            button = binding.chapterProgressMinimapShell,
+            glassView = binding.chapterProgressMinimapGlassView,
+            shellOverlay = binding.chapterProgressMinimapShellOverlay,
+            glassLevel = glassLevel,
+            cornerRadius = cornerRadius
+        )
         setupChapterMinimapControlGlassView(
             button = binding.btnChapterMinimapPrevious,
             glassView = binding.chapterMinimapPreviousGlassView,

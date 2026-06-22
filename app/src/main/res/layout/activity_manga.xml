@@ -47,13 +47,38 @@
         android:orientation="vertical"
         android:visibility="gone">
 
-        <io.wanjuan.app.ui.book.manga.MangaProgressMinimapView
-            android:id="@+id/manga_progress_minimap"
+        <FrameLayout
+            android:id="@+id/manga_progress_minimap_shell"
             android:layout_width="56dp"
             android:layout_height="wrap_content"
-            android:clickable="true"
-            android:contentDescription="@string/manga_progress_minimap"
-            android:focusable="true" />
+            android:clipChildren="false"
+            android:clipToOutline="false"
+            android:clipToPadding="false">
+
+            <io.wanjuan.app.ui.widget.SafeLiquidGlassView
+                android:id="@+id/manga_progress_minimap_glass_view"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:clickable="false"
+                android:focusable="false" />
+
+            <View
+                android:id="@+id/manga_progress_minimap_shell_overlay"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@drawable/bg_liquid_glass_shell_overlay"
+                android:clickable="false"
+                android:focusable="false" />
+
+            <io.wanjuan.app.ui.book.manga.MangaProgressMinimapView
+                android:id="@+id/manga_progress_minimap"
+                android:layout_width="56dp"
+                android:layout_height="wrap_content"
+                android:clickable="true"
+                android:contentDescription="@string/manga_progress_minimap"
+                android:focusable="true" />
+
+        </FrameLayout>
 
         <LinearLayout
             android:id="@+id/manga_progress_minimap_controls"

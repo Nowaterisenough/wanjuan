@@ -462,6 +462,7 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
 
     private fun setupMangaMinimapControlGlass() {
         val glassViews = listOf(
+            binding.mangaProgressMinimapGlassView,
             binding.mangaMinimapPreviousGlassView,
             binding.mangaMinimapCurrentGlassView,
             binding.mangaMinimapNextGlassView
@@ -476,6 +477,13 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
         }
         val glassLevel = ReaderBottomGlassStyle.glassLevel()
         val cornerRadius = 28f.dpToPx()
+        setupMangaMinimapControlGlassView(
+            button = binding.mangaProgressMinimapShell,
+            glassView = binding.mangaProgressMinimapGlassView,
+            shellOverlay = binding.mangaProgressMinimapShellOverlay,
+            glassLevel = glassLevel,
+            cornerRadius = cornerRadius
+        )
         setupMangaMinimapControlGlassView(
             button = binding.btnMangaMinimapPrevious,
             glassView = binding.mangaMinimapPreviousGlassView,

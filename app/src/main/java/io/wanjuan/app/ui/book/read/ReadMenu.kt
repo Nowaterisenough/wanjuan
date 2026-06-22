@@ -4704,7 +4704,7 @@ class ReadMenu @JvmOverloads constructor(
     }
 
     private fun canScheduleLiquidGlassSetup(anchor: View): Boolean {
-        return isAttachedToWindow && this@ReadMenu.isShown && anchor.isShown
+        return isAttachedToWindow && anchor.isAttachedToWindow
     }
 
     private fun View.isReadyForLiquidGlassConfig(): Boolean {
