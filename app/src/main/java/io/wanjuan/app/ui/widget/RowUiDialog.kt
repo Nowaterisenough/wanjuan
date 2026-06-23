@@ -34,6 +34,9 @@ object RowUiDialog {
         fun onValueChanged(rowUi: RowUi, value: String) = Unit
         fun onAction(rowUi: RowUi, isLongClick: Boolean) = Unit
         fun onLoadMore(rowUi: RowUi) = Unit
+        fun onLoadMore(rowUi: RowUi, updateOptions: (List<String>, String?) -> Unit) {
+            onLoadMore(rowUi)
+        }
     }
 
     fun show(
@@ -90,6 +93,10 @@ object RowUiDialog {
 
                 override fun onLoadMore(rowUi: RowUi) {
                     callback.onLoadMore(rowUi)
+                }
+
+                override fun onLoadMore(rowUi: RowUi, updateOptions: (List<String>, String?) -> Unit) {
+                    callback.onLoadMore(rowUi, updateOptions)
                 }
             }
         )

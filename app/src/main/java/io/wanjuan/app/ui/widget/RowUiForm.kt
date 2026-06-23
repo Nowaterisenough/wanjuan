@@ -21,6 +21,9 @@ object RowUiForm {
         fun onValueChanged(rowUi: RowUi, value: String) = Unit
         fun onAction(rowUi: RowUi, isLongClick: Boolean) = Unit
         fun onLoadMore(rowUi: RowUi) = Unit
+        fun onLoadMore(rowUi: RowUi, updateOptions: (List<String>, String?) -> Unit) {
+            onLoadMore(rowUi)
+        }
         fun resolveViewName(rowUi: RowUi, fallback: String, apply: (String) -> Unit) {
             apply(fallback)
         }
@@ -131,7 +134,7 @@ object RowUiForm {
                 callback.onValueChanged(rowUi, value)
             },
             onLoadMore = rowUi.loadMoreAction?.takeIf { it.isNotBlank() }?.let {
-                { callback.onLoadMore(rowUi) }
+                { updateOptions -> callback.onLoadMore(rowUi, updateOptions) }
             }
         )
         return FormRow(binding.root) {

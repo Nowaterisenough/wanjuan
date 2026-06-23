@@ -1,11 +1,14 @@
 package io.wanjuan.app.help.source
 
+import androidx.annotation.Keep
 import com.script.rhino.runScriptWithContext
 import io.wanjuan.app.constant.BookSourceType
 import io.wanjuan.app.constant.BookType
+import io.wanjuan.app.data.entities.BaseSource
 import io.wanjuan.app.data.entities.BookSource
 import io.wanjuan.app.data.entities.BookSourcePart
 import io.wanjuan.app.data.entities.rule.ExploreKind
+import io.wanjuan.app.help.JsExtensions
 import io.wanjuan.app.ui.main.explore.ExploreAdapter.Companion.exploreInfoMapList
 import io.wanjuan.app.utils.ACache
 import io.wanjuan.app.utils.GSON
@@ -71,15 +74,17 @@ suspend fun BookSource.exploreKinds(): List<ExploreKind> {
                 val ruleStr = when {
                     exploreUrl.startsWith("@js:", true) -> {
                         aCache.getAsString(exploreKindsKey)?.takeIf { it.isNotBlank() } ?: run {
+                            val exploreKindsJava = ExploreKindsJsExtensions(this@exploreKinds)
                             val exploreInfoMap = exploreInfoMapList[bookSourceUrl] ?: InfoMap(bookSourceUrl).also {
                                 exploreInfoMapList.put(bookSourceUrl, it)
                             }
                             runScriptWithContext {
                                 evalJS(exploreUrl.substring(4)) {
+                                    put("java", exploreKindsJava)
                                     put("infoMap", exploreInfoMap)
                                 }?.toString()?.trim().orEmpty()
                             }.also { rule ->
-                                if (rule.isValidExploreKindsRule()) {
+                                if (rule.isValidExploreKindsRule() && shouldCacheExploreKinds(rule)) {
                                     aCache.put(exploreKindsKey, rule)
                                 }
                             }
@@ -87,15 +92,17 @@ suspend fun BookSource.exploreKinds(): List<ExploreKind> {
                     }
                     exploreUrl.startsWith("<js>", true) -> {
                         aCache.getAsString(exploreKindsKey)?.takeIf { it.isNotBlank() } ?: run {
+                            val exploreKindsJava = ExploreKindsJsExtensions(this@exploreKinds)
                             val exploreInfoMap = exploreInfoMapList[bookSourceUrl] ?: InfoMap(bookSourceUrl).also {
                                 exploreInfoMapList.put(bookSourceUrl, it)
                             }
                             runScriptWithContext {
                                 evalJS(exploreUrl.substring(4, exploreUrl.lastIndexOf("<"))) {
+                                    put("java", exploreKindsJava)
                                     put("infoMap", exploreInfoMap)
                                 }?.toString()?.trim().orEmpty()
                             }.also { rule ->
-                                if (rule.isValidExploreKindsRule()) {
+                                if (rule.isValidExploreKindsRule() && shouldCacheExploreKinds(rule)) {
                                     aCache.put(exploreKindsKey, rule)
                                 }
                             }
@@ -116,12 +123,14 @@ suspend fun BookSource.exploreKinds(): List<ExploreKind> {
                         kinds.add(ExploreKind(kindCfg.first(), kindCfg.getOrNull(1)))
                     }
                 }
+                if (shouldCacheExploreKinds(ruleStr)) {
+                    exploreKindsMap[exploreKindsKey] = kinds
+                }
             }.onFailure {
                 kinds.add(ExploreKind("ERROR:${it.localizedMessage}", it.stackTraceToString()))
                 it.printOnDebug()
             }
         }
-        exploreKindsMap[exploreKindsKey] = kinds
         return kinds
     }
 }
@@ -132,6 +141,24 @@ private fun String.isValidExploreKindsRule(): Boolean {
     if (rule.equals("null", ignoreCase = true)) return false
     if (rule.equals("undefined", ignoreCase = true)) return false
     return true
+}
+
+private fun shouldCacheExploreKinds(rule: String): Boolean {
+    return !rule.contains("\"loadMoreAction\"")
+}
+
+@Keep
+internal class ExploreKindsJsExtensions(
+    private val source: BookSource
+) : JsExtensions {
+
+    override fun getSource(): BaseSource {
+        return source
+    }
+
+    override fun getTag(): String? {
+        return source.getTag()
+    }
 }
 
 suspend fun BookSourcePart.clearExploreKindsCache() {

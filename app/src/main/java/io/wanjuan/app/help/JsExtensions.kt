@@ -339,6 +339,23 @@ interface JsExtensions : JsEncodeUtils {
         return startBrowserAwait(url, title, refetchAfterSuccess, null)
     }
 
+    fun startBrowserAwaitBody(url: String, title: String): String? {
+        return startBrowserAwaitBody(url, title, true, null)
+    }
+
+    fun startBrowserAwaitBody(url: String, title: String, refetchAfterSuccess: Boolean): String? {
+        return startBrowserAwaitBody(url, title, refetchAfterSuccess, null)
+    }
+
+    fun startBrowserAwaitBody(
+        url: String,
+        title: String,
+        refetchAfterSuccess: Boolean,
+        html: String?
+    ): String? {
+        return startBrowserAwait(url, title, refetchAfterSuccess, html).body
+    }
+
     fun startBrowserAwait(url: String, title: String, refetchAfterSuccess: Boolean, html: String?): StrResponse {
         rhinoContext.ensureActive()
         val analyzeUrl = this as? AnalyzeUrl
