@@ -39,6 +39,31 @@ class BookSourceConfigTest {
     }
 
     @Test
+    fun nnhanmanSourceUsesLiveDomainAndCurrentMangaRules() {
+        val sourceText = repoFile("tests/shareBookSource.json").readText()
+        val source = sourceObject(sourceText, """"bookSourceName": "鸟鸟韩漫 NNHanman"""")
+        val contentRule = fieldValue(source, "content")
+        val chapterListRule = fieldValue(source, "chapterList")
+        val chapterUrlRule = fieldValue(source, "chapterUrl")
+
+        assertTrue("鸟鸟韩漫 source should exist", source.isNotBlank())
+        assertTrue("鸟鸟韩漫 should use the reachable current domain", source.contains(""""bookSourceUrl": "https://nnhm7.com""""))
+        assertFalse("鸟鸟韩漫 should not keep the reset nnhanman9 domain", source.contains("https://nnhanman9.com"))
+        assertFalse("鸟鸟韩漫 discover parser should not be empty", source.contains(""""ruleExplore": {}"""))
+        assertTrue("鸟鸟韩漫 discover should read update and ranking list cards", source.contains(""""bookList": ".UpdateList .itemBox||.col_3_1@li""""))
+        assertTrue("鸟鸟韩漫 list parser should read image srcset fallbacks", source.contains("source@srcset||img@data-original||img@src"))
+        assertTrue("鸟鸟韩漫 chapter urls should follow the current source domain", chapterUrlRule.contains("source.getKey()"))
+        assertTrue("鸟鸟韩漫 chapter list should read the current anchor nodes", chapterListRule.contains("#mh-chapter-list-ol-0 li a"))
+        assertTrue("鸟鸟韩漫 chapter url should coerce source key to a JS string before regex replace", chapterUrlRule.contains("String(source.getKey()).replace"))
+        assertFalse("鸟鸟韩漫 chapter url should avoid Rhino Java String.replace overload ambiguity", chapterUrlRule.contains("source.getKey().replace"))
+        assertTrue("鸟鸟韩漫 content should read lazy reader images", contentRule.contains(".view-imgBox img"))
+        assertTrue("鸟鸟韩漫 content should read data-original image urls", contentRule.contains("data-original"))
+        assertTrue("鸟鸟韩漫 content should return reader image tags instead of plain URL lines", contentRule.contains("<img src=\\\""))
+        assertTrue("鸟鸟韩漫 content should include image request headers", contentRule.contains("JSON.stringify(headers)"))
+        assertFalse("鸟鸟韩漫 content should not keep the old tbody rule", contentRule.contains("tbody@all"))
+    }
+
+    @Test
     fun uaaSourceDetectsCloudflareAndOpensBrowserVerification() {
         val sourceText = repoFile("tests/shareBookSource.json").readText()
         val uaaSource = sourceObject(sourceText, """"bookSourceUrl": "https://www.uaa.com"""")

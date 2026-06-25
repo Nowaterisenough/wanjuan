@@ -454,7 +454,7 @@
     "bookSourceGroup": "R18漫画",
     "bookSourceName": "鸟鸟韩漫 NNHanman",
     "bookSourceType": 2,
-    "bookSourceUrl": "https://nnhanman9.com",
+    "bookSourceUrl": "https://nnhm7.com",
     "customButton": false,
     "customOrder": 27,
     "enabled": true,
@@ -466,25 +466,36 @@
     "respondTime": 4492,
     "ruleBookInfo": {
       "author": ".txtItme.0@text",
+      "coverUrl": "source@srcset||img@data-original||img@src",
       "intro": ".txtDesc@text",
       "kind": ".txtItme.1@text",
+      "lastChapter": ".Drama li.0 a@text||#mh-chapter-list-ol-0 li.0 a@text",
       "name": "h1@text"
     },
     "ruleContent": {
-      "content": "tbody@all",
+      "content": "@js:\nvar doc = org.jsoup.Jsoup.parse(String(result || \"\"));\nvar nodes = doc.select(\".view-imgBox img[data-original], .view-imgBox img[src]\");\nvar headers = {\"headers\":{\"Referer\":baseUrl,\"User-Agent\":\"Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1\"}};\nvar html = [];\nfor (var i = 0; i < nodes.size(); i++) {\n    var node = nodes.get(i);\n    var url = String(node.attr(\"data-original\") || node.attr(\"src\") || \"\").trim();\n    if (!url) continue;\n    if (url.indexOf(\"//\") === 0) url = \"https:\" + url;\n    html.push('<img src=\"' + url + ',' + JSON.stringify(headers) + '\">');\n}\nhtml.join(\"\\n\");",
       "imageStyle": "FULL"
     },
-    "ruleExplore": {},
-    "ruleSearch": {
-      "bookList": ".itemBox||.col_3_1@li",
+    "ruleExplore": {
+      "bookList": ".UpdateList .itemBox||.col_3_1@li",
       "bookUrl": "a@href",
-      "coverUrl": "img@src",
-      "name": "a@title"
+      "coverUrl": "source@srcset||img@data-original||img@src",
+      "kind": ".pd@text||.txtItme.1@text",
+      "lastChapter": ".txtItme a@text",
+      "name": "a.title@text||a@title"
+    },
+    "ruleSearch": {
+      "bookList": ".UpdateList .itemBox||.col_3_1@li",
+      "bookUrl": "a@href",
+      "coverUrl": "source@srcset||img@data-original||img@src",
+      "kind": ".pd@text||.txtItme.1@text",
+      "lastChapter": ".txtItme a@text",
+      "name": "a.title@text||a@title"
     },
     "ruleToc": {
-      "chapterList": "-.Drama@li||-id.mh-chapter-list-ol-0@li",
-      "chapterName": "a@text",
-      "chapterUrl": "https://nnhanman9.com{{@@a@href}}"
+      "chapterList": "#mh-chapter-list-ol-0 li a||.Drama li a",
+      "chapterName": "text",
+      "chapterUrl": "href@js:\nvar url = String(result || \"\").trim();\nif (!url) {\n    url = String(baseUrl || \"\");\n}\nif (/^https?:\\/\\//i.test(url)) {\n    url;\n} else {\n    String(source.getKey()).replace(/\\/$/, \"\") + (url.charAt(0) === \"/\" ? url : \"/\" + url);\n}"
     },
     "searchUrl": "/search/{{key}}/page/{{page}}",
     "weight": 0
