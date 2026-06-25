@@ -636,6 +636,12 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
         val minimapHeight = binding.mangaProgressMinimap.desiredHeightWithin(maxMinimapHeight)
         val panelHeight = minimapHeight + controlsTopMargin + controlsHeight
         binding.mangaProgressMinimap.setMaxAvailableHeight(maxMinimapHeight)
+        binding.mangaProgressMinimapHost.updateLayoutParams<ViewGroup.LayoutParams> {
+            height = minimapHeight
+        }
+        binding.mangaProgressMinimap.updateLayoutParams<ViewGroup.LayoutParams> {
+            height = minimapHeight
+        }
         binding.mangaProgressMinimapPanel.updateLayoutParams<FrameLayout.LayoutParams> {
             gravity = Gravity.END or Gravity.TOP
             topMargin = centeredMinimapPanelTopMargin(topLimit, availableHeight, panelHeight)

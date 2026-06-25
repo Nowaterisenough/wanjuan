@@ -3399,6 +3399,27 @@ class ReadMenuLayoutTest {
         assertFalse(repoFile("app/src/main/res/layout/dialog_read_book_style.xml").exists())
     }
 
+    @Test
+    fun mangaMinimapPanelConstrainsTrackHeightBeforeChapterButtons() {
+        val mangaActivity = repoFile("app/src/main/java/io/wanjuan/app/ui/book/manga/ReadMangaActivity.kt").readText()
+        val constrainBody = mangaActivity
+            .substringAfter("private fun constrainMangaProgressMinimapPanel(): Boolean")
+            .substringBefore("private fun centeredMinimapPanelTopMargin")
+
+        assertTrue(
+            "Manga minimap host height must be constrained so previous/current/next buttons stay inside the panel budget",
+            constrainBody.contains("binding.mangaProgressMinimapHost.updateLayoutParams<ViewGroup.LayoutParams>")
+        )
+        assertTrue(
+            "Manga minimap view height must match the calculated panel budget",
+            constrainBody.contains("binding.mangaProgressMinimap.updateLayoutParams<ViewGroup.LayoutParams>")
+        )
+        assertTrue(
+            "Manga minimap height synchronization should use the calculated minimapHeight",
+            constrainBody.contains("height = minimapHeight")
+        )
+    }
+
     private fun readMenuLayout(): Element {
         val file = findRepoFile("app/src/main/res/layout/view_read_menu.xml")
             ?: findRepoFile("src/main/res/layout/view_read_menu.xml")
