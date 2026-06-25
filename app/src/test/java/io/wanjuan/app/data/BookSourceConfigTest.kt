@@ -64,6 +64,41 @@ class BookSourceConfigTest {
     }
 
     @Test
+    fun roumanSourceUsesPublishedDomainAndCurrentMangaRules() {
+        val sources = listOf(
+            "shareBookSource.json" to sourceObject(
+                repoFile("tests/shareBookSource.json").readText(),
+                """"bookSourceName": "肉漫屋 Rouman5""""
+            ),
+            "qyyuapiBookSource.json" to sourceObject(
+                repoFile("tests/qyyuapiBookSource.json").readText(),
+                """"bookSourceName": "肉漫屋""""
+            )
+        )
+
+        sources.forEach { (fileName, source) ->
+            val exploreUrl = fieldValue(source, "exploreUrl")
+            val searchUrl = fieldValue(source, "searchUrl")
+            val contentRule = fieldValue(source, "content")
+            val chapterListRule = fieldValue(source, "chapterList")
+
+            assertTrue("$fileName 肉漫屋 source should exist", source.isNotBlank())
+            assertTrue("$fileName 肉漫屋 should use the published current domain", source.contains(""""bookSourceUrl": "https://rouman5.com""""))
+            assertFalse("$fileName 肉漫屋 should not keep the stale roum26 domain", source.contains("https://roum26.xyz"))
+            assertTrue("$fileName 肉漫屋 discover home should use the current domain", exploreUrl.contains("https://rouman5.com/home"))
+            assertTrue("$fileName 肉漫屋 discover list should use the current domain", exploreUrl.contains("https://rouman5.com/books?continued=true&page={{page}}"))
+            assertTrue("$fileName 肉漫屋 search should use the current route", searchUrl.contains("https://rouman5.com/search?term={{key}}"))
+            assertTrue("$fileName 肉漫屋 list parser should match the current responsive grid", source.contains("grid grid-cols-1 sm:grid-cols-4 md:grid-cols-6"))
+            assertTrue("$fileName 肉漫屋 search parser should match the current search grid", source.contains("grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6"))
+            assertTrue("$fileName 肉漫屋 cover parser should read background-image covers", source.contains("bg-cover"))
+            assertTrue("$fileName 肉漫屋 chapter list should read current /books chapter anchors", chapterListRule.contains("starts-with(@href,'/books')"))
+            assertTrue("$fileName 肉漫屋 content should read current imageUrl fields", contentRule.contains("imageUrl"))
+            assertTrue("$fileName 肉漫屋 content should emit manga image tags", contentRule.contains("<img src=\\\""))
+            assertTrue("$fileName 肉漫屋 should keep the sr:1 slice reorder decoder", source.contains("src.indexOf(\\\"sr:1\\\")"))
+        }
+    }
+
+    @Test
     fun uaaSourceDetectsCloudflareAndOpensBrowserVerification() {
         val sourceText = repoFile("tests/shareBookSource.json").readText()
         val uaaSource = sourceObject(sourceText, """"bookSourceUrl": "https://www.uaa.com"""")
