@@ -1248,12 +1248,23 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
     private fun preferredDiscoverSettingGroup(item: DiscoverTagItem, value: String): String? {
         val trimmedValue = value.trim()
         if (trimmedValue.isBlank() || trimmedValue == "全部") return null
+        preferredDiscoverEntranceGroup(item)?.let { return it }
         val baseName = item.kind.title
             .removePrefix("搜索")
             .removeSuffix("选择")
             .trim(' ', ':', '：')
         if (baseName.isBlank() || baseName == item.kind.title) return null
         return "$baseName：$trimmedValue"
+    }
+
+    private fun preferredDiscoverEntranceGroup(item: DiscoverTagItem): String? {
+        val title = item.kind.title.trim()
+        if (!title.endsWith("筛选") && !title.endsWith("排序")) return null
+        val entranceGroup = discoverMajorGroups.firstOrNull { it == "入口" } ?: return null
+        val hasEntranceItem = discoverAllTagItems.any {
+            it.group == entranceGroup && !it.kind.url.isNullOrBlank() && !it.isButton
+        }
+        return entranceGroup.takeIf { hasEntranceItem }
     }
 
     private fun handleDiscoverSelectLoadMore(
