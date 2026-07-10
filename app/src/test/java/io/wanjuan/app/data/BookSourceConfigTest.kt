@@ -278,6 +278,33 @@ class BookSourceConfigTest {
     }
 
     @Test
+    fun jmcomicLoginCheckDoesNotInvalidateCookiesForNormalSiteScripts() {
+        val sources = listOf(
+            "shareBookSource.json" to sourceObject(
+                repoFile("tests/shareBookSource.json").readText(),
+                """"bookSourceUrl": "https://jmcomicgo.me""""
+            ),
+            "qyyuapiBookSource.json" to sourceObject(
+                repoFile("tests/qyyuapiBookSource.json").readText(),
+                """"bookSourceUrl": "https://jmcomicgo.me""""
+            )
+        )
+
+        sources.forEach { (fileName, source) ->
+            val loginCheckJs = fieldValue(source, "loginCheckJs")
+
+            assertTrue("$fileName Jmcomic source should exist", source.isNotBlank())
+            assertTrue("$fileName Jmcomic login check should still open browser for real verification pages", loginCheckJs.contains("startBrowserAwait"))
+            assertTrue("$fileName Jmcomic login check should inspect HTTP status", loginCheckJs.contains("result.code()"))
+            assertTrue("$fileName Jmcomic login check should inspect Cloudflare's challenge header", loginCheckJs.contains("cf-mitigated"))
+            assertTrue("$fileName Jmcomic login check should still detect explicit verify pages", loginCheckJs.contains("isVerifyPage"))
+            assertFalse("$fileName Jmcomic login check should not clear persisted login cookies", loginCheckJs.contains("removeCookie"))
+            assertFalse("$fileName Jmcomic login check should not treat normal ge_ua scripts as verification", loginCheckJs.contains("ge_ua"))
+            assertFalse("$fileName Jmcomic login check should not use broad _cf_ matching", loginCheckJs.contains("/_cf_"))
+        }
+    }
+
+    @Test
     fun missavActressListStaysInSettingsAndLoadsMoreFromSelectScroll() {
         val sourceText = repoFile("tests/shareBookSource.json").readText()
         val missavSource = sourceObject(sourceText, """"bookSourceUrl": "https://missav.ws/"""")
