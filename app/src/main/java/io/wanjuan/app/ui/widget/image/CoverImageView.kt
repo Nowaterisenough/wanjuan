@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Matrix
 import android.graphics.Outline
 import android.graphics.Paint
 import android.graphics.Typeface
@@ -81,6 +82,12 @@ class CoverImageView @JvmOverloads constructor(
 
     init {
         setBackgroundColor(Color.TRANSPARENT)
+        scaleType = ScaleType.MATRIX
+    }
+
+    override fun setImageDrawable(drawable: Drawable?) {
+        super.setImageDrawable(drawable)
+        applyAdaptiveCropMatrix()
     }
 
     override fun setLayoutParams(params: ViewGroup.LayoutParams?) {
@@ -112,6 +119,21 @@ class CoverImageView @JvmOverloads constructor(
             }
         }
         clipToOutline = true
+        applyAdaptiveCropMatrix()
+    }
+
+    private fun applyAdaptiveCropMatrix() {
+        val currentDrawable = drawable ?: return
+        val transform = CoverCropCalculator.calculate(
+            viewWidth = width - paddingLeft - paddingRight,
+            viewHeight = height - paddingTop - paddingBottom,
+            drawableWidth = currentDrawable.intrinsicWidth,
+            drawableHeight = currentDrawable.intrinsicHeight
+        ) ?: return
+        imageMatrix = Matrix().apply {
+            setScale(transform.scale, transform.scale)
+            postTranslate(transform.translateX, transform.translateY)
+        }
     }
 
     override fun onDraw(canvas: Canvas) {
@@ -473,7 +495,6 @@ class CoverImageView @JvmOverloads constructor(
             builder
                 .priority(Priority.HIGH)
                 .override(if (useThumb) 240 else Target.SIZE_ORIGINAL, if (useThumb) 320 else Target.SIZE_ORIGINAL)
-                .centerCrop()
                 .addListener(object : RequestListener<Drawable> {
                     override fun onLoadFailed(
                         e: GlideException?,

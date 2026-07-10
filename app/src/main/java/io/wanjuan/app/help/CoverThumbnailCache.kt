@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
+import io.wanjuan.app.ui.widget.image.CoverCropCalculator
 import io.wanjuan.app.utils.MD5Utils
 import io.wanjuan.app.utils.compressPreservingAlpha
 import io.wanjuan.app.utils.preferredCoverExtension
@@ -18,7 +19,7 @@ object CoverThumbnailCache {
 
     private const val thumbWidth = 240
     private const val thumbHeight = 320
-    private const val dirName = "cover_thumbs_v2"
+    private const val dirName = "cover_thumbs_v3"
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private fun file(context: Context, key: String?, extension: String): File? {
@@ -42,7 +43,13 @@ object CoverThumbnailCache {
         val appContext = context.applicationContext
         scope.launch {
             runCatching {
-                val thumb = Bitmap.createScaledBitmap(source, thumbWidth, thumbHeight, true)
+                val size = CoverCropCalculator.fitWithin(
+                    maxWidth = thumbWidth,
+                    maxHeight = thumbHeight,
+                    drawableWidth = source.width,
+                    drawableHeight = source.height
+                ) ?: return@runCatching
+                val thumb = Bitmap.createScaledBitmap(source, size.width, size.height, true)
                 try {
                     val extension = thumb.preferredCoverExtension()
                     val target = file(appContext, key, extension) ?: return@runCatching
