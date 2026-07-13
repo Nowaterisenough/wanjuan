@@ -108,18 +108,17 @@ class BooksFragment() : BaseFragment(R.layout.fragment_books),
         binding.refreshLayout.setColorSchemeColors(accentColor)
         binding.refreshLayout.setProgressViewOffset(true, (-28).dpToPx(), 56.dpToPx())
         binding.refreshLayout.setOnRefreshListener {
+            binding.refreshLayout.isRefreshing = false
             SyncManager.syncNow { result ->
-                binding.refreshLayout.isRefreshing = false
-                if (result.isSuccess) {
-                    activityViewModel.upToc(
-                        booksAdapter.getItems(),
-                        onlyUpdateRead,
-                        pullProgressAfterUpdate = true
-                    )
-                } else {
+                if (!result.isSuccess) {
                     context?.toastOnUi("同步失败：${result.errorMessage ?: "未知错误"}")
                 }
             }
+            activityViewModel.upToc(
+                booksAdapter.getItems(),
+                onlyUpdateRead,
+                pullProgressAfterUpdate = true
+            )
         }
         updateLayoutManager()
         booksAdapter.stateRestorationPolicy = StateRestorationPolicy.PREVENT_WHEN_EMPTY

@@ -115,18 +115,17 @@ class BookshelfFragment2() : BaseBookshelfFragment(R.layout.fragment_bookshelf2)
         binding.refreshLayout.setColorSchemeColors(accentColor)
         binding.refreshLayout.setProgressViewOffset(true, (-28).dpToPx(), 56.dpToPx())
         binding.refreshLayout.setOnRefreshListener {
+            binding.refreshLayout.isRefreshing = false
             SyncManager.syncNow { result ->
-                binding.refreshLayout.isRefreshing = false
-                if (result.isSuccess) {
-                    activityViewModel.upToc(
-                        currentUpdateBooks(),
-                        onlyUpdateRead,
-                        pullProgressAfterUpdate = true
-                    )
-                } else {
+                if (!result.isSuccess) {
                     context?.toastOnUi("同步失败：${result.errorMessage ?: "未知错误"}")
                 }
             }
+            activityViewModel.upToc(
+                currentUpdateBooks(),
+                onlyUpdateRead,
+                pullProgressAfterUpdate = true
+            )
         }
         updateLayoutManager()
         binding.rvBookshelf.adapter = booksAdapter
