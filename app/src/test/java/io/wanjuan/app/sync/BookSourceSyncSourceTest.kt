@@ -47,7 +47,7 @@ class BookSourceSyncSourceTest {
         assertTrue(source.contains("objectKey = sourceUrl"))
         assertTrue(source.contains("payload.objectKey"))
         assertTrue(source.contains("findSourceUrlByHash(payload.objectId)"))
-        assertTrue(source.contains("metadata?.deletedAt"))
+        assertTrue(source.contains("StableSyncOrder.merge("))
         assertFalse(source.contains("bookDao"))
         assertFalse(source.contains("rss"))
         assertFalse(source.contains("Rss"))

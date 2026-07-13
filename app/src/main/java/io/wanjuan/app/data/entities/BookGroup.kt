@@ -26,7 +26,9 @@ data class BookGroup(
     var bookSort: Int = -1,
     // 只更新已读
     @ColumnInfo(defaultValue = "0")
-    var onlyUpdateRead: Boolean = false
+    var onlyUpdateRead: Boolean = false,
+    @ColumnInfo(defaultValue = "''")
+    var syncId: String = ""
 ) : Parcelable {
 
     companion object {

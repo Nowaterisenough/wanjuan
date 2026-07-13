@@ -8,7 +8,6 @@ import io.wanjuan.app.help.config.DiscoverSourceUseConfig
 import io.wanjuan.app.help.config.SourceConfig
 import io.wanjuan.app.sync.local.SyncMetadata
 import io.wanjuan.app.sync.mapper.BookSourceSyncMapper
-import io.wanjuan.app.sync.merge.SyncMerge
 import io.wanjuan.app.sync.model.SyncBookSource
 import io.wanjuan.app.sync.model.SyncBookSourcePayload
 import io.wanjuan.app.sync.model.SyncDeleteKeyPayload
@@ -58,33 +57,19 @@ class BookSourceSyncCoordinator(
                 val dao = appDb.bookSourceDao
                 val metadataDao = appDb.syncMetadataDao
                 val metadata = metadataDao.get(SyncObjectType.BookSource, payload.sourceHash)
-                val local = dao.getBookSource(payload.bookSourceUrl)
-                val localUpdatedAt = maxOf(
-                    local?.lastUpdateTime ?: 0L,
-                    metadata?.localUpdatedAt ?: 0L,
-                    metadata?.remoteUpdatedAt ?: 0L
-                )
-                if (SyncMerge.remoteWins(payload.sourceUpdatedAt, metadata?.deletedAt ?: 0L)) {
-                    return@runInTransaction
+                val source = payload.bookSource.toBookSource().apply {
+                    bookSourceUrl = payload.bookSourceUrl
                 }
-
-                val hasLocalClock = local != null || metadata != null
-                if (!hasLocalClock || SyncMerge.remoteWins(localUpdatedAt, payload.sourceUpdatedAt)) {
-                    val source = payload.bookSource.toBookSource().apply {
-                        bookSourceUrl = payload.bookSourceUrl
-                        lastUpdateTime = payload.sourceUpdatedAt
-                    }
-                    dao.insert(source)
-                    appDb.cacheDao.deleteSourceVariables(source.bookSourceUrl)
-                    clearSourceVariables = true
-                    metadataDao.insert(
-                        metadata.withRemoteClock(
-                            objectId = payload.sourceHash,
-                            remoteUpdatedAt = payload.sourceUpdatedAt,
-                            updatedByDeviceId = payload.updatedByDeviceId
-                        )
+                dao.insert(source)
+                appDb.cacheDao.deleteSourceVariables(source.bookSourceUrl)
+                clearSourceVariables = true
+                metadataDao.insert(
+                    metadata.withRemoteClock(
+                        objectId = payload.sourceHash,
+                        remoteUpdatedAt = payload.sourceUpdatedAt,
+                        updatedByDeviceId = payload.updatedByDeviceId
                     )
-                }
+                )
             }
         }
         if (clearSourceVariables) {
@@ -102,6 +87,37 @@ class BookSourceSyncCoordinator(
         )
         recordLocalOrderClock(payload)
         client.upload("order/bookSources.json", payload)
+    }
+
+    fun applyRemoteOrder(payload: SyncOrderPayload) {
+        repository.applyRemote {
+            appDb.runInTransaction {
+                val dao = appDb.bookSourceDao
+                val metadataDao = appDb.syncMetadataDao
+                val metadata = metadataDao.get(SyncObjectType.BookSourceOrder, "bookSources")
+                val ordered = StableSyncOrder.merge(
+                    remoteIds = payload.items,
+                    localItems = dao.all,
+                    idOf = SyncIds::bookSourceId,
+                    orderOf = BookSource::customOrder
+                )
+                ordered.forEachIndexed { index, source -> source.customOrder = index }
+                dao.update(*ordered.toTypedArray())
+                metadataDao.insert(
+                    metadata?.copy(
+                        remoteUpdatedAt = maxOf(metadata.remoteUpdatedAt, payload.updatedAt),
+                        remoteUpdatedByDeviceId = payload.updatedByDeviceId,
+                        updatedByDeviceId = payload.updatedByDeviceId
+                    ) ?: SyncMetadata(
+                        objectType = SyncObjectType.BookSourceOrder,
+                        objectId = "bookSources",
+                        remoteUpdatedAt = payload.updatedAt,
+                        remoteUpdatedByDeviceId = payload.updatedByDeviceId,
+                        updatedByDeviceId = payload.updatedByDeviceId
+                    )
+                )
+            }
+        }
     }
 
     suspend fun pushDelete(sourceUrl: String) {
@@ -141,15 +157,6 @@ class BookSourceSyncCoordinator(
                     ?: payload.objectKey
                         ?.takeIf { SyncIds.hashKey("book-source", it) == payload.objectId }
                     ?: findSourceUrlByHash(payload.objectId)
-                val source = localSourceUrl?.let { appDb.bookSourceDao.getBookSource(it) }
-                val objectUpdatedAt = maxOf(
-                    source?.lastUpdateTime ?: 0L,
-                    metadata?.localUpdatedAt ?: 0L,
-                    metadata?.remoteUpdatedAt ?: 0L
-                )
-                if (!SyncMerge.remoteWins(objectUpdatedAt, payload.deletedAt)) {
-                    return@runInTransaction
-                }
                 if (localSourceUrl != null) {
                     deleteLocalSourceRows(localSourceUrl)
                     deletedSourceUrl = localSourceUrl

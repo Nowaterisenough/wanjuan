@@ -36,7 +36,7 @@ data class SyncBookPayload(
     val shelfUpdatedAt: Long,
     val catalogUpdatedAt: Long,
     val updatedByDeviceId: String,
-    val schemaVersion: Int = 1
+    val schemaVersion: Int = 2
 ) {
     constructor(
         bookSyncId: String,
@@ -44,10 +44,11 @@ data class SyncBookPayload(
         shelfUpdatedAt: Long,
         catalogUpdatedAt: Long,
         updatedByDeviceId: String,
-        schemaVersion: Int = 1
+        schemaVersion: Int = 2,
+        groupSyncIds: List<String> = emptyList()
     ) : this(
         bookSyncId = bookSyncId,
-        book = SyncBook.from(book),
+        book = SyncBook.from(book, groupSyncIds),
         shelfUpdatedAt = shelfUpdatedAt,
         catalogUpdatedAt = catalogUpdatedAt,
         updatedByDeviceId = updatedByDeviceId,
@@ -172,10 +173,11 @@ data class SyncBook(
     val originOrder: Int = 0,
     val variable: String? = null,
     val readConfig: Book.ReadConfig? = null,
-    val syncTime: Long = 0L
+    val syncTime: Long = 0L,
+    val groupSyncIds: List<String> = emptyList()
 ) {
     companion object {
-        fun from(book: Book): SyncBook {
+        fun from(book: Book, groupSyncIds: List<String> = emptyList()): SyncBook {
             return SyncBook(
                 bookUrl = book.bookUrl,
                 tocUrl = book.tocUrl,
@@ -209,11 +211,83 @@ data class SyncBook(
                 originOrder = book.originOrder,
                 variable = book.variable,
                 readConfig = book.readConfig,
-                syncTime = book.syncTime
+                syncTime = book.syncTime,
+                groupSyncIds = groupSyncIds
             )
         }
     }
 }
+
+data class SyncBookGroupPayload(
+    val groupSyncId: String,
+    val legacyGroupId: Long,
+    val groupName: String,
+    val cover: String?,
+    val order: Int,
+    val enableRefresh: Boolean,
+    val show: Boolean,
+    val bookSort: Int,
+    val onlyUpdateRead: Boolean,
+    val updatedAt: Long,
+    val updatedByDeviceId: String,
+    val schemaVersion: Int = 2
+)
+
+data class SyncRssSourcePayload(
+    val sourceHash: String,
+    val sourceUrl: String,
+    val rssSource: SyncRssSource,
+    val sourceUpdatedAt: Long,
+    val updatedByDeviceId: String,
+    val schemaVersion: Int = 2
+)
+
+data class SyncRssSource(
+    val sourceUrl: String = "",
+    val sourceName: String = "",
+    val sourceIcon: String = "",
+    val sourceGroup: String? = null,
+    val sourceComment: String? = null,
+    val enabled: Boolean = true,
+    val variableComment: String? = null,
+    val jsLib: String? = null,
+    val enabledCookieJar: Boolean? = true,
+    val concurrentRate: String? = null,
+    val header: String? = null,
+    val loginUrl: String? = null,
+    val loginUi: String? = null,
+    val loginCheckJs: String? = null,
+    val coverDecodeJs: String? = null,
+    val sortUrl: String? = null,
+    val singleUrl: Boolean = false,
+    val articleStyle: Int = 0,
+    val ruleArticles: String? = null,
+    val ruleNextPage: String? = null,
+    val ruleTitle: String? = null,
+    val rulePubDate: String? = null,
+    val ruleDescription: String? = null,
+    val ruleImage: String? = null,
+    val ruleLink: String? = null,
+    val ruleContent: String? = null,
+    val contentWhitelist: String? = null,
+    val contentBlacklist: String? = null,
+    val shouldOverrideUrlLoading: String? = null,
+    val style: String? = null,
+    val enableJs: Boolean = true,
+    val loadWithBaseUrl: Boolean = true,
+    val injectJs: String? = null,
+    val preloadJs: String? = null,
+    val startHtml: String? = null,
+    val startStyle: String? = null,
+    val startJs: String? = null,
+    val showWebLog: Boolean = false,
+    val lastUpdateTime: Long = 0L,
+    val customOrder: Int = 0,
+    val type: Int = 0,
+    val preload: Boolean = false,
+    val cacheFirst: Boolean = false,
+    val searchUrl: String? = null
+)
 
 data class SyncBookSource(
     val bookSourceUrl: String = "",

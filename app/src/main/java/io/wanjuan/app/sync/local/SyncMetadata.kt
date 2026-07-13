@@ -1,5 +1,6 @@
 package io.wanjuan.app.sync.local
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 
 @Entity(
@@ -14,5 +15,10 @@ data class SyncMetadata(
     val deletedAt: Long? = null,
     val dirty: Boolean = false,
     val lastSyncedHash: String? = null,
-    val updatedByDeviceId: String? = null
+    val updatedByDeviceId: String? = null,
+    val localUpdatedByDeviceId: String? = null,
+    val remoteUpdatedByDeviceId: String? = null,
+    val deletedByDeviceId: String? = null,
+    @ColumnInfo(defaultValue = "0")
+    val remoteFileModifiedAt: Long = 0L
 )

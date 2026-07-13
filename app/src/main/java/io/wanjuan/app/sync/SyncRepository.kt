@@ -3,8 +3,18 @@ package io.wanjuan.app.sync
 import io.wanjuan.app.data.AppDatabase
 import io.wanjuan.app.sync.local.SyncMetadata
 import io.wanjuan.app.sync.local.SyncOutbox
+import io.wanjuan.app.sync.model.SyncBookGroupPayload
+import io.wanjuan.app.sync.model.SyncBookPayload
+import io.wanjuan.app.sync.model.SyncBookSourcePayload
+import io.wanjuan.app.sync.model.SyncObjectType
+import io.wanjuan.app.sync.model.SyncOrderPayload
+import io.wanjuan.app.sync.model.SyncResult
+import io.wanjuan.app.sync.model.SyncRssSourcePayload
+import io.wanjuan.app.sync.model.SyncRuleSubPayload
+import io.wanjuan.app.sync.remote.SyncRemoteStore
 import io.wanjuan.app.sync.remote.WebDavSyncClient
 import io.wanjuan.app.utils.GSON
+import io.wanjuan.app.utils.fromJsonObject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -25,13 +35,15 @@ class SyncRepository(
             val metadata = db.syncMetadataDao.get(objectType, objectId)?.copy(
                 localUpdatedAt = now,
                 dirty = true,
-                updatedByDeviceId = deviceId
+                updatedByDeviceId = deviceId,
+                localUpdatedByDeviceId = deviceId
             ) ?: SyncMetadata(
                 objectType = objectType,
                 objectId = objectId,
                 localUpdatedAt = now,
                 dirty = true,
-                updatedByDeviceId = deviceId
+                updatedByDeviceId = deviceId,
+                localUpdatedByDeviceId = deviceId
             )
             db.syncMetadataDao.insert(metadata)
             db.syncOutboxDao.insert(
@@ -40,7 +52,9 @@ class SyncRepository(
                     objectId = objectId,
                     operation = operation,
                     payloadJson = payloadJson,
-                    createdAt = now
+                    createdAt = now,
+                    versionTimestamp = now,
+                    versionDeviceId = deviceId
                 )
             )
         }
@@ -61,11 +75,80 @@ class SyncRepository(
         }
     }
 
+    suspend fun flushOutbox(remoteStore: SyncRemoteStore, result: SyncResult.Mutable) {
+        val items = db.syncOutboxDao.pending(50)
+        for (item in items) {
+            currentCoroutineContext().ensureActive()
+            try {
+                val json = requireNotNull(item.payloadJson) {
+                    "Missing sync payload: ${item.objectType}/${item.objectId}"
+                }
+                remoteStore.uploadJson(item.remotePath(), json)
+                db.runInTransaction {
+                    db.syncOutboxDao.delete(item.id)
+                    db.syncMetadataDao.markClean(
+                        item.objectType,
+                        item.objectId,
+                        if (item.operation == "delete") null else item.contentHash()
+                    )
+                }
+                result.uploaded += 1
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                currentCoroutineContext().ensureActive()
+                db.syncOutboxDao.markFailed(item.id, e.localizedMessage ?: e.javaClass.simpleName)
+                result.fail(e.localizedMessage ?: e.javaClass.simpleName)
+            }
+        }
+    }
+
     suspend fun ensureRemoteReady() {
         client.ensureDirs()
     }
 
-    fun applyRemote(block: () -> Unit) {
-        SyncScope.remoteApply(block)
+    fun <T> applyRemote(block: () -> T): T = SyncScope.remoteApply(block)
+
+    private fun SyncOutbox.remotePath(): String = when (objectType) {
+        SyncObjectType.Book -> if (operation == "delete") "tombstones/books/$objectId.json" else "books/$objectId.json"
+        SyncObjectType.BookGroup -> if (operation == "delete") "tombstones/bookGroups/$objectId.json" else "bookGroups/$objectId.json"
+        SyncObjectType.BookSource -> if (operation == "delete") "tombstones/bookSources/$objectId.json" else "bookSources/$objectId.json"
+        SyncObjectType.RssSource -> if (operation == "delete") "tombstones/rssSources/$objectId.json" else "rssSources/$objectId.json"
+        SyncObjectType.RuleSub -> if (operation == "delete") "tombstones/ruleSubs/$objectId.json" else "ruleSubs/$objectId.json"
+        SyncObjectType.BookshelfOrder -> "order/bookshelf.json"
+        SyncObjectType.BookGroupOrder -> "order/bookGroups.json"
+        SyncObjectType.BookSourceOrder -> "order/bookSources.json"
+        SyncObjectType.RssSourceOrder -> "order/rssSources.json"
+        SyncObjectType.RuleSubOrder -> "order/ruleSubs.json"
+        else -> error("Unsupported sync object type: $objectType")
+    }
+
+    private fun SyncOutbox.contentHash(): String {
+        val json = requireNotNull(payloadJson)
+        return when (objectType) {
+            SyncObjectType.Book -> SyncPayloadHash.book(
+                GSON.fromJsonObject<SyncBookPayload>(json).getOrThrow()
+            )
+            SyncObjectType.BookGroup -> SyncPayloadHash.bookGroup(
+                GSON.fromJsonObject<SyncBookGroupPayload>(json).getOrThrow()
+            )
+            SyncObjectType.BookSource -> SyncPayloadHash.bookSource(
+                GSON.fromJsonObject<SyncBookSourcePayload>(json).getOrThrow()
+            )
+            SyncObjectType.RssSource -> SyncPayloadHash.rssSource(
+                GSON.fromJsonObject<SyncRssSourcePayload>(json).getOrThrow()
+            )
+            SyncObjectType.RuleSub -> SyncPayloadHash.ruleSub(
+                GSON.fromJsonObject<SyncRuleSubPayload>(json).getOrThrow()
+            )
+            SyncObjectType.BookshelfOrder,
+            SyncObjectType.BookGroupOrder,
+            SyncObjectType.BookSourceOrder,
+            SyncObjectType.RssSourceOrder,
+            SyncObjectType.RuleSubOrder -> SyncPayloadHash.order(
+                GSON.fromJsonObject<SyncOrderPayload>(json).getOrThrow()
+            )
+            else -> error("Unsupported sync hash type: $objectType")
+        }
     }
 }

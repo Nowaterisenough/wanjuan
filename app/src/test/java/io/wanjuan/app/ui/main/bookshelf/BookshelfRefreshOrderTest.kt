@@ -18,7 +18,7 @@ class BookshelfRefreshOrderTest {
 
         assertTrue(
             "Style 1 pull refresh should trigger remote sync.",
-            style1.pullRefreshBlock().contains("SyncManager.syncNow()")
+            style1.pullRefreshBlock().contains("SyncManager.syncNow { result ->")
         )
         assertTrue(
             "Style 1 pull refresh should pull WebDAV progress after catalog update.",
@@ -26,7 +26,7 @@ class BookshelfRefreshOrderTest {
         )
         assertTrue(
             "Style 2 pull refresh should trigger remote sync.",
-            style2.pullRefreshBlock().contains("SyncManager.syncNow()")
+            style2.pullRefreshBlock().contains("SyncManager.syncNow { result ->")
         )
         assertTrue(
             "Style 2 pull refresh should pull WebDAV progress after catalog update.",

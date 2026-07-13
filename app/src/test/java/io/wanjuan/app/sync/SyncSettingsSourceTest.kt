@@ -16,7 +16,8 @@ class SyncSettingsSourceTest {
     fun backupFragmentHandlesManualSyncClick() {
         val fragment = repoFile("app/src/main/java/io/wanjuan/app/ui/config/BackupConfigFragment.kt").readText()
         assertTrue(fragment.contains("web_dav_sync_now"))
-        assertTrue(fragment.contains("SyncManager.syncNow()"))
+        assertTrue(fragment.contains("SyncManager.syncNow { result ->"))
+        assertTrue(fragment.contains("同步完成：上传"))
     }
 
     private fun repoFile(path: String): File {

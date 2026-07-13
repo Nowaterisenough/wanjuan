@@ -18,4 +18,14 @@ interface SyncOutboxDao {
 
     @Query("update sync_outbox set attemptCount = attemptCount + 1, lastError = :error where id = :id")
     fun markFailed(id: Long, error: String)
+
+    @Query("delete from sync_outbox where objectType = :objectType and objectId = :objectId")
+    fun deleteForObject(objectType: String, objectId: String)
+
+    @Query(
+        """select * from sync_outbox
+        where objectType = :objectType and objectId = :objectId
+        order by id desc limit 1"""
+    )
+    fun latestForObject(objectType: String, objectId: String): SyncOutbox?
 }

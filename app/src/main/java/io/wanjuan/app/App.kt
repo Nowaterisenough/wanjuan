@@ -50,6 +50,7 @@ import io.wanjuan.app.help.source.SourceHelp
 import io.wanjuan.app.help.storage.Backup
 import io.wanjuan.app.help.storage.RestoreJournal
 import io.wanjuan.app.model.BookCover
+import io.wanjuan.app.receiver.NetworkChangedListener
 import io.wanjuan.app.sync.SyncManager
 import io.wanjuan.app.utils.ChineseUtils
 import io.wanjuan.app.utils.LogUtils
@@ -67,6 +68,7 @@ import java.util.logging.Level
 class App : Application() {
 
     private lateinit var oldConfig: Configuration
+    private lateinit var networkChangedListener: NetworkChangedListener
 
     override fun onCreate() {
         super.onCreate()
@@ -75,6 +77,10 @@ class App : Application() {
             ThreadUtils.setThreadAssertsDisabledForTesting(true)
         }
         oldConfig = Configuration(resources.configuration)
+        networkChangedListener = NetworkChangedListener(this).apply {
+            onNetworkChanged = SyncManager::onNetworkAvailable
+            register()
+        }
         applyDayNightInit(this)
         registerActivityLifecycleCallbacks(LifecycleHelp)
         defaultSharedPreferences.registerOnSharedPreferenceChangeListener(AppConfig)
@@ -128,6 +134,13 @@ class App : Application() {
 
     override fun attachBaseContext(base: Context) {
         super.attachBaseContext(AppContextWrapper.wrap(base))
+    }
+
+    override fun onTerminate() {
+        if (::networkChangedListener.isInitialized) {
+            networkChangedListener.unRegister()
+        }
+        super.onTerminate()
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {

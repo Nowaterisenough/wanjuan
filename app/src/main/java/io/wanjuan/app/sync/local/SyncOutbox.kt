@@ -1,5 +1,6 @@
 package io.wanjuan.app.sync.local
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
@@ -13,5 +14,9 @@ data class SyncOutbox(
     val payloadJson: String? = null,
     val createdAt: Long,
     val attemptCount: Int = 0,
-    val lastError: String? = null
+    val lastError: String? = null,
+    @ColumnInfo(defaultValue = "0")
+    val versionTimestamp: Long = createdAt,
+    @ColumnInfo(defaultValue = "''")
+    val versionDeviceId: String = ""
 )

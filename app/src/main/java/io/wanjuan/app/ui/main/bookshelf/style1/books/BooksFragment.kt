@@ -38,6 +38,7 @@ import io.wanjuan.app.utils.observeEvent
 import io.wanjuan.app.utils.setEdgeEffectColor
 import io.wanjuan.app.utils.startActivity
 import io.wanjuan.app.utils.startActivityForBook
+import io.wanjuan.app.utils.toastOnUi
 import io.wanjuan.app.utils.viewbindingdelegate.viewBinding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -107,13 +108,18 @@ class BooksFragment() : BaseFragment(R.layout.fragment_books),
         binding.refreshLayout.setColorSchemeColors(accentColor)
         binding.refreshLayout.setProgressViewOffset(true, (-28).dpToPx(), 56.dpToPx())
         binding.refreshLayout.setOnRefreshListener {
-            binding.refreshLayout.isRefreshing = false
-            SyncManager.syncNow()
-            activityViewModel.upToc(
-                booksAdapter.getItems(),
-                onlyUpdateRead,
-                pullProgressAfterUpdate = true
-            )
+            SyncManager.syncNow { result ->
+                binding.refreshLayout.isRefreshing = false
+                if (result.isSuccess) {
+                    activityViewModel.upToc(
+                        booksAdapter.getItems(),
+                        onlyUpdateRead,
+                        pullProgressAfterUpdate = true
+                    )
+                } else {
+                    context?.toastOnUi("同步失败：${result.errorMessage ?: "未知错误"}")
+                }
+            }
         }
         updateLayoutManager()
         booksAdapter.stateRestorationPolicy = StateRestorationPolicy.PREVENT_WHEN_EMPTY

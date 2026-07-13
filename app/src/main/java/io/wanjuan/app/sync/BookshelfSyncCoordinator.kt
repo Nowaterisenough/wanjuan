@@ -1,10 +1,10 @@
 package io.wanjuan.app.sync
 
 import io.wanjuan.app.data.appDb
+import io.wanjuan.app.data.AppDatabase
 import io.wanjuan.app.data.entities.Book
 import io.wanjuan.app.sync.mapper.BookSyncMapper
 import io.wanjuan.app.sync.local.SyncMetadata
-import io.wanjuan.app.sync.merge.SyncMerge
 import io.wanjuan.app.sync.model.SyncBook
 import io.wanjuan.app.sync.model.SyncBookPayload
 import io.wanjuan.app.sync.model.SyncObjectType
@@ -12,11 +12,73 @@ import io.wanjuan.app.sync.model.SyncOrderPayload
 import io.wanjuan.app.sync.model.SyncTombstonePayload
 import io.wanjuan.app.sync.remote.WebDavSyncClient
 
+interface BookshelfSyncStore {
+    fun allBooks(): List<Book>
+
+    fun insertBook(book: Book)
+
+    fun updateBook(book: Book)
+
+    fun deleteBook(book: Book)
+
+    fun runInTransaction(block: () -> Unit) = block()
+}
+
+class RoomBookshelfSyncStore(
+    private val db: AppDatabase = appDb
+) : BookshelfSyncStore {
+    override fun allBooks(): List<Book> = db.bookDao.all
+
+    override fun insertBook(book: Book) = db.bookDao.insert(book)
+
+    override fun updateBook(book: Book) = db.bookDao.update(book)
+
+    override fun deleteBook(book: Book) = db.bookDao.delete(book)
+
+    override fun runInTransaction(block: () -> Unit) = db.runInTransaction(block)
+}
+
+class BookshelfObjectApplier(
+    private val store: BookshelfSyncStore = RoomBookshelfSyncStore()
+) {
+    fun applyRemoteDelete(bookSyncId: String): Boolean {
+        var deleted = false
+        store.runInTransaction {
+            val book = store.allBooks().firstOrNull { SyncIds.bookId(it) == bookSyncId }
+                ?: return@runInTransaction
+            store.deleteBook(book)
+            deleted = true
+        }
+        return deleted
+    }
+
+    fun applyRemoteOrder(payload: SyncOrderPayload) {
+        store.runInTransaction {
+            val books = store.allBooks()
+            val byId = books.associateBy(SyncIds::bookId)
+            val ordered = buildList {
+                payload.items.distinct().mapNotNullTo(this) { byId[it] }
+                books.sortedBy { it.order }.forEach { book ->
+                    if (none { it.bookUrl == book.bookUrl }) add(book)
+                }
+            }
+            ordered.forEachIndexed { index, book ->
+                if (book.order != index) {
+                    book.order = index
+                    store.updateBook(book)
+                }
+            }
+        }
+    }
+}
+
 class BookshelfSyncCoordinator(
     private val client: WebDavSyncClient,
     private val repository: SyncRepository,
     private val clock: SyncClock,
-    private val deviceIdProvider: () -> String
+    private val deviceIdProvider: () -> String,
+    private val groupCoordinator: BookGroupSyncCoordinator = BookGroupSyncCoordinator(),
+    private val objectApplier: BookshelfObjectApplier = BookshelfObjectApplier()
 ) {
     private companion object {
         const val BookShelfClockType = "bookShelf"
@@ -66,82 +128,12 @@ class BookshelfSyncCoordinator(
         repository.applyRemote {
             appDb.runInTransaction {
                 val dao = appDb.bookDao
-                val metadataDao = appDb.syncMetadataDao
-                val shelfMetadata = metadataDao.get(BookShelfClockType, payload.bookSyncId)
-                val catalogMetadata = metadataDao.get(BookCatalogClockType, payload.bookSyncId)
-                val localShelfUpdatedAt = maxOf(
-                    shelfMetadata?.localUpdatedAt ?: 0L,
-                    shelfMetadata?.remoteUpdatedAt ?: 0L
-                )
-                val localCatalogUpdatedAt = maxOf(
-                    catalogMetadata?.localUpdatedAt ?: 0L,
-                    catalogMetadata?.remoteUpdatedAt ?: 0L
-                )
                 val local = dao.getBook(payload.book.bookUrl)
+                val remote = payload.book.toBook(payload.localGroupMask(groupCoordinator))
                 if (local == null) {
-                    dao.insert(payload.book.toBook())
-                    metadataDao.insert(
-                        shelfMetadata.withRemoteClock(
-                            objectType = BookShelfClockType,
-                            objectId = payload.bookSyncId,
-                            remoteUpdatedAt = payload.shelfUpdatedAt,
-                            updatedByDeviceId = payload.updatedByDeviceId
-                        )
-                    )
-                    metadataDao.insert(
-                        catalogMetadata.withRemoteClock(
-                            objectType = BookCatalogClockType,
-                            objectId = payload.bookSyncId,
-                            remoteUpdatedAt = payload.catalogUpdatedAt,
-                            updatedByDeviceId = payload.updatedByDeviceId
-                        )
-                    )
-                    return@runInTransaction
-                }
-
-                val shelfWins = SyncMerge.remoteWins(localShelfUpdatedAt, payload.shelfUpdatedAt)
-                val catalogWins = SyncMerge.remoteWins(localCatalogUpdatedAt, payload.catalogUpdatedAt)
-
-                if (shelfWins) {
-                    local.group = payload.book.group
-                    local.order = payload.book.order
-                    local.customCoverUrl = payload.book.customCoverUrl
-                    local.customIntro = payload.book.customIntro
-                    local.customTag = payload.book.customTag
-                    local.canUpdate = payload.book.canUpdate
-                    local.readConfig = payload.book.readConfig
-                }
-
-                if (catalogWins) {
-                    local.totalChapterNum = payload.book.totalChapterNum
-                    local.lastCheckCount = payload.book.lastCheckCount
-                    local.latestChapterTitle = payload.book.latestChapterTitle
-                    local.latestChapterTime = payload.book.latestChapterTime
-                    local.lastCheckTime = payload.book.lastCheckTime
-                }
-
-                if (shelfWins || catalogWins) {
-                    dao.update(local)
-                }
-                if (shelfWins) {
-                    metadataDao.insert(
-                        shelfMetadata.withRemoteClock(
-                            objectType = BookShelfClockType,
-                            objectId = payload.bookSyncId,
-                            remoteUpdatedAt = payload.shelfUpdatedAt,
-                            updatedByDeviceId = payload.updatedByDeviceId
-                        )
-                    )
-                }
-                if (catalogWins) {
-                    metadataDao.insert(
-                        catalogMetadata.withRemoteClock(
-                            objectType = BookCatalogClockType,
-                            objectId = payload.bookSyncId,
-                            remoteUpdatedAt = payload.catalogUpdatedAt,
-                            updatedByDeviceId = payload.updatedByDeviceId
-                        )
-                    )
+                    dao.insert(remote)
+                } else {
+                    dao.update(remote)
                 }
             }
         }
@@ -154,6 +146,13 @@ class BookshelfSyncCoordinator(
             items = books.sortedBy { it.order }.map { SyncIds.bookId(it) }
         )
         client.upload("order/bookshelf.json", payload)
+    }
+
+    fun applyRemoteDelete(bookSyncId: String): Boolean =
+        repository.applyRemote { objectApplier.applyRemoteDelete(bookSyncId) }
+
+    fun applyRemoteOrder(payload: SyncOrderPayload) {
+        repository.applyRemote { objectApplier.applyRemoteOrder(payload) }
     }
 
     suspend fun pushBookDelete(book: Book) {
@@ -228,7 +227,15 @@ class BookshelfSyncCoordinator(
         )
     }
 
-    private fun SyncBook.toBook(): Book {
+    private fun SyncBookPayload.localGroupMask(
+        coordinator: BookGroupSyncCoordinator
+    ): Long = if (schemaVersion >= 2) {
+        coordinator.remoteGroupIdsToLocalMask(book.groupSyncIds)
+    } else {
+        coordinator.remoteLegacyMaskToLocalMask(book.group)
+    }
+
+    private fun SyncBook.toBook(localGroupMask: Long): Book {
         return Book(
             bookUrl = bookUrl,
             tocUrl = tocUrl,
@@ -244,7 +251,7 @@ class BookshelfSyncCoordinator(
             customIntro = customIntro,
             charset = charset,
             type = type,
-            group = group,
+            group = localGroupMask,
             latestChapterTitle = latestChapterTitle,
             latestChapterTime = latestChapterTime,
             lastCheckTime = lastCheckTime,

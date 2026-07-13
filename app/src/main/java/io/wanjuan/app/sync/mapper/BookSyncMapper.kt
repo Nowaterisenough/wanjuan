@@ -12,11 +12,12 @@ object BookSyncMapper {
         book: Book,
         deviceId: String,
         shelfUpdatedAt: Long,
-        catalogUpdatedAt: Long
+        catalogUpdatedAt: Long,
+        groupSyncIds: List<String> = emptyList()
     ): SyncBookPayload {
         return SyncBookPayload(
             bookSyncId = SyncIds.bookId(book),
-            book = SyncBook.from(book),
+            book = SyncBook.from(book, groupSyncIds),
             shelfUpdatedAt = shelfUpdatedAt,
             catalogUpdatedAt = catalogUpdatedAt,
             updatedByDeviceId = deviceId

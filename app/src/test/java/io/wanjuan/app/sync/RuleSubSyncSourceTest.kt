@@ -25,8 +25,8 @@ class RuleSubSyncSourceTest {
         assertTrue(source.contains("items.sortedBy { it.customOrder }.map { SyncIds.ruleSubId(it) }"))
         assertTrue(source.contains("fun applyRemoteOrder(payload: SyncOrderPayload)"))
         assertTrue(source.contains("SyncObjectType.RuleSubOrder"))
-        assertTrue(source.contains("payload.items.forEachIndexed"))
-        assertTrue(source.contains("missingIds.isNotEmpty()"))
+        assertTrue(source.contains("StableSyncOrder.merge("))
+        assertTrue(source.contains("localItems = dao.all"))
         assertTrue(source.contains("subscriptionUpdatedAt"))
         assertFalse(source.contains("rssSourceUpdatedAt"))
         assertFalse(source.contains("rssSources/"))
@@ -48,14 +48,12 @@ class RuleSubSyncSourceTest {
     }
 
     @Test
-    fun ruleSubSyncUsesSubscriptionTimestampNotRuleSubUpdateForConflicts() {
+    fun ruleSubSyncAppliesPayloadAfterCentralConflictResolution() {
         assertTrue(source.contains("payload.ruleSubHash != SyncIds.hashKey(\"rule-sub\""))
         assertTrue(source.contains("payload.type"))
         assertTrue(source.contains("payload.url"))
-        assertTrue(source.contains("metadata?.localUpdatedAt ?: 0L"))
-        assertTrue(source.contains("metadata?.remoteUpdatedAt ?: 0L"))
-        assertTrue(source.contains("SyncMerge.remoteWins(localUpdatedAt, payload.subscriptionUpdatedAt)"))
         assertTrue(source.contains("remoteUpdatedAt = payload.subscriptionUpdatedAt"))
+        assertFalse(source.contains("SyncMerge."))
         assertFalse(source.contains("local?.update"))
         assertFalse(source.contains("local.update"))
     }
@@ -65,7 +63,7 @@ class RuleSubSyncSourceTest {
         assertTrue(source.contains("SyncTombstonePayload("))
         assertTrue(source.contains("objectType = SyncObjectType.RuleSub"))
         assertTrue(source.contains("if (payload.objectType != SyncObjectType.RuleSub) return"))
-        assertTrue(source.contains("SyncMerge.tombstoneWins(objectUpdatedAt, payload.deletedAt)"))
+        assertFalse(source.contains("tombstoneWins"))
         assertTrue(source.contains("recordLocalDeleteClock"))
         assertTrue(source.contains("objectKey = objectKey"))
         assertTrue(source.contains("payload.objectKey"))

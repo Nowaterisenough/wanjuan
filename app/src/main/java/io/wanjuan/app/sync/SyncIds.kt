@@ -4,6 +4,9 @@ import io.wanjuan.app.data.entities.Book
 import io.wanjuan.app.data.entities.BookSource
 import io.wanjuan.app.data.entities.RuleSub
 import java.security.MessageDigest
+import java.text.Normalizer
+import java.util.Locale
+import java.util.UUID
 
 object SyncIds {
 
@@ -28,6 +31,22 @@ object SyncIds {
         require(ruleSub.url.isNotBlank()) { "RuleSub.url must not be blank" }
         return hashKey("rule-sub", "${ruleSub.type}\n${ruleSub.url}")
     }
+
+    fun rssSourceId(sourceUrl: String): String {
+        require(sourceUrl.isNotBlank()) { "RssSource.sourceUrl must not be blank" }
+        return hashKey("rss-source", sourceUrl)
+    }
+
+    fun existingGroupId(name: String): String {
+        val normalized = Normalizer.normalize(name, Normalizer.Form.NFKC)
+            .trim()
+            .lowercase(Locale.ROOT)
+            .replace(Regex("\\s+"), " ")
+        require(normalized.isNotEmpty()) { "BookGroup.groupName must not be blank" }
+        return hashKey("book-group", normalized)
+    }
+
+    fun newGroupId(): String = "book-group_${UUID.randomUUID()}"
 
     fun hashKey(prefix: String, key: String): String {
         val digest = MessageDigest.getInstance("SHA-256")

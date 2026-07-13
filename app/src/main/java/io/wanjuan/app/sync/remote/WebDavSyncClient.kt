@@ -1,11 +1,11 @@
 package io.wanjuan.app.sync.remote
 
 import io.wanjuan.app.help.AppWebDav
+import io.wanjuan.app.exception.NoStackTraceException
 import io.wanjuan.app.lib.webdav.Authorization
 import io.wanjuan.app.lib.webdav.ObjectNotFoundException
 import io.wanjuan.app.lib.webdav.WebDav
 import io.wanjuan.app.lib.webdav.WebDavException
-import io.wanjuan.app.lib.webdav.WebDavFile
 import io.wanjuan.app.utils.GSON
 import io.wanjuan.app.utils.fromJsonObject
 import java.nio.charset.StandardCharsets
@@ -13,7 +13,7 @@ import java.nio.charset.StandardCharsets
 class WebDavSyncClient(
     private val rootUrlProvider: () -> String,
     private val authorizationProvider: () -> Authorization?
-) {
+) : SyncRemoteStore {
 
     companion object {
         private const val JSON = "application/json"
@@ -24,6 +24,10 @@ class WebDavSyncClient(
     private fun baseUrl(): String = rootUrlProvider().trimEnd('/') + "/"
 
     private fun rootUrl(): String = baseUrl() + SYNC_DIR
+
+    private fun requireAuthorization(): Authorization {
+        return authorizationProvider() ?: throw NoStackTraceException("WebDAV 未配置")
+    }
 
     private fun resolve(relativePath: String, asDirectory: Boolean = false): String {
         val trimmed = relativePath.trim()
@@ -49,8 +53,8 @@ class WebDavSyncClient(
         }
     }
 
-    suspend fun ensureDirs() {
-        val authorization = authorizationProvider() ?: return
+    override suspend fun ensureDirs() {
+        val authorization = requireAuthorization()
         val syncRoot = baseUrl() + "sync/"
         val root = rootUrl()
         listOf(
@@ -58,29 +62,39 @@ class WebDavSyncClient(
             root,
             "${root}devices/",
             "${root}books/",
+            "${root}bookGroups/",
             "${root}bookProgress/",
             "${root}bookSources/",
+            "${root}rssSources/",
             "${root}ruleSubs/",
             "${root}order/",
             "${root}tombstones/",
             "${root}tombstones/books/",
+            "${root}tombstones/bookGroups/",
             "${root}tombstones/bookSources/",
+            "${root}tombstones/rssSources/",
             "${root}tombstones/ruleSubs/"
         ).forEach { WebDav(it, authorization).makeAsDir() }
     }
 
-    suspend fun list(relativeDir: String): List<WebDavFile> {
-        val authorization = authorizationProvider() ?: return emptyList()
-        return WebDav(resolve(relativeDir, asDirectory = true), authorization).listFiles()
+    override suspend fun list(relativeDir: String): List<SyncRemoteFile> {
+        val authorization = requireAuthorization()
+        val directory = relativeDir.trim('/').takeIf { it.isNotEmpty() }
+        return WebDav(resolve(relativeDir, asDirectory = true), authorization).listFiles().map { file ->
+            SyncRemoteFile(
+                path = listOfNotNull(directory, file.urlName).joinToString("/"),
+                displayName = file.displayName,
+                lastModifiedAt = file.lastModify
+            )
+        }
     }
 
     suspend inline fun <reified T> download(relativePath: String): T? {
         return GSON.fromJsonObject<T>(downloadJson(relativePath) ?: return null).getOrNull()
     }
 
-    @PublishedApi
-    internal suspend fun downloadJson(relativePath: String): String? {
-        val authorization = authorizationProvider() ?: return null
+    override suspend fun downloadJson(relativePath: String): String? {
+        val authorization = requireAuthorization()
         val bytes = try {
             WebDav(resolve(relativePath), authorization).download()
         } catch (e: ObjectNotFoundException) {
@@ -98,14 +112,17 @@ class WebDavSyncClient(
     }
 
     suspend fun upload(relativePath: String, payload: Any) {
-        val authorization = authorizationProvider() ?: return
-        val json = GSON.toJson(payload)
+        uploadJson(relativePath, GSON.toJson(payload))
+    }
+
+    override suspend fun uploadJson(relativePath: String, json: String) {
+        val authorization = requireAuthorization()
         WebDav(resolve(relativePath), authorization)
             .upload(json.toByteArray(StandardCharsets.UTF_8), JSON)
     }
 
     suspend fun delete(relativePath: String): Boolean {
-        val authorization = authorizationProvider() ?: return false
+        val authorization = requireAuthorization()
         return WebDav(resolve(relativePath), authorization).delete()
     }
 }

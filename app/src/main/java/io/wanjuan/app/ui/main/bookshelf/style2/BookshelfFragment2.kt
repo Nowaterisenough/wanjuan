@@ -40,6 +40,7 @@ import io.wanjuan.app.utils.setEdgeEffectColor
 import io.wanjuan.app.utils.showDialogFragment
 import io.wanjuan.app.utils.startActivity
 import io.wanjuan.app.utils.startActivityForBook
+import io.wanjuan.app.utils.toastOnUi
 import io.wanjuan.app.utils.viewbindingdelegate.viewBinding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -114,13 +115,18 @@ class BookshelfFragment2() : BaseBookshelfFragment(R.layout.fragment_bookshelf2)
         binding.refreshLayout.setColorSchemeColors(accentColor)
         binding.refreshLayout.setProgressViewOffset(true, (-28).dpToPx(), 56.dpToPx())
         binding.refreshLayout.setOnRefreshListener {
-            binding.refreshLayout.isRefreshing = false
-            SyncManager.syncNow()
-            activityViewModel.upToc(
-                currentUpdateBooks(),
-                onlyUpdateRead,
-                pullProgressAfterUpdate = true
-            )
+            SyncManager.syncNow { result ->
+                binding.refreshLayout.isRefreshing = false
+                if (result.isSuccess) {
+                    activityViewModel.upToc(
+                        currentUpdateBooks(),
+                        onlyUpdateRead,
+                        pullProgressAfterUpdate = true
+                    )
+                } else {
+                    context?.toastOnUi("同步失败：${result.errorMessage ?: "未知错误"}")
+                }
+            }
         }
         updateLayoutManager()
         binding.rvBookshelf.adapter = booksAdapter

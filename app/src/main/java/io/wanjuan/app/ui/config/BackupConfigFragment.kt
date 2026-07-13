@@ -252,8 +252,16 @@ class BackupConfigFragment : PreferenceFragment(),
             "web_dav_backup" -> backup()
             "web_dav_restore" -> restore()
             "web_dav_sync_now" -> {
-                SyncManager.syncNow()
-                appCtx.toastOnUi("已开始同步")
+                SyncManager.syncNow { result ->
+                    if (result.isSuccess) {
+                        appCtx.toastOnUi(
+                            "同步完成：上传 ${result.uploaded}，下载 ${result.downloaded}，" +
+                                "新增 ${result.inserted}，更新 ${result.updated}，删除 ${result.deleted}"
+                        )
+                    } else {
+                        appCtx.toastOnUi("同步失败：${result.errorMessage ?: "未知错误"}")
+                    }
+                }
             }
             "import_old" -> restoreOld.launch()
         }

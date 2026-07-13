@@ -4,7 +4,6 @@ import io.wanjuan.app.data.appDb
 import io.wanjuan.app.data.entities.RuleSub
 import io.wanjuan.app.sync.local.SyncMetadata
 import io.wanjuan.app.sync.mapper.RuleSubSyncMapper
-import io.wanjuan.app.sync.merge.SyncMerge
 import io.wanjuan.app.sync.model.SyncObjectType
 import io.wanjuan.app.sync.model.SyncOrderPayload
 import io.wanjuan.app.sync.model.SyncRuleSub
@@ -55,34 +54,24 @@ class RuleSubSyncCoordinator(
                 val metadataDao = appDb.syncMetadataDao
                 val metadata = metadataDao.get(SyncObjectType.RuleSub, payload.ruleSubHash)
                 val local = dao.findByTypeAndUrl(payload.type, payload.url)
-                val localUpdatedAt = maxOf(
-                    metadata?.localUpdatedAt ?: 0L,
-                    metadata?.remoteUpdatedAt ?: 0L
-                )
-                if (SyncMerge.remoteWins(payload.subscriptionUpdatedAt, metadata?.deletedAt ?: 0L)) {
-                    return@runInTransaction
+                val sub = payload.ruleSub.toRuleSub(
+                    id = local?.id ?: 0L
+                ).apply {
+                    type = payload.type
+                    url = payload.url
                 }
-
-                if (local == null || SyncMerge.remoteWins(localUpdatedAt, payload.subscriptionUpdatedAt)) {
-                    val sub = payload.ruleSub.toRuleSub(
-                        id = local?.id ?: 0L
-                    ).apply {
-                        type = payload.type
-                        url = payload.url
-                    }
-                    if (local == null) {
-                        dao.insert(sub)
-                    } else {
-                        dao.update(sub)
-                    }
-                    metadataDao.insert(
-                        metadata.withRemoteClock(
-                            objectId = payload.ruleSubHash,
-                            remoteUpdatedAt = payload.subscriptionUpdatedAt,
-                            updatedByDeviceId = payload.updatedByDeviceId
-                        )
+                if (local == null) {
+                    dao.insert(sub)
+                } else {
+                    dao.update(sub)
+                }
+                metadataDao.insert(
+                    metadata.withRemoteClock(
+                        objectId = payload.ruleSubHash,
+                        remoteUpdatedAt = payload.subscriptionUpdatedAt,
+                        updatedByDeviceId = payload.updatedByDeviceId
                     )
-                }
+                )
             }
         }
     }
@@ -107,33 +96,26 @@ class RuleSubSyncCoordinator(
                 val dao = appDb.ruleSubDao
                 val metadataDao = appDb.syncMetadataDao
                 val metadata = metadataDao.get(SyncObjectType.RuleSubOrder, "ruleSubs")
-                val localUpdatedAt = maxOf(
-                    metadata?.localUpdatedAt ?: 0L,
-                    metadata?.remoteUpdatedAt ?: 0L
+                val ordered = StableSyncOrder.merge(
+                    remoteIds = payload.items,
+                    localItems = dao.all,
+                    idOf = SyncIds::ruleSubId,
+                    orderOf = RuleSub::customOrder
                 )
-                if (!SyncMerge.remoteWins(localUpdatedAt, payload.updatedAt)) {
-                    return@runInTransaction
-                }
-
-                val byId = dao.all.associateBy { SyncIds.ruleSubId(it) }
-                val missingIds = payload.items.filterNot { byId.containsKey(it) }
-                payload.items.forEachIndexed { index, id ->
-                    byId[id]?.let { it.customOrder = index + 1 }
-                }
-                dao.update(*byId.values.toTypedArray())
-                if (missingIds.isNotEmpty()) {
-                    return@runInTransaction
-                }
+                ordered.forEachIndexed { index, sub -> sub.customOrder = index }
+                dao.update(*ordered.toTypedArray())
                 metadataDao.insert(
                     metadata?.let {
                         it.copy(
                             remoteUpdatedAt = maxOf(it.remoteUpdatedAt, payload.updatedAt),
+                            remoteUpdatedByDeviceId = payload.updatedByDeviceId,
                             updatedByDeviceId = payload.updatedByDeviceId
                         )
                     } ?: SyncMetadata(
                         objectType = SyncObjectType.RuleSubOrder,
                         objectId = "ruleSubs",
                         remoteUpdatedAt = payload.updatedAt,
+                        remoteUpdatedByDeviceId = payload.updatedByDeviceId,
                         updatedByDeviceId = payload.updatedByDeviceId
                     )
                 )
@@ -177,13 +159,6 @@ class RuleSubSyncCoordinator(
                 val ruleSub = findRuleSubByKey(objectKey, payload.objectId)
                     ?: findRuleSubByKey(payload.objectKey, payload.objectId)
                     ?: findRuleSubByHash(payload.objectId)
-                val objectUpdatedAt = maxOf(
-                    metadata?.localUpdatedAt ?: 0L,
-                    metadata?.remoteUpdatedAt ?: 0L
-                )
-                if (!SyncMerge.tombstoneWins(objectUpdatedAt, payload.deletedAt)) {
-                    return@runInTransaction
-                }
                 if (ruleSub != null) {
                     appDb.ruleSubDao.delete(ruleSub)
                 }
