@@ -151,6 +151,11 @@ android {
         androidTest.assets.srcDirs += files("$projectDir/schemas".toString())
         androidTest.assets.srcDirs += files("$rootDir/tests".toString())
     }
+    testOptions {
+        unitTests.all {
+            workingDir = rootProject.projectDir
+        }
+    }
     lint {
         checkDependencies = true
     }
@@ -165,6 +170,9 @@ android {
 }
 
 androidComponents {
+    beforeVariants(selector().withBuildType("release")) { variantBuilder ->
+        variantBuilder.enableUnitTest = true
+    }
     onVariants(selector().all()) { variant ->
         variant.outputs.each { output ->
             output.outputFileName.set("${name}_${variant.flavorName}_${version}_${buildVersionCode}.apk")

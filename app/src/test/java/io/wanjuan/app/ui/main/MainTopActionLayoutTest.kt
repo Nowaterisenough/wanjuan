@@ -204,7 +204,11 @@ class MainTopActionLayoutTest {
     private fun Element.androidAttr(name: String): String =
         getAttributeNS(ANDROID_NAMESPACE, name)
 
+    private fun Element.appAttr(name: String): String =
+        getAttributeNS(APP_NAMESPACE, name)
+
     private companion object {
         const val ANDROID_NAMESPACE = "http://schemas.android.com/apk/res/android"
+        const val APP_NAMESPACE = "http://schemas.android.com/apk/res-auto"
     }
 }
