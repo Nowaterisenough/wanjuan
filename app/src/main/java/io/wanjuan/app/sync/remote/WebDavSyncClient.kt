@@ -10,6 +10,17 @@ import io.wanjuan.app.utils.GSON
 import io.wanjuan.app.utils.fromJsonObject
 import java.nio.charset.StandardCharsets
 
+internal fun syncRemotePath(directory: String, href: String): String {
+    val fileName = href.replace('\\', '/').trimEnd('/').substringAfterLast('/')
+    require(fileName.isNotBlank()) { "Sync remote file name must not be blank" }
+    require(fileName != "." && fileName != "..") {
+        "Sync remote file name must not be a traversal segment"
+    }
+    return listOf(directory.trim('/'), fileName)
+        .filter { it.isNotEmpty() }
+        .joinToString("/")
+}
+
 class WebDavSyncClient(
     private val rootUrlProvider: () -> String,
     private val authorizationProvider: () -> Authorization?
@@ -82,7 +93,7 @@ class WebDavSyncClient(
         val directory = relativeDir.trim('/').takeIf { it.isNotEmpty() }
         return WebDav(resolve(relativeDir, asDirectory = true), authorization).listFiles().map { file ->
             SyncRemoteFile(
-                path = listOfNotNull(directory, file.urlName).joinToString("/"),
+                path = syncRemotePath(directory.orEmpty(), file.urlName),
                 displayName = file.displayName,
                 lastModifiedAt = file.lastModify
             )
