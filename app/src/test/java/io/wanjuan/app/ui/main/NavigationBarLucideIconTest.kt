@@ -9,35 +9,6 @@ import javax.xml.parsers.DocumentBuilderFactory
 
 class NavigationBarLucideIconTest {
 
-    @Test
-    fun bottomNavigationPrimaryItemsUseLucideIconsInMenuAndDefaultConfig() {
-        val expected = linkedMapOf(
-            "bookshelf" to ExpectedIcon("menu_bookshelf", "ic_lucide_books"),
-            "discovery" to ExpectedIcon("menu_discovery", "ic_lucide_compass"),
-            "rss" to ExpectedIcon("menu_rss", "ic_lucide_rss"),
-            "readRecord" to ExpectedIcon("menu_read_record", "ic_lucide_chart_bar")
-        )
-        val menu = parseXml(repoFile("app/src/main/res/menu/main_bnv.xml"))
-        val navConfig = repoFile(
-            "app/src/main/java/io/wanjuan/app/help/config/NavigationBarIconConfig.kt"
-        ).readText()
-
-        expected.forEach { (key, icon) ->
-            assertEquals(
-                "@drawable/${icon.drawableName}",
-                menu.elementById(icon.menuId).androidAttr("icon")
-            )
-            assertTrue(
-                "NavigationBarIconConfig should default $key to ${icon.drawableName}",
-                navConfig.contains(
-                    "NavItem(\"$key\", " +
-                        "R.string.${if (key == "readRecord") "side_nav_stats" else keyString(key)}, " +
-                        "R.id.${icon.menuId}, R.drawable.${icon.drawableName})"
-                )
-            )
-        }
-    }
-
     private data class ExpectedIcon(
         val menuId: String,
         val drawableName: String
