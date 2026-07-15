@@ -291,14 +291,18 @@ class BookSourceConfigTest {
         )
 
         sources.forEach { (fileName, source) ->
-            val loginCheckJs = fieldValue(source, "loginCheckJs")
+            val loginCheckJs = fieldValue(source, "loginCheckJs").replace("\\\"", "\"")
 
             assertTrue("$fileName Jmcomic source should exist", source.isNotBlank())
             assertTrue("$fileName Jmcomic login check should still open browser for real verification pages", loginCheckJs.contains("startBrowserAwait"))
             assertTrue("$fileName Jmcomic login check should inspect HTTP status", loginCheckJs.contains("result.code()"))
             assertTrue("$fileName Jmcomic login check should inspect Cloudflare's challenge header", loginCheckJs.contains("cf-mitigated"))
             assertTrue("$fileName Jmcomic login check should still detect explicit verify pages", loginCheckJs.contains("isVerifyPage"))
-            assertFalse("$fileName Jmcomic login check should not clear persisted login cookies", loginCheckJs.contains("removeCookie"))
+            assertTrue("$fileName Jmcomic login check should classify login expiry", loginCheckJs.contains("isLoginExpired"))
+            assertTrue("$fileName Jmcomic login check should gate body markers by challenge status", loginCheckJs.contains("hasChallengeStatus &&"))
+            assertTrue("$fileName Jmcomic login check should distinguish login browser title", loginCheckJs.contains("\"登录\""))
+            assertFalse("$fileName Jmcomic normal pages should not be classified by generic challenge-platform scripts", loginCheckJs.contains("|challenge-platform|"))
+            assertFalse("$fileName Jmcomic login check should not clear cookies", loginCheckJs.contains("removeCookie"))
             assertFalse("$fileName Jmcomic login check should not treat normal ge_ua scripts as verification", loginCheckJs.contains("ge_ua"))
             assertFalse("$fileName Jmcomic login check should not use broad _cf_ matching", loginCheckJs.contains("/_cf_"))
         }
