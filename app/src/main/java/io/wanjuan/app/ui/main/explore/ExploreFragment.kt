@@ -451,11 +451,21 @@ class ExploreFragment() : VMBaseFragment<ExploreViewModel>(R.layout.fragment_exp
         binding.rvDiscoverBooks.addOnScrollListener(object : RecyclerView.OnScrollListener() {
             override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
                 super.onScrolled(recyclerView, dx, dy)
-                if (dy > 0 && !recyclerView.canScrollVertically(1)) {
+                if (dy > 0 && shouldPreloadDiscoverBooks(recyclerView)) {
                     loadDiscoverBooks(reset = false)
                 }
             }
         })
+    }
+
+    private fun shouldPreloadDiscoverBooks(recyclerView: RecyclerView): Boolean {
+        val layoutManager = recyclerView.layoutManager as? LinearLayoutManager ?: return false
+        val spanCount = (layoutManager as? GridLayoutManager)?.spanCount ?: 1
+        return DiscoverPreloadPolicy.shouldLoadMore(
+            itemCount = discoverBookAdapter.getActualItemCount(),
+            lastVisiblePosition = layoutManager.findLastVisibleItemPosition(),
+            spanCount = spanCount
+        )
     }
 
     private fun bindDiscoverSourceSelector() {

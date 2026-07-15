@@ -104,6 +104,17 @@ class ExploreFragmentLifecycleTest {
         assertTrue(refreshBlock.contains("oldBookCount % AppConfig.modernDiscoveryGridColumns != 0"))
     }
 
+    @Test
+    fun modernDiscoveryPreloadsBeforeReachingAbsoluteBottom() {
+        val source = repoFile("app/src/main/java/io/wanjuan/app/ui/main/explore/ExploreFragment.kt").readText()
+        val scrollBlock = source.substringAfter("private fun initDiscoverRecycler()")
+            .substringBefore("private fun bindDiscoverSourceSelector()")
+
+        assertTrue(scrollBlock.contains("shouldPreloadDiscoverBooks(recyclerView)"))
+        assertTrue(scrollBlock.contains("loadDiscoverBooks(reset = false)"))
+        assertFalse(scrollBlock.contains("!recyclerView.canScrollVertically(1)"))
+    }
+
     private fun repoFile(relativePath: String): File {
         return generateSequence(File("").absoluteFile) { it.parentFile }
             .map { File(it, relativePath) }
