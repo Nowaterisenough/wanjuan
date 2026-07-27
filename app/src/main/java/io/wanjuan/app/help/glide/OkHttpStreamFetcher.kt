@@ -24,6 +24,7 @@ import io.wanjuan.app.utils.isWifiConnect
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import okhttp3.Call
 import okhttp3.Request
 import okhttp3.Response
@@ -49,10 +50,15 @@ class OkHttpStreamFetcher(
     private val coroutineScope = CoroutineScope(coroutineContext)
     private lateinit var analyzedUrl: GlideUrl
 
-    @Volatile
-    private var cancelled = false
-    private var fallbackDownloader: MangaImageFallbackDownloader? = null
-    private var temporaryFile: File? = null
+    private val fallbackLifecycle = MangaImageFallbackLifecycle(
+        onConnecting = { ProgressManager.notifyConnecting(url.toStringUrl()) },
+        onDataReady = { downloaded ->
+            onStreamReady(downloaded.file.inputStream(), downloaded.file.length())
+        },
+        onLoadFailed = { error ->
+            callback?.onLoadFailed(error as? Exception ?: IOException(error))
+        },
+    )
 
     @Volatile
     private var call: Call? = null
@@ -105,16 +111,14 @@ class OkHttpStreamFetcher(
             stream?.close()
         }
         responseBody?.close()
-        temporaryFile?.delete()
-        temporaryFile = null
+        fallbackLifecycle.cancel()
         coroutineContext.cancel()
         callback = null
     }
 
     override fun cancel() {
-        cancelled = true
+        fallbackLifecycle.cancel()
         call?.cancel()
-        fallbackDownloader?.cancel()
         coroutineContext.cancel()
     }
 
@@ -177,23 +181,21 @@ class OkHttpStreamFetcher(
         val downloader = MangaImageFallbackDownloader(
             baseClient = okHttpClientManga,
             createTempFile = ::createMangaTempFile,
-            onConnecting = ProgressManager::notifyConnecting,
+            onConnecting = { fallbackLifecycle.notifyConnecting() },
             onAttemptFailed = ::logFallbackFailure,
         )
-        fallbackDownloader = downloader
 
-        Coroutine.async(coroutineScope, executeContext = IO) {
-            downloader.download(requestChain, ::prepareMangaImage)
-        }.onSuccess(context = IO) { downloaded ->
-            if (cancelled) {
-                downloaded.file.delete()
-                return@onSuccess
-            }
-            temporaryFile = downloaded.file
-            onStreamReady(downloaded.file.inputStream(), downloaded.file.length())
-        }.onError(context = IO) { error ->
-            if (!cancelled) {
-                callback?.onLoadFailed(error as? Exception ?: IOException(error))
+        if (!fallbackLifecycle.start(downloader::cancel)) return
+        coroutineScope.launch(IO) {
+            var downloaded: DownloadedMangaImage? = null
+            try {
+                downloaded = downloader.download(requestChain, ::prepareMangaImage)
+                fallbackLifecycle.deliverSuccess(downloaded)
+                downloaded = null
+            } catch (error: Throwable) {
+                fallbackLifecycle.deliverFailure(error)
+            } finally {
+                downloaded?.file?.delete()
             }
         }
     }
