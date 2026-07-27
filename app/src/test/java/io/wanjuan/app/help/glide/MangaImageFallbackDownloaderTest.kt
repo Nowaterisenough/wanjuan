@@ -13,6 +13,7 @@ import okio.ForwardingSource
 import okio.buffer
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -79,6 +80,26 @@ class MangaImageFallbackDownloaderTest {
             ),
             attempts.map { it.mangaProgressUrl() },
         )
+    }
+
+    @Test
+    fun fallbackCallDisablesTotalTimeoutAndKeepsRequestedReadTimeout() {
+        val callTimeouts = mutableListOf<Long>()
+        val readTimeouts = mutableListOf<Int>()
+        val client = OkHttpClient.Builder()
+            .callTimeout(60, TimeUnit.SECONDS)
+            .addInterceptor { chain ->
+                callTimeouts += chain.call().timeout().timeoutNanos()
+                readTimeouts += chain.readTimeoutMillis()
+                response(chain.request(), 200, "image-data".toResponseBody())
+            }
+            .build()
+
+        val result = newDownloader(client).download(chain("healthy.example"))
+
+        assertEquals("image-data", result.file.readText())
+        assertEquals(listOf(0L), callTimeouts)
+        assertEquals(listOf(8_000), readTimeouts)
     }
 
     @Test
@@ -156,7 +177,7 @@ class MangaImageFallbackDownloaderTest {
             response(request, 200, request.url.host.toResponseBody())
         }
 
-        val result = newDownloader(client).download(chain("one.example", "two.example")) {
+        val result = newDownloader(client).download(chain("one.example", "two.example")) { it, _ ->
             if (it.requestUrl.contains("one.example")) null else it
         }
 
@@ -222,14 +243,16 @@ class MangaImageFallbackDownloaderTest {
 
         val worker = thread {
             outcome.set(runCatching {
-                downloader.download(chain("one.example", "two.example")) {
+                downloader.download(chain("one.example", "two.example")) { it, _ ->
                     prepareCalls++
                     it
                 }
             }.exceptionOrNull())
         }
         assertTrue(readStarted.await(5, TimeUnit.SECONDS))
+        assertEquals(1, tempDir.listFiles()?.size)
         downloader.cancel()
+        assertTrue(tempDir.listFiles().isNullOrEmpty())
         allowReadFailure.countDown()
         worker.join(5_000L)
 
@@ -243,25 +266,23 @@ class MangaImageFallbackDownloaderTest {
     @Test
     fun prepareReplacementDeletesDownloadedFileAndKeepsReplacement() {
         var downloadedFile: File? = null
-        val replacement = File(tempDir, "prepared.img")
         val result = newDownloader(testClient { request ->
             response(request, 200, "downloaded".toResponseBody())
-        }).download(chain("one.example")) { downloaded ->
+        }).download(chain("one.example")) { downloaded, files ->
             downloadedFile = downloaded.file
-            replacement.writeText("prepared")
-            DownloadedMangaImage(replacement, downloaded.requestUrl)
+            val preparedFile = files.write("prepared".toByteArray())
+            DownloadedMangaImage(preparedFile, downloaded.requestUrl)
         }
 
-        assertEquals(replacement, result.file)
         assertEquals("prepared", result.file.readText())
         assertTrue(downloadedFile?.exists() == false)
-        assertEquals(listOf(replacement), tempDir.listFiles()?.toList())
+        assertEquals(listOf(result.file), tempDir.listFiles()?.toList())
     }
 
     @Test
     fun cancelAfterPreparationDeletesDownloadedAndPreparedFiles() {
         var downloadedFile: File? = null
-        val replacement = File(tempDir, "prepared.img")
+        lateinit var replacement: File
         val failures = mutableListOf<String>()
         lateinit var downloader: MangaImageFallbackDownloader
         downloader = newDownloader(
@@ -270,17 +291,64 @@ class MangaImageFallbackDownloaderTest {
         )
 
         assertThrows(CancellationException::class.java) {
-            downloader.download(chain("one.example")) { downloaded ->
+            downloader.download(chain("one.example")) { downloaded, files ->
                 downloadedFile = downloaded.file
-                replacement.writeText("prepared")
+                val preparedFile = files.write("prepared".toByteArray())
+                replacement = preparedFile
                 downloader.cancel()
-                DownloadedMangaImage(replacement, downloaded.requestUrl)
+                assertTrue(tempDir.listFiles().isNullOrEmpty())
+                DownloadedMangaImage(preparedFile, downloaded.requestUrl)
             }
         }
 
         assertTrue(downloadedFile?.exists() == false)
         assertTrue(replacement.exists().not())
         assertTrue(failures.isEmpty())
+        assertTrue(tempDir.listFiles().isNullOrEmpty())
+    }
+
+    @Test
+    fun cancelDuringDownloaderToLifecycleHandoffDeletesFileAndSuppressesLateCallbacks() {
+        val handoffReached = CountDownLatch(1)
+        val allowDelivery = CountDownLatch(1)
+        val handedOff = AtomicReference<DownloadedMangaImage>()
+        val outcome = AtomicReference<Throwable?>()
+        var connecting = 0
+        var data = 0
+        var failures = 0
+        val lifecycle = MangaImageFallbackLifecycle(
+            onConnecting = { connecting++ },
+            onDataReady = { data++; null },
+            onLoadFailed = { failures++ },
+        )
+        val downloader = newDownloader(
+            client = testClient { request -> response(request, 200, "downloaded".toResponseBody()) },
+            onConnecting = { lifecycle.notifyConnecting() },
+        )
+
+        assertTrue(lifecycle.start(downloader::cancel))
+        val worker = thread {
+            outcome.set(runCatching {
+                val downloaded = downloader.download(chain("one.example"))
+                handedOff.set(downloaded)
+                handoffReached.countDown()
+                allowDelivery.await(5, TimeUnit.SECONDS)
+                lifecycle.deliverSuccess(downloaded)
+            }.exceptionOrNull())
+        }
+        assertTrue(handoffReached.await(5, TimeUnit.SECONDS))
+        lifecycle.cancel()
+
+        assertTrue(handedOff.get().file.exists().not())
+        lifecycle.notifyConnecting()
+        lifecycle.deliverFailure(IOException("late failure"))
+        allowDelivery.countDown()
+        worker.join(5_000L)
+
+        assertNull(outcome.get())
+        assertEquals(1, connecting)
+        assertEquals(0, data)
+        assertEquals(0, failures)
         assertTrue(tempDir.listFiles().isNullOrEmpty())
     }
 

@@ -1,48 +1,47 @@
 package io.wanjuan.app.help.glide.progress
 
+import android.os.Handler
+import android.os.Looper
 import io.wanjuan.app.model.analyzeRule.AnalyzeUrl
 import java.util.concurrent.ConcurrentHashMap
 
-/**
- * 进度监听器管理类
- * 加入图片加载进度监听，加入Https支持
- */
-object ProgressManager {
+internal class ProgressListenerRegistry(
+    private val postConnecting: (() -> Unit) -> Unit,
+) : ProgressResponseBody.InternalProgressListener {
     private val listenersMap = ConcurrentHashMap<String, OnProgressListener>()
 
-    val LISTENER = object : ProgressResponseBody.InternalProgressListener {
-        override fun onProgress(url: String, bytesRead: Long, totalBytes: Long) {
-            getProgressListener(url)?.let {
-                if (totalBytes <= 0L) {
-                    it.invoke(false, 0, bytesRead, totalBytes)
-                    return@let
-                }
-                val percentage = (bytesRead * 1f / totalBytes * 100f).toInt()
-                val isComplete = percentage >= 100
-                it.invoke(isComplete, percentage, bytesRead, totalBytes)
-                if (isComplete) {
-                    removeListener(url)
-                }
+    override fun onProgress(url: String, bytesRead: Long, totalBytes: Long) {
+        getProgressListener(url)?.let {
+            if (totalBytes <= 0L) {
+                it.invoke(false, 0, bytesRead, totalBytes)
+                return@let
+            }
+            val percentage = (bytesRead * 1f / totalBytes * 100f).toInt()
+            val isComplete = percentage >= 100
+            it.invoke(isComplete, percentage, bytesRead, totalBytes)
+            if (isComplete) {
+                removeListener(url)
             }
         }
     }
 
     fun addListener(url: String, listener: OnProgressListener) {
         if (url.isNotEmpty()) {
-            val url = getUrlNoOption(url)
-            listenersMap[url] = listener
+            listenersMap[normalize(url)] = listener
             notifyConnecting(url)
         }
     }
 
     fun notifyConnecting(url: String) {
-        getProgressListener(url)?.invoke(false, 0, 0, 0)
+        if (url.isEmpty()) return
+        postConnecting {
+            getProgressListener(url)?.invoke(false, 0, 0, 0)
+        }
     }
 
     fun removeListener(url: String) {
         if (url.isNotEmpty()) {
-            val url = getUrlNoOption(url)
-            listenersMap.remove(url)
+            listenersMap.remove(normalize(url))
         }
     }
 
@@ -50,11 +49,11 @@ object ProgressManager {
         return if (url.isEmpty() || listenersMap.isEmpty()) {
             null
         } else {
-            listenersMap[url]
+            listenersMap[normalize(url)]
         }
     }
 
-    private fun getUrlNoOption(url: String): String {
+    private fun normalize(url: String): String {
         val urlMatcher = AnalyzeUrl.paramPattern.matcher(url)
         return if (urlMatcher.find()) {
             url.take(urlMatcher.start())
@@ -62,5 +61,33 @@ object ProgressManager {
             url
         }
     }
+}
 
+/**
+ * 进度监听器管理类
+ * 加入图片加载进度监听，加入Https支持
+ */
+object ProgressManager {
+    private val mainThreadHandler by lazy { Handler(Looper.getMainLooper()) }
+    private val registry = ProgressListenerRegistry { action ->
+        mainThreadHandler.post(action)
+    }
+
+    val LISTENER: ProgressResponseBody.InternalProgressListener = registry
+
+    fun addListener(url: String, listener: OnProgressListener) {
+        registry.addListener(url, listener)
+    }
+
+    fun notifyConnecting(url: String) {
+        registry.notifyConnecting(url)
+    }
+
+    fun removeListener(url: String) {
+        registry.removeListener(url)
+    }
+
+    fun getProgressListener(url: String): OnProgressListener? {
+        return registry.getProgressListener(url)
+    }
 }

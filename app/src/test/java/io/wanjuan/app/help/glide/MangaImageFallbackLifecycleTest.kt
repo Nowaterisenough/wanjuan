@@ -6,6 +6,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.IOException
 import java.nio.file.Files
@@ -32,7 +33,7 @@ class MangaImageFallbackLifecycleTest {
         val failures = mutableListOf<Throwable>()
         val lifecycle = MangaImageFallbackLifecycle(
             onConnecting = {},
-            onDataReady = {},
+            onDataReady = { null },
             onLoadFailed = { failures += it },
         )
 
@@ -50,7 +51,7 @@ class MangaImageFallbackLifecycleTest {
         val returnedFile = newFile("late.img")
         val lifecycle = MangaImageFallbackLifecycle(
             onConnecting = { connecting++ },
-            onDataReady = { data++ },
+            onDataReady = { data++; null },
             onLoadFailed = { failures++ },
         )
 
@@ -74,12 +75,14 @@ class MangaImageFallbackLifecycleTest {
         val cancelReturned = CountDownLatch(1)
         var data = 0
         val returnedFile = newFile("race.img")
+        val publishedStream = CloseTrackingInputStream()
         val lifecycle = MangaImageFallbackLifecycle(
             onConnecting = {},
             onDataReady = {
                 dataEntered.countDown()
                 releaseData.await(5, TimeUnit.SECONDS)
                 data++
+                publishedStream
             },
             onLoadFailed = {},
         )
@@ -105,6 +108,30 @@ class MangaImageFallbackLifecycleTest {
 
         assertEquals(1, data)
         assertEquals(0L, cancelReturned.count)
+        assertTrue(publishedStream.closed)
+        assertFalse(returnedFile.exists())
+    }
+
+    @Test
+    fun cleanupTriggeredInsideSuccessClosesTheJustPublishedStream() {
+        val returnedFile = newFile("reentrant-cleanup.img")
+        val publishedStream = CloseTrackingInputStream()
+        lateinit var lifecycle: MangaImageFallbackLifecycle
+        lifecycle = MangaImageFallbackLifecycle(
+            onConnecting = {},
+            onDataReady = {
+                lifecycle.cancel()
+                publishedStream
+            },
+            onLoadFailed = {},
+        )
+
+        assertTrue(lifecycle.start { })
+        lifecycle.deliverSuccess(
+            DownloadedMangaImage(returnedFile, "https://primary.example/a.jpg")
+        )
+
+        assertTrue(publishedStream.closed)
         assertFalse(returnedFile.exists())
     }
 
@@ -113,7 +140,7 @@ class MangaImageFallbackLifecycleTest {
         val returnedFile = newFile("handoff.img")
         val lifecycle = MangaImageFallbackLifecycle(
             onConnecting = {},
-            onDataReady = {},
+            onDataReady = { null },
             onLoadFailed = {},
         )
 
@@ -124,7 +151,36 @@ class MangaImageFallbackLifecycleTest {
         assertFalse(returnedFile.exists())
     }
 
+    @Test
+    fun cancelAfterSuccessClosesPublishedStreamAndDeletesFileBeforeReturning() {
+        val returnedFile = newFile("published.img")
+        val publishedStream = CloseTrackingInputStream()
+        val lifecycle = MangaImageFallbackLifecycle(
+            onConnecting = {},
+            onDataReady = { publishedStream },
+            onLoadFailed = {},
+        )
+
+        assertTrue(lifecycle.start { })
+        lifecycle.deliverSuccess(
+            DownloadedMangaImage(returnedFile, "https://primary.example/a.jpg")
+        )
+        lifecycle.cancel()
+
+        assertTrue(publishedStream.closed)
+        assertFalse(returnedFile.exists())
+    }
+
     private fun newFile(name: String): File = File(tempDir, name).apply {
         writeText("image")
+    }
+
+    private class CloseTrackingInputStream : ByteArrayInputStream(byteArrayOf(1)) {
+        var closed = false
+
+        override fun close() {
+            closed = true
+            super.close()
+        }
     }
 }

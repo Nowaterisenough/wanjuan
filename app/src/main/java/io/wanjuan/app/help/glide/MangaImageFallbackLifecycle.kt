@@ -1,10 +1,11 @@
 package io.wanjuan.app.help.glide
 
 import java.io.File
+import java.io.InputStream
 
 internal class MangaImageFallbackLifecycle(
     private val onConnecting: () -> Unit,
-    private val onDataReady: (DownloadedMangaImage) -> Unit,
+    private val onDataReady: (DownloadedMangaImage) -> InputStream?,
     private val onLoadFailed: (Throwable) -> Unit,
 ) {
     private val lock = Any()
@@ -13,6 +14,7 @@ internal class MangaImageFallbackLifecycle(
     private var terminalDelivered = false
     private var cancelDownload: (() -> Unit)? = null
     private var ownedFile: File? = null
+    private var ownedStream: InputStream? = null
 
     fun start(cancelDownload: () -> Unit): Boolean = synchronized(lock) {
         if (!active || terminalDelivered) {
@@ -36,7 +38,14 @@ internal class MangaImageFallbackLifecycle(
         }
         terminalDelivered = true
         ownedFile = downloaded.file
-        onDataReady(downloaded)
+        val publishedStream = onDataReady(downloaded)
+        if (!active) {
+            publishedStream?.close()
+            ownedFile = null
+            downloaded.file.delete()
+            return@synchronized
+        }
+        ownedStream = publishedStream
     }
 
     fun deliverFailure(error: Throwable) = synchronized(lock) {
@@ -48,13 +57,20 @@ internal class MangaImageFallbackLifecycle(
 
     fun cancel() {
         val file: File?
+        val stream: InputStream?
+        val cancel: (() -> Unit)?
         synchronized(lock) {
             if (!active) return
             active = false
             file = ownedFile
             ownedFile = null
-            cancelDownload?.invoke()
+            stream = ownedStream
+            ownedStream = null
+            cancel = cancelDownload
+            cancelDownload = null
         }
+        runCatching { cancel?.invoke() }
+        runCatching { stream?.close() }
         file?.delete()
     }
 }

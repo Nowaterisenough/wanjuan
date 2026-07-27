@@ -107,19 +107,19 @@ class OkHttpStreamFetcher(
     }
 
     override fun cleanup() {
+        coroutineContext.cancel()
+        fallbackLifecycle.cancel()
         kotlin.runCatching {
             stream?.close()
         }
         responseBody?.close()
-        fallbackLifecycle.cancel()
-        coroutineContext.cancel()
         callback = null
     }
 
     override fun cancel() {
+        coroutineContext.cancel()
         fallbackLifecycle.cancel()
         call?.cancel()
-        coroutineContext.cancel()
     }
 
     override fun getDataClass(): Class<InputStream> {
@@ -203,20 +203,19 @@ class OkHttpStreamFetcher(
     private fun createMangaTempFile(): File =
         File.createTempFile("manga_fallback_", ".img", appCtx.cacheDir)
 
-    private fun prepareMangaImage(candidate: DownloadedMangaImage): DownloadedMangaImage? {
+    private fun prepareMangaImage(
+        candidate: DownloadedMangaImage,
+        files: MangaImagePreparationFiles,
+    ): DownloadedMangaImage? {
         if (ImageUtils.skipDecode(source, isCover = false)) return candidate
-        val decoded = ImageUtils.decode(
-            url.toString(), candidate.file.readBytes(), false, source, ReadManga.book
-        ) ?: return null
-        var decodedFile: File? = null
-        return runCatching {
-            createMangaTempFile().also { file ->
-                decodedFile = file
-                file.outputStream().use { it.write(decoded) }
-            }
-        }.map { candidate.copy(file = it) }
-            .onFailure { decodedFile?.delete() }
-            .getOrNull()
+        val decoded = decodeMangaImageWithContext(
+            coroutineContext = coroutineContext,
+            src = url.toString(),
+            candidate = candidate,
+        ) { src, bytes ->
+            ImageUtils.decode(src, bytes, false, source, ReadManga.book)
+        } ?: return null
+        return candidate.copy(file = files.write(decoded))
     }
 
     private fun logFallbackFailure(host: String, error: Throwable) {
@@ -225,7 +224,7 @@ class OkHttpStreamFetcher(
         AppLog.putDebug("漫画图片候选加载失败 host=$host reason=${statusCode ?: error.javaClass.simpleName}")
     }
 
-    private fun onStreamReady(inputStream: InputStream?, contentLength: Long? = null) {
+    private fun onStreamReady(inputStream: InputStream?, contentLength: Long? = null): InputStream? {
         if (inputStream == null) {
             if (!manga) {
                 failUrl.add(url.toStringUrl())
@@ -238,6 +237,7 @@ class OkHttpStreamFetcher(
             stream = ContentLengthInputStream.obtain(inputStream, resolvedContentLength)
             callback?.onDataReady(stream)
         }
+        return stream
     }
 
 }
