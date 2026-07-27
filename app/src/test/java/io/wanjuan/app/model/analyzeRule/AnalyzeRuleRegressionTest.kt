@@ -66,4 +66,40 @@ class AnalyzeRuleRegressionTest {
         assertEquals("https://example.com/c", AnalyzeUrl("https://example.com/<a,b,c>", page = 3).url)
         assertEquals("https://example.com/c", AnalyzeUrl("https://example.com/<a,b,c>", page = 10).url)
     }
+
+    @Test
+    fun analyzeUrlParsesAndNormalizesFallbackImageOptions() {
+        val analyzeUrl = AnalyzeUrl(
+            "https://primary.example/a.jpg?token=1," +
+                "{\"headers\":{\"Referer\":\"https://reader.example/\"}," +
+                "\"fallbackUrls\":[\"https://mirror.example/a.jpg?token=1\"," +
+                "\"https://primary.example/a.jpg?token=1\",\"bad url\"," +
+                "\"https://mirror.example/a.jpg?token=1\"],\"fallbackTimeout\":8000}"
+        )
+
+        assertEquals(
+            listOf("https://mirror.example/a.jpg?token=1"),
+            analyzeUrl.getFallbackUrls()
+        )
+        assertEquals(8000L, analyzeUrl.getFallbackTimeout())
+        assertEquals(
+            "https://reader.example/",
+            analyzeUrl.headerMap["Referer"]
+        )
+    }
+
+    @Test
+    fun analyzeUrlUsesDefaultFallbackTimeoutAndKeepsUnconfiguredUrlsUnchanged() {
+        val invalidTimeout = AnalyzeUrl(
+            "https://primary.example/a.jpg,{" +
+                "\"fallbackUrls\":[\"https://mirror.example/a.jpg\"]," +
+                "\"fallbackTimeout\":\"invalid\"}"
+        )
+        val unconfigured = AnalyzeUrl("https://primary.example/a.jpg")
+
+        assertEquals(AnalyzeUrl.DEFAULT_FALLBACK_TIMEOUT, invalidTimeout.getFallbackTimeout())
+        assertEquals(emptyList<String>(), unconfigured.getFallbackUrls())
+        assertEquals(AnalyzeUrl.DEFAULT_FALLBACK_TIMEOUT, unconfigured.getFallbackTimeout())
+        assertEquals("https://primary.example/a.jpg", unconfigured.url)
+    }
 }

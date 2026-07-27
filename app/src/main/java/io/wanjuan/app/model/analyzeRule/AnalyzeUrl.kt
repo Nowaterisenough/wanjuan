@@ -52,6 +52,7 @@ import io.wanjuan.app.utils.isXml
 import io.wanjuan.app.utils.parseIpsFromString
 import io.wanjuan.app.utils.stackTraceStr
 import kotlinx.coroutines.runBlocking
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -120,6 +121,8 @@ class AnalyzeUrl(
     private val enabledCookieJar = source?.enabledCookieJar == true
     private val domain: String
     private var webViewDelayTime: Long = 0
+    private var fallbackUrls: List<String> = emptyList()
+    private var fallbackTimeout: Long = DEFAULT_FALLBACK_TIMEOUT
     private val concurrentRateLimiter = ConcurrentRateLimiter(source)
 
     // 服务器ID
@@ -259,6 +262,8 @@ class AnalyzeUrl(
                 webJs = option.getWebJs()
                 bodyJs = option.getBodyJs()
                 dnsIp = option.getDnsIp()
+                fallbackUrls = option.getFallbackUrls()
+                fallbackTimeout = option.getFallbackTimeout()
                 option.getJs()?.let { jsStr ->
                     evalJS(jsStr, url)?.toString()?.let {
                         url = it
@@ -749,6 +754,16 @@ class AnalyzeUrl(
         return GlideUrl(url, GlideHeaders(headerMap))
     }
 
+    fun getFallbackUrls(): List<String> {
+        val primary = url.toHttpUrlOrNull()
+        return fallbackUrls.mapNotNull { it.toHttpUrlOrNull() }
+            .filterNot { it == primary }
+            .distinct()
+            .map { it.toString() }
+    }
+
+    fun getFallbackTimeout(): Long = fallbackTimeout
+
     fun getUserAgent(): String {
         return headerMap.get(UA_NAME, true) ?: AppConfig.userAgent
     }
@@ -766,6 +781,7 @@ class AnalyzeUrl(
     }
 
     companion object {
+        const val DEFAULT_FALLBACK_TIMEOUT = 8_000L
         val paramPattern: Pattern = Pattern.compile("\\s*,\\s*(?=\\{)")
         private val pagePattern = Pattern.compile("<(.*?)>")
         private val queryEncoder =
@@ -831,6 +847,8 @@ class AnalyzeUrl(
          * webview等待页面加载完毕的延迟时间（毫秒）
          */
         private var webViewDelayTime: Long? = null,
+        private var fallbackUrls: Any? = null,
+        private var fallbackTimeout: Any? = null,
     ) {
         fun setMethod(value: String?) {
             method = if (value.isNullOrBlank()) null else value
@@ -959,6 +977,22 @@ class AnalyzeUrl(
 
         fun getWebViewDelayTime(): Long? {
             return webViewDelayTime
+        }
+
+        fun getFallbackUrls(): List<String> = when (val value = fallbackUrls) {
+            is Collection<*> -> value.mapNotNull { it?.toString()?.trim() }
+                .filter { it.isNotEmpty() }
+            is String -> GSON.fromJsonArray<String>(value).getOrNull().orEmpty()
+            else -> emptyList()
+        }
+
+        fun getFallbackTimeout(): Long {
+            val value = when (val raw = fallbackTimeout) {
+                is Number -> raw.toLong()
+                is String -> raw.toLongOrNull()
+                else -> null
+            }
+            return value?.takeIf { it > 0L } ?: DEFAULT_FALLBACK_TIMEOUT
         }
     }
 
