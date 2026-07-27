@@ -171,15 +171,104 @@ class MangaImageFallbackLifecycleTest {
         assertFalse(returnedFile.exists())
     }
 
+    @Test
+    fun concurrentCancelWaitsForTheCleanupOwnerToFinish() {
+        val closeEntered = CountDownLatch(1)
+        val allowClose = CountDownLatch(1)
+        val firstCancelReturned = CountDownLatch(1)
+        val secondCancelReturned = CountDownLatch(1)
+        val returnedFile = newFile("concurrent-cancel.img")
+        val publishedStream = BlockingCloseInputStream(closeEntered, allowClose)
+        val lifecycle = MangaImageFallbackLifecycle(
+            onConnecting = {},
+            onDataReady = { publishedStream },
+            onLoadFailed = {},
+        )
+
+        assertTrue(lifecycle.start { })
+        lifecycle.deliverSuccess(
+            DownloadedMangaImage(returnedFile, "https://primary.example/a.jpg")
+        )
+        val firstCancellation = thread {
+            lifecycle.cancel()
+            firstCancelReturned.countDown()
+        }
+        assertTrue(closeEntered.await(5, TimeUnit.SECONDS))
+        val secondCancellation = thread {
+            lifecycle.cancel()
+            secondCancelReturned.countDown()
+        }
+
+        try {
+            assertFalse(firstCancelReturned.await(150, TimeUnit.MILLISECONDS))
+            assertFalse(secondCancelReturned.await(150, TimeUnit.MILLISECONDS))
+        } finally {
+            allowClose.countDown()
+            firstCancellation.join(5_000L)
+            secondCancellation.join(5_000L)
+        }
+
+        assertEquals(0L, firstCancelReturned.count)
+        assertEquals(0L, secondCancelReturned.count)
+        assertTrue(publishedStream.closed)
+        assertFalse(returnedFile.exists())
+    }
+
+    @Test
+    fun cancelReenteredByTheCleanupOwnerReturnsWithoutDeadlock() {
+        val reentrantCancelReturned = CountDownLatch(1)
+        val outerCancelReturned = CountDownLatch(1)
+        val returnedFile = newFile("reentrant-cancel.img")
+        lateinit var lifecycle: MangaImageFallbackLifecycle
+        val publishedStream = object : CloseTrackingInputStream() {
+            override fun close() {
+                lifecycle.cancel()
+                reentrantCancelReturned.countDown()
+                super.close()
+            }
+        }
+        lifecycle = MangaImageFallbackLifecycle(
+            onConnecting = {},
+            onDataReady = { publishedStream },
+            onLoadFailed = {},
+        )
+
+        assertTrue(lifecycle.start { })
+        lifecycle.deliverSuccess(
+            DownloadedMangaImage(returnedFile, "https://primary.example/a.jpg")
+        )
+        val cancellation = thread {
+            lifecycle.cancel()
+            outerCancelReturned.countDown()
+        }
+        cancellation.join(5_000L)
+
+        assertEquals(0L, reentrantCancelReturned.count)
+        assertEquals(0L, outerCancelReturned.count)
+        assertTrue(publishedStream.closed)
+        assertFalse(returnedFile.exists())
+    }
+
     private fun newFile(name: String): File = File(tempDir, name).apply {
         writeText("image")
     }
 
-    private class CloseTrackingInputStream : ByteArrayInputStream(byteArrayOf(1)) {
+    private open class CloseTrackingInputStream : ByteArrayInputStream(byteArrayOf(1)) {
         var closed = false
 
         override fun close() {
             closed = true
+            super.close()
+        }
+    }
+
+    private class BlockingCloseInputStream(
+        private val closeEntered: CountDownLatch,
+        private val allowClose: CountDownLatch,
+    ) : CloseTrackingInputStream() {
+        override fun close() {
+            closeEntered.countDown()
+            allowClose.await(5, TimeUnit.SECONDS)
             super.close()
         }
     }

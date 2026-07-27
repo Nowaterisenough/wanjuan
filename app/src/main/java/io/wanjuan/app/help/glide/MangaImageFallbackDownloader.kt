@@ -8,6 +8,7 @@ import okhttp3.Request
 import java.io.Closeable
 import java.io.File
 import java.io.IOException
+import java.io.InputStream
 import java.util.concurrent.CancellationException
 import java.util.concurrent.TimeUnit
 
@@ -23,7 +24,8 @@ internal data class DownloadedMangaImage(
     val requestUrl: String,
 )
 
-internal fun interface MangaImagePreparationFiles {
+internal interface MangaImagePreparationFiles {
+    fun read(file: File): ByteArray
     fun write(bytes: ByteArray): File
 }
 
@@ -33,6 +35,7 @@ internal class MangaImageFallbackDownloader(
     private val onConnecting: (String) -> Unit = {},
     private val onAttemptFailed: (String, Throwable) -> Unit = { _, _ -> },
     private val beforeCallPublication: () -> Unit = {},
+    private val openInput: (File) -> InputStream = File::inputStream,
 ) {
     private val callLock = Any()
 
@@ -92,8 +95,11 @@ internal class MangaImageFallbackDownloader(
                 }
                 checkNotCancelled()
                 val candidate = DownloadedMangaImage(requireNotNull(downloadedFile), requestUrl)
-                val preparationFiles = MangaImagePreparationFiles { bytes ->
-                    writeOwnedTempFile(bytes).also(preparedFiles::add)
+                val preparationFiles = object : MangaImagePreparationFiles {
+                    override fun read(file: File): ByteArray = readOwnedFile(file)
+
+                    override fun write(bytes: ByteArray): File =
+                        writeOwnedTempFile(bytes).also(preparedFiles::add)
                 }
                 val preparedCandidate = prepare(candidate, preparationFiles)
                     ?: throw IOException("图片处理失败")
@@ -157,6 +163,9 @@ internal class MangaImageFallbackDownloader(
             throw error
         }
     }
+
+    private fun readOwnedFile(file: File): ByteArray =
+        withOwnedCloseable({ openInput(file) }, InputStream::readBytes)
 
     private fun <T : Closeable, R> withOwnedCloseable(
         create: () -> T,

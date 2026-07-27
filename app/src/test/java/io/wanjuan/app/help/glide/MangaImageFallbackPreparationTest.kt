@@ -35,11 +35,20 @@ class MangaImageFallbackPreparationTest {
         val model = "https://primary.example/a.jpg?token=query-secret," +
             "{\"headers\":{\"Cookie\":\"cookie-secret\"}}"
         val bytes = "encrypted-image".toByteArray()
-        val candidate = candidate(bytes)
+        val candidate = candidate("bytes-on-disk".toByteArray())
         var observedModel: String? = null
         var observedJob: Job? = null
+        var observedFile: File? = null
+        val files = object : MangaImagePreparationFiles {
+            override fun read(file: File): ByteArray {
+                observedFile = file
+                return bytes
+            }
 
-        val decoded = decodeMangaImageWithContext(context, model, candidate) { src, input ->
+            override fun write(bytes: ByteArray): File = error("not used")
+        }
+
+        val decoded = decodeMangaImageWithContext(context, model, candidate, files) { src, input ->
             observedModel = src
             observedJob = rhinoContext.coroutineContext?.get(Job)
             input + "-decoded".toByteArray()
@@ -47,6 +56,7 @@ class MangaImageFallbackPreparationTest {
 
         assertEquals(model, observedModel)
         assertSame(context, observedJob)
+        assertSame(candidate.file, observedFile)
         assertArrayEquals("encrypted-image-decoded".toByteArray(), decoded)
     }
 
@@ -56,7 +66,12 @@ class MangaImageFallbackPreparationTest {
         val candidate = candidate("encrypted-image".toByteArray())
 
         assertThrows(CancellationException::class.java) {
-            decodeMangaImageWithContext(context, "https://primary.example/a.jpg", candidate) { _, _ ->
+            decodeMangaImageWithContext(
+                context,
+                "https://primary.example/a.jpg",
+                candidate,
+                directPreparationFiles,
+            ) { _, _ ->
                 requireNotNull(rhinoContext.coroutineContext).ensureActive()
                 byteArrayOf(1)
             }
@@ -73,8 +88,15 @@ class MangaImageFallbackPreparationTest {
                 context,
                 "https://primary.example/a.jpg",
                 candidate,
+                directPreparationFiles,
             ) { _, _ -> null }
         }
+    }
+
+    private val directPreparationFiles = object : MangaImagePreparationFiles {
+        override fun read(file: File): ByteArray = file.readBytes()
+
+        override fun write(bytes: ByteArray): File = error("not used")
     }
 
     private fun candidate(bytes: ByteArray): DownloadedMangaImage {

@@ -8,16 +8,20 @@ internal class MangaImageFallbackLifecycle(
     private val onDataReady: (DownloadedMangaImage) -> InputStream?,
     private val onLoadFailed: (Throwable) -> Unit,
 ) {
-    private val lock = Any()
+    private enum class State { ACTIVE, CANCELLING, CANCELLED }
 
-    private var active = true
+    @Suppress("PLATFORM_CLASS_MAPPED_TO_KOTLIN")
+    private val lock = java.lang.Object()
+
+    private var state = State.ACTIVE
+    private var cleanupOwner: Thread? = null
     private var terminalDelivered = false
     private var cancelDownload: (() -> Unit)? = null
     private var ownedFile: File? = null
     private var ownedStream: InputStream? = null
 
     fun start(cancelDownload: () -> Unit): Boolean = synchronized(lock) {
-        if (!active || terminalDelivered) {
+        if (state != State.ACTIVE || terminalDelivered) {
             false
         } else {
             this.cancelDownload = cancelDownload
@@ -26,20 +30,20 @@ internal class MangaImageFallbackLifecycle(
     }
 
     fun notifyConnecting() = synchronized(lock) {
-        if (active && !terminalDelivered) {
+        if (state == State.ACTIVE && !terminalDelivered) {
             onConnecting()
         }
     }
 
     fun deliverSuccess(downloaded: DownloadedMangaImage) = synchronized(lock) {
-        if (!active || terminalDelivered) {
+        if (state != State.ACTIVE || terminalDelivered) {
             downloaded.file.delete()
             return@synchronized
         }
         terminalDelivered = true
         ownedFile = downloaded.file
         val publishedStream = onDataReady(downloaded)
-        if (!active) {
+        if (state != State.ACTIVE) {
             publishedStream?.close()
             ownedFile = null
             downloaded.file.delete()
@@ -49,7 +53,7 @@ internal class MangaImageFallbackLifecycle(
     }
 
     fun deliverFailure(error: Throwable) = synchronized(lock) {
-        if (active && !terminalDelivered) {
+        if (state == State.ACTIVE && !terminalDelivered) {
             terminalDelivered = true
             onLoadFailed(error)
         }
@@ -60,8 +64,26 @@ internal class MangaImageFallbackLifecycle(
         val stream: InputStream?
         val cancel: (() -> Unit)?
         synchronized(lock) {
-            if (!active) return
-            active = false
+            when (state) {
+                State.CANCELLED -> return
+                State.CANCELLING -> {
+                    if (cleanupOwner === Thread.currentThread()) return
+                    var interrupted = false
+                    while (state == State.CANCELLING) {
+                        try {
+                            lock.wait()
+                        } catch (_: InterruptedException) {
+                            interrupted = true
+                        }
+                    }
+                    if (interrupted) Thread.currentThread().interrupt()
+                    return
+                }
+                State.ACTIVE -> {
+                    state = State.CANCELLING
+                    cleanupOwner = Thread.currentThread()
+                }
+            }
             file = ownedFile
             ownedFile = null
             stream = ownedStream
@@ -69,8 +91,16 @@ internal class MangaImageFallbackLifecycle(
             cancel = cancelDownload
             cancelDownload = null
         }
-        runCatching { cancel?.invoke() }
-        runCatching { stream?.close() }
-        file?.delete()
+        try {
+            runCatching { cancel?.invoke() }
+            runCatching { stream?.close() }
+            file?.delete()
+        } finally {
+            synchronized(lock) {
+                cleanupOwner = null
+                state = State.CANCELLED
+                lock.notifyAll()
+            }
+        }
     }
 }

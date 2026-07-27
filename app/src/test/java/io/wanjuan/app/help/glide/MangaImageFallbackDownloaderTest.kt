@@ -13,6 +13,7 @@ import okio.ForwardingSource
 import okio.buffer
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
@@ -20,6 +21,7 @@ import org.junit.Before
 import org.junit.Test
 import java.io.File
 import java.io.IOException
+import java.io.InputStream
 import java.net.SocketTimeoutException
 import java.nio.file.Files
 import java.util.concurrent.CancellationException
@@ -308,6 +310,44 @@ class MangaImageFallbackDownloaderTest {
     }
 
     @Test
+    fun cancelDuringPreparationReadClosesInputAndDeletesCandidateBeforeReturning() {
+        val readStarted = CountDownLatch(1)
+        val preparationInput = BlockingPreparationInputStream(readStarted)
+        val candidateFile = AtomicReference<File>()
+        val outcome = AtomicReference<Throwable?>()
+        var attempts = 0
+        val failureHosts = mutableListOf<String>()
+        val downloader = newDownloader(
+            client = testClient { request ->
+                attempts++
+                response(request, 200, "downloaded".toResponseBody())
+            },
+            onAttemptFailed = { host, _ -> failureHosts += host },
+            openInput = { preparationInput },
+        )
+
+        val worker = thread {
+            outcome.set(runCatching {
+                downloader.download(chain("one.example", "two.example")) { candidate, files ->
+                    candidateFile.set(candidate.file)
+                    files.read(candidate.file)
+                    candidate
+                }
+            }.exceptionOrNull())
+        }
+        assertTrue(readStarted.await(5, TimeUnit.SECONDS))
+
+        downloader.cancel()
+
+        assertTrue(preparationInput.closed)
+        assertFalse(requireNotNull(candidateFile.get()).exists())
+        assertEquals(1, attempts)
+        assertTrue(failureHosts.isEmpty())
+        worker.join(5_000L)
+        assertTrue(outcome.get() is CancellationException)
+    }
+
+    @Test
     fun cancelDuringDownloaderToLifecycleHandoffDeletesFileAndSuppressesLateCallbacks() {
         val handoffReached = CountDownLatch(1)
         val allowDelivery = CountDownLatch(1)
@@ -368,6 +408,7 @@ class MangaImageFallbackDownloaderTest {
         client: OkHttpClient,
         onConnecting: (String) -> Unit = {},
         onAttemptFailed: (String, Throwable) -> Unit = { _, _ -> },
+        openInput: (File) -> InputStream = File::inputStream,
         beforeCallPublication: () -> Unit = {},
     ): MangaImageFallbackDownloader = MangaImageFallbackDownloader(
         baseClient = client,
@@ -377,6 +418,7 @@ class MangaImageFallbackDownloaderTest {
         onConnecting = onConnecting,
         onAttemptFailed = onAttemptFailed,
         beforeCallPublication = beforeCallPublication,
+        openInput = openInput,
     )
 
     private fun chain(vararg hosts: String) = MangaImageRequestChain(
@@ -427,6 +469,27 @@ class MangaImageFallbackDownloaderTest {
                     throw IOException("cancelled read")
                 }
             }.buffer()
+        }
+    }
+
+    private class BlockingPreparationInputStream(
+        private val readStarted: CountDownLatch,
+    ) : InputStream() {
+        private val closedSignal = CountDownLatch(1)
+
+        @Volatile
+        var closed = false
+            private set
+
+        override fun read(): Int {
+            readStarted.countDown()
+            closedSignal.await(5, TimeUnit.SECONDS)
+            throw IOException("preparation input closed")
+        }
+
+        override fun close() {
+            closed = true
+            closedSignal.countDown()
         }
     }
 }

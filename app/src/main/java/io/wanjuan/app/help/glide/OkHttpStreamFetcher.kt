@@ -212,6 +212,7 @@ class OkHttpStreamFetcher(
             coroutineContext = coroutineContext,
             src = url.toString(),
             candidate = candidate,
+            files = files,
         ) { src, bytes ->
             ImageUtils.decode(src, bytes, false, source, ReadManga.book)
         } ?: return null
