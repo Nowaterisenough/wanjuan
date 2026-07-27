@@ -176,6 +176,7 @@ class MangaImageFallbackLifecycleTest {
         val closeEntered = CountDownLatch(1)
         val allowClose = CountDownLatch(1)
         val firstCancelReturned = CountDownLatch(1)
+        val secondCancelStarted = CountDownLatch(1)
         val secondCancelReturned = CountDownLatch(1)
         val returnedFile = newFile("concurrent-cancel.img")
         val publishedStream = BlockingCloseInputStream(closeEntered, allowClose)
@@ -195,13 +196,19 @@ class MangaImageFallbackLifecycleTest {
         }
         assertTrue(closeEntered.await(5, TimeUnit.SECONDS))
         val secondCancellation = thread {
+            secondCancelStarted.countDown()
             lifecycle.cancel()
             secondCancelReturned.countDown()
         }
 
         try {
-            assertFalse(firstCancelReturned.await(150, TimeUnit.MILLISECONDS))
-            assertFalse(secondCancelReturned.await(150, TimeUnit.MILLISECONDS))
+            assertTrue(secondCancelStarted.await(5, TimeUnit.SECONDS))
+            assertTrue(
+                "second cancellation did not enter the cleanup wait path",
+                awaitWaiting(secondCancellation),
+            )
+            assertEquals(1L, firstCancelReturned.count)
+            assertEquals(1L, secondCancelReturned.count)
         } finally {
             allowClose.countDown()
             firstCancellation.join(5_000L)
@@ -253,6 +260,18 @@ class MangaImageFallbackLifecycleTest {
         writeText("image")
     }
 
+    private fun awaitWaiting(worker: Thread): Boolean {
+        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+        do {
+            when (worker.state) {
+                Thread.State.WAITING -> return true
+                Thread.State.TERMINATED -> return false
+                else -> Thread.yield()
+            }
+        } while (System.nanoTime() < deadline)
+        return false
+    }
+
     private open class CloseTrackingInputStream : ByteArrayInputStream(byteArrayOf(1)) {
         var closed = false
 
@@ -268,7 +287,7 @@ class MangaImageFallbackLifecycleTest {
     ) : CloseTrackingInputStream() {
         override fun close() {
             closeEntered.countDown()
-            allowClose.await(5, TimeUnit.SECONDS)
+            allowClose.await(10, TimeUnit.SECONDS)
             super.close()
         }
     }
