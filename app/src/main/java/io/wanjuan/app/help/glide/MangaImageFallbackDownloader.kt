@@ -27,7 +27,10 @@ internal class MangaImageFallbackDownloader(
     private val createTempFile: () -> File,
     private val onConnecting: (String) -> Unit = {},
     private val onAttemptFailed: (String, Throwable) -> Unit = { _, _ -> },
+    private val beforeCallPublication: () -> Unit = {},
 ) {
+    private val callLock = Any()
+
     @Volatile
     private var cancelled = false
 
@@ -49,6 +52,7 @@ internal class MangaImageFallbackDownloader(
             checkNotCancelled()
             var downloadedFile: File? = null
             var prepared: DownloadedMangaImage? = null
+            var activeCall: Call? = null
             try {
                 val request = Request.Builder()
                     .url(requestUrl)
@@ -57,9 +61,12 @@ internal class MangaImageFallbackDownloader(
                     }
                     .tag(MangaProgressKey::class.java, MangaProgressKey(chain.progressUrl))
                     .build()
-                val activeCall = client.newCall(request)
-                call = activeCall
-                activeCall.execute().use { response ->
+                val newCall = client.newCall(request)
+                activeCall = newCall
+                beforeCallPublication()
+                publishCall(newCall)
+                checkNotCancelled()
+                newCall.execute().use { response ->
                     if (!response.isSuccessful) {
                         throw IOException("HTTP ${response.code}")
                     }
@@ -75,7 +82,7 @@ internal class MangaImageFallbackDownloader(
                 val preparedCandidate = prepare(candidate) ?: throw IOException("图片处理失败")
                 prepared = preparedCandidate
                 if (preparedCandidate.file != downloadedFile) downloadedFile.delete()
-                checkNotCancelled()
+                if (!finishCall(newCall)) throw CancellationException("漫画图片加载已取消")
                 return preparedCandidate
             } catch (error: Exception) {
                 downloadedFile?.delete()
@@ -85,7 +92,7 @@ internal class MangaImageFallbackDownloader(
                 val host = requestUrl.toHttpUrlOrNull()?.host.orEmpty()
                 onAttemptFailed(host, error)
             } finally {
-                call = null
+                clearCall(activeCall)
             }
         }
 
@@ -95,11 +102,44 @@ internal class MangaImageFallbackDownloader(
     }
 
     fun cancel() {
-        cancelled = true
-        call?.cancel()
+        val activeCall = synchronized(callLock) {
+            cancelled = true
+            call
+        }
+        activeCall?.cancel()
     }
 
     private fun checkNotCancelled() {
         if (cancelled) throw CancellationException("漫画图片加载已取消")
+    }
+
+    private fun publishCall(activeCall: Call) {
+        val shouldCancel = synchronized(callLock) {
+            if (cancelled) {
+                true
+            } else {
+                call = activeCall
+                false
+            }
+        }
+        if (shouldCancel) {
+            activeCall.cancel()
+            throw CancellationException("漫画图片加载已取消")
+        }
+    }
+
+    private fun finishCall(activeCall: Call): Boolean = synchronized(callLock) {
+        if (cancelled) {
+            false
+        } else {
+            if (call === activeCall) call = null
+            true
+        }
+    }
+
+    private fun clearCall(activeCall: Call?) {
+        synchronized(callLock) {
+            if (call === activeCall) call = null
+        }
     }
 }

@@ -22,6 +22,10 @@ import java.io.IOException
 import java.net.SocketTimeoutException
 import java.nio.file.Files
 import java.util.concurrent.CancellationException
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
+import kotlin.concurrent.thread
 import io.wanjuan.app.help.glide.progress.mangaProgressUrl
 
 class MangaImageFallbackDownloaderTest {
@@ -110,15 +114,21 @@ class MangaImageFallbackDownloaderTest {
     @Test
     fun allFailuresAreReportedOnceWithSuppressedCauses() {
         val client = testClient { request ->
-            response(request, 520, "error".toResponseBody())
+            val code = when (request.url.host) {
+                "one.example" -> 520
+                "two.example" -> 521
+                else -> 522
+            }
+            response(request, code, "error".toResponseBody())
         }
 
         val error = assertThrows(IOException::class.java) {
-            newDownloader(client).download(chain("one.example", "two.example"))
+            newDownloader(client).download(chain("one.example", "two.example", "three.example"))
         }
 
         assertEquals("漫画图片所有候选节点均加载失败", error.message)
-        assertEquals(1, error.suppressed.size)
+        assertEquals("HTTP 522", error.cause?.message)
+        assertEquals(listOf("HTTP 520", "HTTP 521"), error.suppressed.map { it.message })
         assertTrue(tempDir.listFiles().isNullOrEmpty())
     }
 
@@ -154,6 +164,126 @@ class MangaImageFallbackDownloaderTest {
         assertEquals(listOf(result.file), tempDir.listFiles()?.toList())
     }
 
+    @Test
+    fun cancelBeforeCallPublicationPreventsExecutionAndLaterCandidates() {
+        val publicationBlocked = CountDownLatch(1)
+        val allowPublication = CountDownLatch(1)
+        val connecting = mutableListOf<String>()
+        val attempts = mutableListOf<String>()
+        val failures = mutableListOf<String>()
+        val outcome = AtomicReference<Throwable?>()
+        val client = testClient { request ->
+            attempts += request.url.host
+            response(request, 200, "unused".toResponseBody())
+        }
+        val downloader = newDownloader(
+            client = client,
+            onConnecting = { connecting += it },
+            onAttemptFailed = { host, _ -> failures += host },
+            beforeCallPublication = {
+                publicationBlocked.countDown()
+                allowPublication.await(5, TimeUnit.SECONDS)
+            },
+        )
+
+        val worker = thread {
+            outcome.set(runCatching {
+                downloader.download(chain("one.example", "two.example"))
+            }.exceptionOrNull())
+        }
+        assertTrue(publicationBlocked.await(5, TimeUnit.SECONDS))
+        downloader.cancel()
+        allowPublication.countDown()
+        worker.join(5_000L)
+
+        assertTrue(outcome.get() is CancellationException)
+        assertEquals(listOf("https://one.example/a.jpg"), connecting)
+        assertTrue(attempts.isEmpty())
+        assertTrue(failures.isEmpty())
+        assertTrue(tempDir.listFiles().isNullOrEmpty())
+    }
+
+    @Test
+    fun cancelDuringReadDeletesPartialFileAndSkipsLaterBehavior() {
+        val readStarted = CountDownLatch(1)
+        val allowReadFailure = CountDownLatch(1)
+        val attempts = mutableListOf<String>()
+        val failures = mutableListOf<String>()
+        val outcome = AtomicReference<Throwable?>()
+        var prepareCalls = 0
+        val client = testClient { request ->
+            attempts += request.url.host
+            when (request.url.host) {
+                "one.example" -> response(request, 200, blockedAfterFirstByteBody(readStarted, allowReadFailure))
+                else -> response(request, 200, "unexpected".toResponseBody())
+            }
+        }
+        val downloader = newDownloader(client, onAttemptFailed = { host, _ -> failures += host })
+
+        val worker = thread {
+            outcome.set(runCatching {
+                downloader.download(chain("one.example", "two.example")) {
+                    prepareCalls++
+                    it
+                }
+            }.exceptionOrNull())
+        }
+        assertTrue(readStarted.await(5, TimeUnit.SECONDS))
+        downloader.cancel()
+        allowReadFailure.countDown()
+        worker.join(5_000L)
+
+        assertTrue(outcome.get() is CancellationException)
+        assertEquals(listOf("one.example"), attempts)
+        assertTrue(failures.isEmpty())
+        assertEquals(0, prepareCalls)
+        assertTrue(tempDir.listFiles().isNullOrEmpty())
+    }
+
+    @Test
+    fun prepareReplacementDeletesDownloadedFileAndKeepsReplacement() {
+        var downloadedFile: File? = null
+        val replacement = File(tempDir, "prepared.img")
+        val result = newDownloader(testClient { request ->
+            response(request, 200, "downloaded".toResponseBody())
+        }).download(chain("one.example")) { downloaded ->
+            downloadedFile = downloaded.file
+            replacement.writeText("prepared")
+            DownloadedMangaImage(replacement, downloaded.requestUrl)
+        }
+
+        assertEquals(replacement, result.file)
+        assertEquals("prepared", result.file.readText())
+        assertTrue(downloadedFile?.exists() == false)
+        assertEquals(listOf(replacement), tempDir.listFiles()?.toList())
+    }
+
+    @Test
+    fun cancelAfterPreparationDeletesDownloadedAndPreparedFiles() {
+        var downloadedFile: File? = null
+        val replacement = File(tempDir, "prepared.img")
+        val failures = mutableListOf<String>()
+        lateinit var downloader: MangaImageFallbackDownloader
+        downloader = newDownloader(
+            client = testClient { request -> response(request, 200, "downloaded".toResponseBody()) },
+            onAttemptFailed = { host, _ -> failures += host },
+        )
+
+        assertThrows(CancellationException::class.java) {
+            downloader.download(chain("one.example")) { downloaded ->
+                downloadedFile = downloaded.file
+                replacement.writeText("prepared")
+                downloader.cancel()
+                DownloadedMangaImage(replacement, downloaded.requestUrl)
+            }
+        }
+
+        assertTrue(downloadedFile?.exists() == false)
+        assertTrue(replacement.exists().not())
+        assertTrue(failures.isEmpty())
+        assertTrue(tempDir.listFiles().isNullOrEmpty())
+    }
+
     private fun testClient(responder: (Request) -> Response): OkHttpClient =
         OkHttpClient.Builder().addInterceptor { chain -> responder(chain.request()) }.build()
 
@@ -169,12 +299,16 @@ class MangaImageFallbackDownloaderTest {
     private fun newDownloader(
         client: OkHttpClient,
         onConnecting: (String) -> Unit = {},
+        onAttemptFailed: (String, Throwable) -> Unit = { _, _ -> },
+        beforeCallPublication: () -> Unit = {},
     ): MangaImageFallbackDownloader = MangaImageFallbackDownloader(
         baseClient = client,
         createTempFile = {
             File.createTempFile("candidate_", ".img", tempDir)
         },
         onConnecting = onConnecting,
+        onAttemptFailed = onAttemptFailed,
+        beforeCallPublication = beforeCallPublication,
     )
 
     private fun chain(vararg hosts: String) = MangaImageRequestChain(
@@ -197,6 +331,32 @@ class MangaImageFallbackDownloaderTest {
                     if (!firstRead) throw SocketTimeoutException("stalled")
                     firstRead = false
                     return super.read(sink, 1L)
+                }
+            }.buffer()
+        }
+    }
+
+    private fun blockedAfterFirstByteBody(
+        readStarted: CountDownLatch,
+        allowReadFailure: CountDownLatch,
+    ): ResponseBody = object : ResponseBody() {
+        override fun contentType(): MediaType? = null
+
+        override fun contentLength(): Long = 2L
+
+        override fun source(): BufferedSource {
+            val data = Buffer().writeUtf8("ab")
+            var firstRead = true
+            return object : ForwardingSource(data) {
+                override fun read(sink: Buffer, byteCount: Long): Long {
+                    if (firstRead) {
+                        firstRead = false
+                        val count = super.read(sink, 1L)
+                        readStarted.countDown()
+                        return count
+                    }
+                    allowReadFailure.await(5, TimeUnit.SECONDS)
+                    throw IOException("cancelled read")
                 }
             }.buffer()
         }
