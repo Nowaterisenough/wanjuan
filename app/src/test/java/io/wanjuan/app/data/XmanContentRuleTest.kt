@@ -5,6 +5,7 @@ import com.script.ScriptBindings
 import com.script.rhino.RhinoScriptEngine
 import io.wanjuan.app.data.entities.BookSource
 import io.wanjuan.app.model.analyzeRule.AnalyzeByXPath
+import io.wanjuan.app.model.analyzeRule.AnalyzeUrl
 import io.wanjuan.app.utils.GSON
 import io.wanjuan.app.utils.fromJsonArray
 import org.jsoup.Jsoup
@@ -43,29 +44,40 @@ class XmanContentRuleTest {
     }
 
     @Test
-    fun contentRuleRoutesNnpicImagesThroughStableP8Shard() {
+    fun contentRuleBuildsOrderedNnpicFallbackChainsWithoutTouchingLastHost() {
         val source = xmanSource()
         val html = """
             <html><body><center><div>
-              <img data-src="https://p9.nnpic.xyz/upload_s/slow-a.jpg">
-              <img data-src="https://p10.nnpic.xyz/upload_s/slow-b.jpg?token=1">
-              <img data-src="https://p8.nnpic.xyz/upload_s/already-stable.jpg">
+              <img data-src="https://img.nnpic.xyz/upload_s/from-img.jpg?token=1">
+              <img data-src="https://p9.nnpic.xyz/upload_s/from-p9.jpg#page">
+              <img data-src="https://p8.nnpic.xyz/upload_s/from-p8.jpg">
+              <img data-src="https://last.nnpic.xyz/upload_s/last.jpg">
               <img data-src="https://cdn.example/untouched.jpg">
             </div></center></body></html>
         """.trimIndent()
 
         val output = evaluateContentRule(source.getContentRule().content.orEmpty(), html)
-        val urls = Jsoup.parseBodyFragment(output).select("img").map { it.attr("src") }
+        val models = Jsoup.parseBodyFragment(output).select("img").map { it.attr("src") }
+        val analyzed = models.map(::AnalyzeUrl)
 
         assertEquals(
-            listOf(
-                "https://p8.nnpic.xyz/upload_s/slow-a.jpg",
-                "https://p8.nnpic.xyz/upload_s/slow-b.jpg?token=1",
-                "https://p8.nnpic.xyz/upload_s/already-stable.jpg",
-                "https://cdn.example/untouched.jpg"
-            ),
-            urls
+            "https://p8.nnpic.xyz/upload_s/from-img.jpg?token=1",
+            analyzed[0].url
         )
+        assertEquals(
+            listOf("img", "p4", "p6", "p9", "p10", "p11")
+                .map { "https://$it.nnpic.xyz/upload_s/from-img.jpg?token=1" },
+            analyzed[0].getFallbackUrls()
+        )
+        assertEquals("https://p8.nnpic.xyz/upload_s/from-p9.jpg#page", analyzed[1].url)
+        assertEquals("https://p9.nnpic.xyz/upload_s/from-p9.jpg#page", analyzed[1].getFallbackUrls().first())
+        assertEquals(8000L, analyzed[1].getFallbackTimeout())
+        assertEquals("https://p8.nnpic.xyz/upload_s/from-p8.jpg", analyzed[2].url)
+        assertEquals(6, analyzed[2].getFallbackUrls().size)
+        assertEquals("https://last.nnpic.xyz/upload_s/last.jpg", models[3])
+        assertEquals(emptyList<String>(), analyzed[3].getFallbackUrls())
+        assertEquals("https://cdn.example/untouched.jpg", models[4])
+        assertEquals(emptyList<String>(), analyzed[4].getFallbackUrls())
     }
 
     @Test
