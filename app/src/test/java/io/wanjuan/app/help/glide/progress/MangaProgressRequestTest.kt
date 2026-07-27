@@ -10,6 +10,41 @@ import java.util.ArrayDeque
 class MangaProgressRequestTest {
 
     @Test
+    fun queuedConnectingOnlyDeliversToItsOriginalRegistration() {
+        val postedToMain = ArrayDeque<() -> Unit>()
+        val registry = ProgressListenerRegistry { action -> postedToMain.addLast(action) }
+        val listenerAEvents = mutableListOf<ProgressEvent>()
+        val listenerBEvents = mutableListOf<ProgressEvent>()
+        var activeEvents = listenerAEvents
+        val reusedListener: OnProgressListener = { complete, percentage, bytesRead, totalBytes ->
+            activeEvents += ProgressEvent(complete, percentage, bytesRead, totalBytes)
+        }
+        val model = "https://primary.example/a.jpg?token=query-secret," +
+            "{\"fallbackUrls\":[\"https://mirror.example/a.jpg\"]}"
+
+        registry.addListener(model, reusedListener)
+        val staleRegistrationConnecting = postedToMain.removeFirst()
+        registry.removeListener(model)
+        activeEvents = listenerBEvents
+        registry.addListener(model, reusedListener)
+        val currentRegistrationConnecting = postedToMain.removeFirst()
+
+        staleRegistrationConnecting.invoke()
+        assertEquals(emptyList<ProgressEvent>(), listenerAEvents)
+        assertEquals(emptyList<ProgressEvent>(), listenerBEvents)
+
+        currentRegistrationConnecting.invoke()
+        assertEquals(listOf(ProgressEvent(false, 0, 0, 0)), listenerBEvents)
+
+        registry.notifyConnecting(model)
+        val staleCandidateReconnect = postedToMain.removeFirst()
+        registry.removeListener(model)
+        staleCandidateReconnect.invoke()
+
+        assertEquals(listOf(ProgressEvent(false, 0, 0, 0)), listenerBEvents)
+    }
+
+    @Test
     fun taggedFallbackDeliversQueuedReconnectAndUnknownAndKnownLengthProgressInOrder() {
         val postedToMain = ArrayDeque<() -> Unit>()
         val registry = ProgressListenerRegistry { action -> postedToMain.addLast(action) }

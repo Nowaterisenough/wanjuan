@@ -5,20 +5,22 @@ import android.os.Looper
 import io.wanjuan.app.model.analyzeRule.AnalyzeUrl
 import java.util.concurrent.ConcurrentHashMap
 
+private class Registration(val listener: OnProgressListener)
+
 internal class ProgressListenerRegistry(
     private val postConnecting: (() -> Unit) -> Unit,
 ) : ProgressResponseBody.InternalProgressListener {
-    private val listenersMap = ConcurrentHashMap<String, OnProgressListener>()
+    private val listenersMap = ConcurrentHashMap<String, Registration>()
 
     override fun onProgress(url: String, bytesRead: Long, totalBytes: Long) {
-        getProgressListener(url)?.let {
+        getRegistration(url)?.let { registration ->
             if (totalBytes <= 0L) {
-                it.invoke(false, 0, bytesRead, totalBytes)
+                registration.listener.invoke(false, 0, bytesRead, totalBytes)
                 return@let
             }
             val percentage = (bytesRead * 1f / totalBytes * 100f).toInt()
             val isComplete = percentage >= 100
-            it.invoke(isComplete, percentage, bytesRead, totalBytes)
+            registration.listener.invoke(isComplete, percentage, bytesRead, totalBytes)
             if (isComplete) {
                 removeListener(url)
             }
@@ -27,15 +29,19 @@ internal class ProgressListenerRegistry(
 
     fun addListener(url: String, listener: OnProgressListener) {
         if (url.isNotEmpty()) {
-            listenersMap[normalize(url)] = listener
+            listenersMap[normalize(url)] = Registration(listener)
             notifyConnecting(url)
         }
     }
 
     fun notifyConnecting(url: String) {
         if (url.isEmpty()) return
+        val key = normalize(url)
+        val registration = listenersMap[key]
         postConnecting {
-            getProgressListener(url)?.invoke(false, 0, 0, 0)
+            if (listenersMap[key] === registration) {
+                registration?.listener?.invoke(false, 0, 0, 0)
+            }
         }
     }
 
@@ -46,11 +52,11 @@ internal class ProgressListenerRegistry(
     }
 
     fun getProgressListener(url: String): OnProgressListener? {
-        return if (url.isEmpty() || listenersMap.isEmpty()) {
-            null
-        } else {
-            listenersMap[normalize(url)]
-        }
+        return getRegistration(url)?.listener
+    }
+
+    private fun getRegistration(url: String): Registration? {
+        return if (url.isEmpty() || listenersMap.isEmpty()) null else listenersMap[normalize(url)]
     }
 
     private fun normalize(url: String): String {
