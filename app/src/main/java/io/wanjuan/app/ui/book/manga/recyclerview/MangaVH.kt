@@ -24,6 +24,7 @@ import com.bumptech.glide.load.engine.GlideException
 import com.bumptech.glide.request.RequestListener
 import com.bumptech.glide.request.target.Target
 import io.wanjuan.app.help.glide.progress.ProgressManager
+import io.wanjuan.app.R
 import io.wanjuan.app.model.BookCover
 import io.wanjuan.app.model.ReadManga
 import io.wanjuan.app.utils.printOnDebug
@@ -65,9 +66,17 @@ open class MangaVH<VB : ViewBinding>(val binding: VB, private val context: Conte
         mRetry?.isGone = true
         mProgress.isVisible = true
         ProgressManager.removeListener(imageUrl)
-        ProgressManager.addListener(imageUrl) { _, percentage, _, _ ->
-            @SuppressLint("SetTextI18n")
-            mProgress.text = "$percentage%"
+        ProgressManager.addListener(imageUrl) { _, percentage, bytesRead, totalBytes ->
+            when {
+                bytesRead == 0L && totalBytes == 0L ->
+                    mProgress.setText(R.string.manga_image_connecting)
+                totalBytes <= 0L ->
+                    mProgress.setText(R.string.is_loading)
+                else -> {
+                    @SuppressLint("SetTextI18n")
+                    mProgress.text = "$percentage%"
+                }
+            }
         }
         try {
             mImage.tag = imageUrl
@@ -83,6 +92,7 @@ open class MangaVH<VB : ViewBinding>(val binding: VB, private val context: Conte
                     target: Target<Drawable>,
                     isFirstResource: Boolean,
                 ): Boolean {
+                    ProgressManager.removeListener(imageUrl)
                     mFlProgress.isVisible = true
                     mLoading.isGone = true
                     mRetry?.isVisible = true
@@ -100,6 +110,7 @@ open class MangaVH<VB : ViewBinding>(val binding: VB, private val context: Conte
                     dataSource: DataSource,
                     isFirstResource: Boolean,
                 ): Boolean {
+                    ProgressManager.removeListener(imageUrl)
                     mFlProgress.isGone = true
                     if (!isHorizontal) {
                         itemView.updateLayoutParams<ViewGroup.LayoutParams> {

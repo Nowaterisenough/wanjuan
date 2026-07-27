@@ -94,6 +94,7 @@
     <string name="check_add_bookshelf">Would you like to add %s to your Bookshelf?</string>
     <string name="import_books_count">%s text file(s) in total</string>
     <string name="is_loading">Loading…</string>
+    <string name="manga_image_connecting">Connecting…</string>
     <string name="retry">Retry</string>
     <string name="web_service">Web service</string>
     <string name="web_service_desc">Web edit source and read book</string>

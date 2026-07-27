@@ -8,9 +8,11 @@ import com.bumptech.glide.load.data.DataFetcher
 import com.bumptech.glide.load.model.GlideUrl
 import com.bumptech.glide.util.ContentLengthInputStream
 import com.script.rhino.runScriptWithContext
+import io.wanjuan.app.constant.AppLog
 import io.wanjuan.app.data.entities.BaseSource
 import io.wanjuan.app.exception.NoStackTraceException
 import io.wanjuan.app.help.coroutine.Coroutine
+import io.wanjuan.app.help.glide.progress.ProgressManager
 import io.wanjuan.app.help.http.addHeaders
 import io.wanjuan.app.help.http.okHttpClient
 import io.wanjuan.app.help.http.okHttpClientManga
@@ -28,6 +30,7 @@ import okhttp3.Response
 import okhttp3.ResponseBody
 import splitties.init.appCtx
 import java.io.ByteArrayInputStream
+import java.io.File
 import java.io.IOException
 import java.io.InputStream
 
@@ -45,6 +48,11 @@ class OkHttpStreamFetcher(
     private val coroutineContext = SupervisorJob()
     private val coroutineScope = CoroutineScope(coroutineContext)
     private lateinit var analyzedUrl: GlideUrl
+
+    @Volatile
+    private var cancelled = false
+    private var fallbackDownloader: MangaImageFallbackDownloader? = null
+    private var temporaryFile: File? = null
 
     @Volatile
     private var call: Call? = null
@@ -68,16 +76,22 @@ class OkHttpStreamFetcher(
             source = SourceHelp.getSource(sourceUrl)
         }
 
-        analyzedUrl = AnalyzeUrl(
+        val analyzeUrl = AnalyzeUrl(
             url.toString(),
             source = source,
             coroutineContext = coroutineContext
-        ).getGlideUrl()
+        )
+        analyzedUrl = analyzeUrl.getGlideUrl()
+        val fallbackUrls = analyzeUrl.getFallbackUrls()
+        this.callback = callback
+        if (manga && fallbackUrls.isNotEmpty()) {
+            loadMangaWithFallback(fallbackUrls, analyzeUrl.getFallbackTimeout())
+            return
+        }
 
         val requestBuilder = Request.Builder().url(analyzedUrl.toStringUrl())
         requestBuilder.addHeaders(analyzedUrl.headers)
         val request: Request = requestBuilder.build()
-        this.callback = callback
         call = if (manga) {
             okHttpClientManga.newCall(request)
         } else {
@@ -91,12 +105,16 @@ class OkHttpStreamFetcher(
             stream?.close()
         }
         responseBody?.close()
+        temporaryFile?.delete()
+        temporaryFile = null
         coroutineContext.cancel()
         callback = null
     }
 
     override fun cancel() {
+        cancelled = true
         call?.cancel()
+        fallbackDownloader?.cancel()
         coroutineContext.cancel()
     }
 
@@ -146,17 +164,76 @@ class OkHttpStreamFetcher(
         }
     }
 
-    private fun onStreamReady(inputStream: InputStream?) {
+    private fun loadMangaWithFallback(
+        fallbackUrls: List<String>,
+        fallbackTimeout: Long,
+    ) {
+        val requestChain = MangaImageRequestChain(
+            urls = listOf(analyzedUrl.toStringUrl()) + fallbackUrls,
+            headers = analyzedUrl.headers.toMap(),
+            readTimeoutMillis = fallbackTimeout,
+            progressUrl = url.toStringUrl(),
+        )
+        val downloader = MangaImageFallbackDownloader(
+            baseClient = okHttpClientManga,
+            createTempFile = ::createMangaTempFile,
+            onConnecting = ProgressManager::notifyConnecting,
+            onAttemptFailed = ::logFallbackFailure,
+        )
+        fallbackDownloader = downloader
+
+        Coroutine.async(coroutineScope, executeContext = IO) {
+            downloader.download(requestChain, ::prepareMangaImage)
+        }.onSuccess(context = IO) { downloaded ->
+            if (cancelled) {
+                downloaded.file.delete()
+                return@onSuccess
+            }
+            temporaryFile = downloaded.file
+            onStreamReady(downloaded.file.inputStream(), downloaded.file.length())
+        }.onError(context = IO) { error ->
+            if (!cancelled) {
+                callback?.onLoadFailed(error as? Exception ?: IOException(error))
+            }
+        }
+    }
+
+    private fun createMangaTempFile(): File =
+        File.createTempFile("manga_fallback_", ".img", appCtx.cacheDir)
+
+    private fun prepareMangaImage(candidate: DownloadedMangaImage): DownloadedMangaImage? {
+        if (ImageUtils.skipDecode(source, isCover = false)) return candidate
+        val decoded = ImageUtils.decode(
+            url.toString(), candidate.file.readBytes(), false, source, ReadManga.book
+        ) ?: return null
+        var decodedFile: File? = null
+        return runCatching {
+            createMangaTempFile().also { file ->
+                decodedFile = file
+                file.outputStream().use { it.write(decoded) }
+            }
+        }.map { candidate.copy(file = it) }
+            .onFailure { decodedFile?.delete() }
+            .getOrNull()
+    }
+
+    private fun logFallbackFailure(host: String, error: Throwable) {
+        val statusCode = Regex("^HTTP (\\d{3})$").matchEntire(error.message.orEmpty())
+            ?.groupValues?.get(1)
+        AppLog.putDebug("漫画图片候选加载失败 host=$host reason=${statusCode ?: error.javaClass.simpleName}")
+    }
+
+    private fun onStreamReady(inputStream: InputStream?, contentLength: Long? = null) {
         if (inputStream == null) {
             if (!manga) {
                 failUrl.add(url.toStringUrl())
             }
             callback?.onLoadFailed(NoStackTraceException("封面二次解密失败"))
         } else {
-            val contentLength: Long =
+            val resolvedContentLength: Long = contentLength ?:
                 if (inputStream is ByteArrayInputStream) inputStream.available().toLong()
                 else responseBody!!.contentLength()
-            stream = ContentLengthInputStream.obtain(inputStream, contentLength)
+            stream = ContentLengthInputStream.obtain(inputStream, resolvedContentLength)
             callback?.onDataReady(stream)
         }
     }

@@ -5,6 +5,7 @@ import io.wanjuan.app.help.CacheManager
 import io.wanjuan.app.help.config.AppConfig
 import io.wanjuan.app.help.glide.progress.ProgressManager.LISTENER
 import io.wanjuan.app.help.glide.progress.ProgressResponseBody
+import io.wanjuan.app.help.glide.progress.mangaProgressUrl
 import io.wanjuan.app.help.http.CookieManager.cookieJarHeader
 import io.wanjuan.app.model.ReadManga
 import io.wanjuan.app.utils.NetworkUtils
@@ -132,7 +133,7 @@ val okHttpClientManga by lazy {
         interceptors.add(1) { chain ->
             val request = chain.request()
             val response = chain.proceed(request)
-            val url = request.url.toString()
+            val url = request.mangaProgressUrl()
             response.newBuilder()
                 .body(ProgressResponseBody(url, LISTENER, response.body))
                 .build()
