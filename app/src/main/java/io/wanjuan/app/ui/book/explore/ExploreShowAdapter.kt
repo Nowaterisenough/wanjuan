@@ -12,7 +12,7 @@ import io.wanjuan.app.base.adapter.RecyclerAdapter
 import io.wanjuan.app.constant.BookType
 import io.wanjuan.app.data.entities.SearchBook
 import io.wanjuan.app.databinding.ItemExploreBookGridBinding
-import io.wanjuan.app.databinding.ItemSearchBinding
+import io.wanjuan.app.databinding.ItemExploreBookListBinding
 import io.wanjuan.app.help.config.AppConfig
 import io.wanjuan.app.utils.gone
 import io.wanjuan.app.utils.visible
@@ -27,7 +27,7 @@ class ExploreShowAdapter(context: Context, val callBack: CallBack) :
     override fun getViewBinding(parent: ViewGroup): ViewBinding {
         return when (layoutStyle) {
             1, 2 -> ItemExploreBookGridBinding.inflate(inflater, parent, false)
-            else -> ItemSearchBinding.inflate(inflater, parent, false)
+            else -> ItemExploreBookListBinding.inflate(inflater, parent, false)
         }
     }
 
@@ -42,7 +42,7 @@ class ExploreShowAdapter(context: Context, val callBack: CallBack) :
         payloads: MutableList<Any>
     ) {
         when (binding) {
-            is ItemSearchBinding -> {
+            is ItemExploreBookListBinding -> {
                 if (payloads.isEmpty()) {
                     bindList(binding, item)
                 } else {
@@ -59,12 +59,12 @@ class ExploreShowAdapter(context: Context, val callBack: CallBack) :
 
     }
 
-    private fun bindList(binding: ItemSearchBinding, item: SearchBook) {
+    private fun bindList(binding: ItemExploreBookListBinding, item: SearchBook) {
         binding.run {
             tvName.text = item.name
             bindPageCount(tvPageCount, item)
             tvAuthor.text = context.getString(R.string.author_show, item.author)
-            ivInBookshelf.isVisible = callBack.isInBookshelf(item)
+            tvInBookshelf.isVisible = callBack.isInBookshelf(item)
             if (item.latestChapterTitle.isNullOrEmpty()) {
                 tvLasted.gone()
             } else {
@@ -112,7 +112,7 @@ class ExploreShowAdapter(context: Context, val callBack: CallBack) :
                 tvIntroduce.text = item.trimIntro(context)
                 tvIntroduce.visible()
             }
-            ivInBookshelf.isVisible = callBack.isInBookshelf(item)
+            tvInBookshelf.isVisible = callBack.isInBookshelf(item)
             ivCover.load(
                 item,
                 AppConfig.loadCoverOnlyWifi
@@ -139,11 +139,11 @@ class ExploreShowAdapter(context: Context, val callBack: CallBack) :
         return text.takeIf { pageCountRegex.containsMatchIn(it) }
     }
 
-    private fun bindListChange(binding: ItemSearchBinding, item: SearchBook, bundle: Bundle) {
+    private fun bindListChange(binding: ItemExploreBookListBinding, item: SearchBook, bundle: Bundle) {
         binding.run {
             bundle.keySet().forEach {
                 when (it) {
-                    "isInBookshelf" -> ivInBookshelf.isVisible =
+                    "isInBookshelf" -> tvInBookshelf.isVisible =
                         callBack.isInBookshelf(item)
                 }
             }
