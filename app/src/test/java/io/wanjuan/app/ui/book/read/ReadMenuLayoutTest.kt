@@ -1734,7 +1734,6 @@ class ReadMenuLayoutTest {
     @Test
     fun tocFullscreenGlassCornerSyncWaitsForBoundLiquidGlass() {
         val readMenu = repoFile("app/src/main/java/io/wanjuan/app/ui/book/read/ReadMenu.kt").readText()
-        val layoutXml = repoFile("app/src/main/res/layout/view_read_menu.xml").readText()
         val cornerSync = readMenu.substringAfter("private fun syncTocFullscreenGlassCorners")
             .substringBefore("private fun measureBottomPanelHeight")
         val bottomGlassSetup = readMenu.substringAfter("private fun setupBottomTabFrostedGlassViews")
@@ -1751,8 +1750,6 @@ class ReadMenuLayoutTest {
         assertTrue(readMenu.contains("private fun View.isReadyForLiquidGlassConfig(): Boolean"))
         assertTrue(readMenu.contains("return isLaidOut && width > 0 && height > 0"))
         assertTrue(bottomGlassSetup.contains("!bottomTabGlassView.isReadyForLiquidGlassConfig()"))
-        assertTrue(layoutXml.contains("com.qmdeve.liquidglass.widget.LiquidGlassView"))
-        assertFalse(layoutXml.contains("io.wanjuan.app.ui.widget.SafeLiquidGlassView"))
         assertTrue(singleGlassSetup.contains("): Boolean"))
         assertTrue(singleGlassSetup.contains("if (!target.isReadyForLiquidGlassConfig() || !liquidGlassView.isReadyForLiquidGlassConfig())"))
         assertTrue(singleGlassSetup.contains("val shouldBind = !boundBottomTabGlassViewIds.contains(liquidGlassView.id)"))
@@ -1763,6 +1760,32 @@ class ReadMenuLayoutTest {
         )
         assertFalse(singleGlassSetup.contains("if (boundBottomTabGlassViewIds.add(liquidGlassView.id))"))
         assertFalse(cornerSync.contains("if (!AppConfig.isEInkMode) {\n            bottomTabGlassView.setCornerRadius(radius)\n        }"))
+    }
+
+    @Test
+    fun readerLiquidGlassViewsOnlySuppressUnsafeProgressMinimapRebuilds() {
+        val nativeMenuGlassViews = listOf(
+            readMenuLayout() to "title_bar_glass_view",
+            readMenuLayout() to "bottom_tab_glass_view",
+            readMenuLayout() to "layout_margin_adjust_glass_view"
+        )
+        val safeProgressMinimapGlassViews = listOf(
+            readActivityLayout() to "chapter_progress_minimap_glass_view",
+            mangaActivityLayout() to "manga_progress_minimap_glass_view"
+        )
+
+        nativeMenuGlassViews.forEach { (layout, id) ->
+            assertEquals(
+                "com.qmdeve.liquidglass.widget.LiquidGlassView",
+                layout.elementById(id).tagName
+            )
+        }
+        safeProgressMinimapGlassViews.forEach { (layout, id) ->
+            assertEquals(
+                "io.wanjuan.app.ui.widget.SafeLiquidGlassView",
+                layout.elementById(id).tagName
+            )
+        }
     }
 
     @Test

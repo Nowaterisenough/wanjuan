@@ -64,7 +64,7 @@
             android:clipToOutline="false"
             android:clipToPadding="false">
 
-            <com.qmdeve.liquidglass.widget.LiquidGlassView
+            <io.wanjuan.app.ui.widget.SafeLiquidGlassView
                 android:id="@+id/chapter_progress_minimap_glass_view"
                 android:layout_width="46dp"
                 android:layout_height="match_parent"
