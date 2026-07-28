@@ -48,11 +48,14 @@ class MangaProgressMinimapView @JvmOverloads constructor(
     private var pageCount: Int = 0
     private var progress: Int = 0
     private var scrollProgressRatio: Float? = null
+    private var chapterIndex: Int? = null
     private var imageUrls: List<String> = emptyList()
     private var sourceOrigin: String? = null
+    private val thumbnailRecoveryState = MangaThumbnailRecoveryState()
     private val thumbnailDrawables = mutableMapOf<Int, Drawable>()
     private val thumbnailTargets = mutableMapOf<Int, CustomTarget<Drawable>>()
     private val thumbnailLoadingIndexes = mutableSetOf<Int>()
+    private val thumbnailCacheRecoveryKeys = mutableMapOf<Int, MangaThumbnailPageKey>()
     private var clearingThumbnailTargets = false
     private var dragRatio: Float? = null
     private var pinnedProgressRatio: Float? = null
@@ -102,22 +105,36 @@ class MangaProgressMinimapView @JvmOverloads constructor(
         return isDragging || pinnedProgressRatio != null
     }
 
-    fun updatePages(imageUrls: List<String>, sourceOrigin: String?, progress: Int, progressRatio: Float?) {
+    fun updatePages(
+        chapterIndex: Int,
+        imageUrls: List<String>,
+        sourceOrigin: String?,
+        progress: Int,
+        progressRatio: Float?,
+    ) {
         if (isDragging) {
             return
         }
         val safeImageUrls = imageUrls.filter { it.isNotBlank() }
-        val pagesChanged = this.imageUrls != safeImageUrls || this.sourceOrigin != sourceOrigin
+        val pagesChanged = this.chapterIndex != chapterIndex ||
+            this.imageUrls != safeImageUrls || this.sourceOrigin != sourceOrigin
         if (pagesChanged) {
             clearThumbnailTargets()
+            this.chapterIndex = chapterIndex
             this.imageUrls = safeImageUrls
             this.sourceOrigin = sourceOrigin
             pinnedProgressRatio = null
         }
+        thumbnailRecoveryState.updatePages(chapterIndex, safeImageUrls)
         updateProgress(safeImageUrls.size, progress, progressRatio)
         if (pagesChanged) {
             maybeLoadThumbnails()
         }
+    }
+
+    internal fun markBodyImageReady(key: MangaThumbnailPageKey) {
+        thumbnailRecoveryState.markBodyImageReady(key)
+        maybeLoadThumbnails()
     }
 
     fun updateProgress(pageCount: Int, progress: Int, progressRatio: Float?) {
@@ -444,6 +461,8 @@ class MangaProgressMinimapView @JvmOverloads constructor(
         if (!isAttachedToWindow || !isShown || imageUrls.isEmpty()) {
             return
         }
+        loadCurrentThumbnailIfNeeded()
+        loadCacheRecoveryCandidates()
         val remainingSlots = MAX_THUMBNAIL_REQUESTS - thumbnailLoadingIndexes.size
         if (remainingSlots <= 0) {
             return
@@ -452,32 +471,83 @@ class MangaProgressMinimapView @JvmOverloads constructor(
             .filter {
                 !thumbnailTargets.containsKey(it) &&
                     !thumbnailDrawables.containsKey(it) &&
-                    !thumbnailLoadingIndexes.contains(it)
+                    !thumbnailLoadingIndexes.contains(it) &&
+                    thumbnailRecoveryState.keyAt(it)
+                        ?.let(thumbnailRecoveryState::canLoadInBackground) == true
             }
             .sortedWith(compareBy<Int> { kotlin.math.abs(it - progress) }.thenBy { it })
             .take(remainingSlots)
             .forEach { index ->
-                loadThumbnail(index, imageUrls[index])
+                thumbnailRecoveryState.keyAt(index)?.let { key ->
+                    loadThumbnail(key, cacheOnly = false)
+                }
             }
     }
 
-    private fun finishThumbnailLoad(index: Int) {
-        thumbnailLoadingIndexes.remove(index)
-        maybeLoadThumbnails()
+    private fun loadCurrentThumbnailIfNeeded() {
+        val key = thumbnailRecoveryState.keyAt(progress) ?: return
+        if (thumbnailLoadingIndexes.size >= MAX_THUMBNAIL_REQUESTS ||
+            thumbnailTargets.containsKey(progress) ||
+            thumbnailDrawables.containsKey(progress) ||
+            !thumbnailRecoveryState.canLoadInBackground(key)
+        ) {
+            return
+        }
+        loadThumbnail(key, cacheOnly = false)
     }
 
-    private fun clearThumbnailLoading(index: Int) {
-        thumbnailLoadingIndexes.remove(index)
-        if (!clearingThumbnailTargets) {
-            maybeLoadThumbnails()
+    private fun loadCacheRecoveryCandidates() {
+        thumbnailRecoveryState.cacheRecoveryCandidates(
+            priorityPageIndex = progress,
+        ).forEach { key ->
+            when {
+                thumbnailDrawables.containsKey(key.pageIndex) -> {
+                    thumbnailRecoveryState.markThumbnailReady(key)
+                }
+
+                thumbnailLoadingIndexes.contains(key.pageIndex) -> {
+                    cancelThumbnailTarget(key.pageIndex)
+                    startCacheRecoveryIfSlotAvailable(key)
+                }
+            }
+        }
+        val remainingSlots = MAX_THUMBNAIL_REQUESTS - thumbnailLoadingIndexes.size
+        thumbnailRecoveryState.cacheRecoveryCandidates(
+            availableSlots = remainingSlots,
+            priorityPageIndex = progress,
+        ).forEach { key ->
+            startCacheRecoveryIfSlotAvailable(key)
         }
     }
 
+    private fun startCacheRecoveryIfSlotAvailable(key: MangaThumbnailPageKey) {
+        if (thumbnailDrawables.containsKey(key.pageIndex)) {
+            thumbnailRecoveryState.markThumbnailReady(key)
+            return
+        }
+        if (thumbnailLoadingIndexes.size >= MAX_THUMBNAIL_REQUESTS) {
+            return
+        }
+        if (thumbnailTargets.containsKey(key.pageIndex)) {
+            cancelThumbnailTarget(key.pageIndex)
+        }
+        thumbnailRecoveryState.markCacheRecoveryStarted(key)
+        loadThumbnail(key, cacheOnly = true)
+    }
+
     private fun prioritizeCurrentThumbnail() {
+        val currentKey = thumbnailRecoveryState.keyAt(progress)
+        val currentNeedsCacheRecovery = currentKey != null &&
+            thumbnailRecoveryState.cacheRecoveryCandidates(
+                availableSlots = 1,
+                priorityPageIndex = progress,
+            ).firstOrNull() == currentKey
         if (
             !isAttachedToWindow ||
             !isShown ||
-            progress !in imageUrls.indices ||
+            currentKey == null ||
+            (!thumbnailRecoveryState.canLoadInBackground(currentKey) &&
+                !currentNeedsCacheRecovery) ||
             thumbnailTargets.containsKey(progress) ||
             thumbnailDrawables.containsKey(progress)
         ) {
@@ -492,6 +562,9 @@ class MangaProgressMinimapView @JvmOverloads constructor(
     private fun cancelThumbnailTarget(index: Int) {
         val target = thumbnailTargets.remove(index) ?: return
         thumbnailLoadingIndexes.remove(index)
+        thumbnailCacheRecoveryKeys.remove(index)?.let {
+            thumbnailRecoveryState.markCacheRecoveryCancelled(it)
+        }
         val wasClearingThumbnailTargets = clearingThumbnailTargets
         clearingThumbnailTargets = true
         try {
@@ -503,7 +576,9 @@ class MangaProgressMinimapView @JvmOverloads constructor(
         }
     }
 
-    private fun loadThumbnail(index: Int, url: String) {
+    private fun loadThumbnail(key: MangaThumbnailPageKey, cacheOnly: Boolean) {
+        val index = key.pageIndex
+        val url = key.imageUrl
         if (!thumbnailLoadingIndexes.add(index)) {
             return
         }
@@ -512,41 +587,86 @@ class MangaProgressMinimapView @JvmOverloads constructor(
             thumbnailRequestHeight()
         ) {
             override fun onResourceReady(resource: Drawable, transition: Transition<in Drawable>?) {
+                if (thumbnailTargets[index] !== this ||
+                    !thumbnailRecoveryState.isCurrent(key)
+                ) {
+                    return
+                }
+                thumbnailCacheRecoveryKeys.remove(index)
                 thumbnailDrawables[index] = resource.mutate()
+                thumbnailRecoveryState.markThumbnailReady(key)
+                thumbnailLoadingIndexes.remove(index)
                 invalidate()
                 onThumbnailReady?.invoke(index, url)
-                finishThumbnailLoad(index)
+                maybeLoadThumbnails()
             }
 
             override fun onLoadFailed(errorDrawable: Drawable?) {
-                errorDrawable?.let {
-                    thumbnailDrawables[index] = it.mutate()
+                if (thumbnailTargets[index] !== this ||
+                    !thumbnailRecoveryState.isCurrent(key)
+                ) {
+                    return
+                }
+                thumbnailTargets.remove(index)
+                thumbnailCacheRecoveryKeys.remove(index)
+                thumbnailDrawables.remove(index)
+                thumbnailLoadingIndexes.remove(index)
+                thumbnailRecoveryState.markThumbnailFailed(key)
+                runCatching {
+                    Glide.with(context).clear(this)
                 }
                 invalidate()
-                finishThumbnailLoad(index)
+                maybeLoadThumbnails()
             }
 
             override fun onLoadCleared(placeholder: Drawable?) {
+                if (thumbnailTargets[index] !== this) {
+                    return
+                }
+                thumbnailTargets.remove(index)
+                thumbnailCacheRecoveryKeys.remove(index)?.let {
+                    thumbnailRecoveryState.markCacheRecoveryCancelled(it)
+                }
                 thumbnailDrawables.remove(index)
+                thumbnailLoadingIndexes.remove(index)
                 invalidate()
-                clearThumbnailLoading(index)
+                if (!clearingThumbnailTargets) {
+                    maybeLoadThumbnails()
+                }
             }
         }
         thumbnailTargets[index] = target
-        BookCover.loadManga(
+        if (cacheOnly) {
+            thumbnailCacheRecoveryKeys[index] = key
+        } else {
+            thumbnailCacheRecoveryKeys.remove(index)
+        }
+        val request = BookCover.loadManga(
             context,
             url,
             sourceOrigin = sourceOrigin
         ).override(
             thumbnailRequestWidth(),
             thumbnailRequestHeight()
-        ).priority(Priority.LOW).into(target)
+        ).onlyRetrieveFromCache(cacheOnly)
+        if (cacheOnly) {
+            request.priority(Priority.HIGH).into(target)
+        } else {
+            request.priority(Priority.LOW).into(target)
+        }
     }
 
     private fun clearThumbnailTargets() {
+        val targets = thumbnailTargets.values.toList()
+        val cacheRecoveryKeys = thumbnailCacheRecoveryKeys.values.toList()
+        thumbnailTargets.clear()
+        thumbnailCacheRecoveryKeys.clear()
+        thumbnailDrawables.clear()
+        thumbnailLoadingIndexes.clear()
+        cacheRecoveryKeys.forEach(thumbnailRecoveryState::markCacheRecoveryCancelled)
         clearingThumbnailTargets = true
         try {
-            thumbnailTargets.values.forEach { target ->
+            targets.forEach { target ->
                 runCatching {
                     Glide.with(context).clear(target)
                 }
@@ -554,9 +674,6 @@ class MangaProgressMinimapView @JvmOverloads constructor(
         } finally {
             clearingThumbnailTargets = false
         }
-        thumbnailTargets.clear()
-        thumbnailDrawables.clear()
-        thumbnailLoadingIndexes.clear()
     }
 
     private fun thumbnailRequestWidth(): Int {

@@ -59,7 +59,8 @@ open class MangaVH<VB : ViewBinding>(val binding: VB, private val context: Conte
         imageUrl: String,
         isHorizontal: Boolean,
         isLastImage: Boolean,
-        transformation: Transformation<Bitmap>?
+        transformation: Transformation<Bitmap>?,
+        onImageReady: (() -> Unit)? = null,
     ) {
         mFlProgress.isVisible = true
         mLoading.isVisible = true
@@ -141,6 +142,9 @@ open class MangaVH<VB : ViewBinding>(val binding: VB, private val context: Conte
                             gravity = Gravity.CENTER
                         }
                         mImage.scaleType = ImageView.ScaleType.FIT_CENTER
+                    }
+                    if (mImage.tag == imageUrl) {
+                        onImageReady?.invoke()
                     }
                     return false
                 }

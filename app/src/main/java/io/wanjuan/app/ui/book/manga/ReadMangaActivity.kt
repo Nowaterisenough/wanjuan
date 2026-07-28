@@ -259,6 +259,7 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
             setMangaImageColorFilter(mangaColorFilter)
             enableMangaEInk(AppConfig.enableMangaEInk, AppConfig.mangaEInkThreshold)
             enableGray(AppConfig.enableMangaGray)
+            onPageImageReady = ::onMangaPageImageReady
         }
         setHorizontalScroll(mangaHorizontalScroll)
         binding.recyclerView.run {
@@ -554,7 +555,13 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
         val progressRatio = currentMangaScrollProgressRatio()
         updateMangaMinimapCurrentChapterButton()
         if (show) {
-            binding.mangaProgressMinimap.updatePages(imageUrls, ReadManga.book?.origin, ReadManga.durChapterPos, progressRatio)
+            binding.mangaProgressMinimap.updatePages(
+                ReadManga.durChapterIndex,
+                imageUrls,
+                ReadManga.book?.origin,
+                ReadManga.durChapterPos,
+                progressRatio,
+            )
         } else {
             binding.mangaProgressMinimap.updateProgress(pageCount, ReadManga.durChapterPos, progressRatio)
         }
@@ -775,6 +782,14 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
             }
             reloadMangaProgressPage(pageIndex)
         }
+    }
+
+    private fun onMangaPageImageReady(page: MangaPage) {
+        val key = page.thumbnailKeyIfCurrent(
+            ReadManga.durChapterIndex,
+            currentMangaImageUrls(),
+        ) ?: return
+        binding.mangaProgressMinimap.markBodyImageReady(key)
     }
 
     private fun reloadMangaProgressPage(pageIndex: Int) {

@@ -48,6 +48,7 @@ class MangaAdapter(private val context: Context) :
     }
 
     var isHorizontal = false
+    var onPageImageReady: ((MangaPage) -> Unit)? = null
 
     private val mDiffCallback: DiffUtil.ItemCallback<Any> = object : DiffUtil.ItemCallback<Any>() {
         override fun areItemsTheSame(oldItem: Any, newItem: Any): Boolean {
@@ -94,20 +95,28 @@ class MangaAdapter(private val context: Context) :
                 binding.flProgress
             )
             binding.retry.setOnClickListener {
-                val item = mDiffer.currentList[layoutPosition]
+                val item = mDiffer.currentList.getOrNull(bindingAdapterPosition)
                 if (item is MangaPage) {
-                    val isLastImage = item.imageCount > 0 && item.index == item.imageCount - 1
-                    loadImageWithRetry(
-                        item.mImageUrl, isHorizontal, isLastImage, mTransformation
-                    )
+                    loadPage(item)
                 }
             }
         }
 
         fun onBind(item: MangaPage) {
             setImageColorFilter()
+            loadPage(item)
+        }
+
+        private fun loadPage(item: MangaPage) {
             val isLastImage = item.imageCount > 0 && item.index == item.imageCount - 1
-            loadImageWithRetry(item.mImageUrl, isHorizontal, isLastImage, mTransformation)
+            loadImageWithRetry(
+                item.mImageUrl,
+                isHorizontal,
+                isLastImage,
+                mTransformation,
+            ) {
+                onPageImageReady?.invoke(item)
+            }
         }
 
         fun setImageColorFilter() {
