@@ -19,10 +19,10 @@ internal object ReaderBottomGlassStyle {
 
     fun shell(context: Context, glassLevel: Float, cornerRadius: Float): GradientDrawable {
         val surfaceColor = glassSurfaceColor(context)
-        val topAlpha = (0.32f + glassLevel * 0.44f).coerceIn(0f, 0.86f)
-        val centerAlpha = (0.24f + glassLevel * 0.38f).coerceIn(0f, 0.74f)
-        val bottomAlpha = (0.18f + glassLevel * 0.32f).coerceIn(0f, 0.66f)
-        val strokeAlpha = (0.22f + glassLevel * 0.22f).coerceIn(0f, 0.58f)
+        val topAlpha = (0.24f + glassLevel * 0.18f).coerceIn(0f, 0.46f)
+        val centerAlpha = (0.20f + glassLevel * 0.16f).coerceIn(0f, 0.40f)
+        val bottomAlpha = (0.17f + glassLevel * 0.13f).coerceIn(0f, 0.34f)
+        val strokeAlpha = (0.28f + glassLevel * 0.16f).coerceIn(0f, 0.48f)
         return GradientDrawable(
             GradientDrawable.Orientation.TOP_BOTTOM,
             intArrayOf(
@@ -38,8 +38,8 @@ internal object ReaderBottomGlassStyle {
 
     fun fallbackShell(context: Context, glassLevel: Float, cornerRadius: Float): GradientDrawable {
         val surfaceColor = glassSurfaceColor(context)
-        val alpha = (0.24f + glassLevel * 0.38f).coerceIn(0f, 0.74f)
-        val strokeAlpha = (0.22f + glassLevel * 0.22f).coerceIn(0f, 0.58f)
+        val alpha = (0.14f + glassLevel * 0.10f).coerceIn(0f, 0.26f)
+        val strokeAlpha = (0.28f + glassLevel * 0.16f).coerceIn(0f, 0.48f)
         return GradientDrawable().apply {
             this.cornerRadius = cornerRadius
             setColor(ColorUtils.withAlpha(surfaceColor, alpha))
@@ -63,7 +63,7 @@ internal object ReaderBottomGlassStyle {
         liquidGlassView.setCornerRadius(cornerRadius)
         liquidGlassView.setRefractionHeight((12f + glassLevel * 10f).dpToPx())
         liquidGlassView.setRefractionOffset((36f + glassLevel * 18f).dpToPx())
-        liquidGlassView.setBlurRadius((6f + glassLevel * 12f).dpToPx())
+        liquidGlassView.setBlurRadius((3f + glassLevel * 5f).dpToPx())
         liquidGlassView.setDispersion((0.18f + glassLevel * 0.16f).coerceAtMost(0.42f))
         liquidGlassView.setTintAlpha(tintAlpha(glassLevel))
         tintColor().let { tintColor ->
@@ -83,22 +83,18 @@ internal object ReaderBottomGlassStyle {
     fun glassSurfaceColor(context: Context): Int {
         val baseColor = context.bottomBackground
         return if (ColorUtils.isColorLight(baseColor)) {
-            ColorUtils.blendColors(baseColor, Color.WHITE, 0.72f)
+            ColorUtils.blendColors(baseColor, Color.BLACK, 0.84f)
         } else {
-            ColorUtils.blendColors(baseColor, Color.BLACK, 0.24f)
+            ColorUtils.blendColors(baseColor, Color.BLACK, 0.44f)
         }
     }
 
     fun tintAlpha(glassLevel: Float): Float {
-        return 0.12f + glassLevel * 0.18f
+        return 0.28f + glassLevel * 0.18f
     }
 
     fun tintColor(): FloatArray {
-        return if (useDarkGlass()) {
-            floatArrayOf(0.08f, 0.10f, 0.14f)
-        } else {
-            floatArrayOf(0.70f, 0.79f, 0.86f)
-        }
+        return floatArrayOf(0.02f, 0.028f, 0.04f)
     }
 
     fun useDarkGlass(): Boolean {

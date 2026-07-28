@@ -258,7 +258,7 @@ class MangaMenu @JvmOverloads constructor(
             cornerRadius = 0f,
             refractionHeight = (12f + glassLevel * 10f).dpToPx(),
             refractionOffset = (36f + glassLevel * 18f).dpToPx(),
-            blurRadius = (6f + glassLevel * 12f).dpToPx(),
+            blurRadius = (3f + glassLevel * 5f).dpToPx(),
             dispersion = (0.18f + glassLevel * 0.16f).coerceAtMost(0.42f),
             tintAlpha = topBarGlassTintAlpha(glassLevel),
             tintColor = topBarGlassTintColor()
@@ -317,10 +317,10 @@ class MangaMenu @JvmOverloads constructor(
 
     private fun topBarGlassShell(glassLevel: Float): GradientDrawable {
         val surfaceColor = topBarGlassSurfaceColor()
-        val topAlpha = (0.32f + glassLevel * 0.44f).coerceIn(0f, 0.86f)
-        val centerAlpha = (0.24f + glassLevel * 0.38f).coerceIn(0f, 0.74f)
-        val bottomAlpha = (0.18f + glassLevel * 0.32f).coerceIn(0f, 0.66f)
-        val strokeAlpha = (0.22f + glassLevel * 0.22f).coerceIn(0f, 0.58f)
+        val topAlpha = (0.24f + glassLevel * 0.18f).coerceIn(0f, 0.46f)
+        val centerAlpha = (0.20f + glassLevel * 0.16f).coerceIn(0f, 0.40f)
+        val bottomAlpha = (0.17f + glassLevel * 0.13f).coerceIn(0f, 0.34f)
+        val strokeAlpha = (0.28f + glassLevel * 0.16f).coerceIn(0f, 0.48f)
         return GradientDrawable(
             GradientDrawable.Orientation.TOP_BOTTOM,
             intArrayOf(
@@ -335,8 +335,8 @@ class MangaMenu @JvmOverloads constructor(
 
     private fun topBarGlassFallbackShell(glassLevel: Float): GradientDrawable {
         val surfaceColor = topBarGlassSurfaceColor()
-        val alpha = (0.24f + glassLevel * 0.38f).coerceIn(0f, 0.74f)
-        val strokeAlpha = (0.22f + glassLevel * 0.22f).coerceIn(0f, 0.58f)
+        val alpha = (0.14f + glassLevel * 0.10f).coerceIn(0f, 0.26f)
+        val strokeAlpha = (0.28f + glassLevel * 0.16f).coerceIn(0f, 0.48f)
         return GradientDrawable().apply {
             setColor(ColorUtils.withAlpha(surfaceColor, alpha))
             setStroke(1.dpToPx(), ColorUtils.withAlpha(surfaceColor, strokeAlpha))
@@ -346,22 +346,18 @@ class MangaMenu @JvmOverloads constructor(
     private fun topBarGlassSurfaceColor(): Int {
         val baseColor = bgColor
         return if (ColorUtils.isColorLight(baseColor)) {
-            ColorUtils.blendColors(baseColor, Color.WHITE, 0.72f)
+            ColorUtils.blendColors(baseColor, Color.BLACK, 0.84f)
         } else {
-            ColorUtils.blendColors(baseColor, Color.BLACK, 0.24f)
+            ColorUtils.blendColors(baseColor, Color.BLACK, 0.44f)
         }
     }
 
     private fun topBarGlassTintAlpha(glassLevel: Float): Float {
-        return 0.12f + glassLevel * 0.18f
+        return 0.28f + glassLevel * 0.18f
     }
 
     private fun topBarGlassTintColor(): FloatArray {
-        return if (topBarUseDarkGlass()) {
-            floatArrayOf(0.08f, 0.10f, 0.14f)
-        } else {
-            floatArrayOf(0.70f, 0.79f, 0.86f)
-        }
+        return floatArrayOf(0.02f, 0.028f, 0.04f)
     }
 
     private fun topBarUseDarkGlass(): Boolean {

@@ -1626,12 +1626,12 @@ class ReadMenuLayoutTest {
     }
 
     @Test
-    fun readerGlassChromeMatchesBookshelfBottomGlassRecipe() {
+    fun readerGlassChromeKeepsBackdropVisibleForRealBlur() {
         val readMenu = repoFile("app/src/main/java/io/wanjuan/app/ui/book/read/ReadMenu.kt").readText()
         val mangaMenu = repoFile("app/src/main/java/io/wanjuan/app/ui/book/read/MangaMenu.kt").readText()
         val minimapButtons = repoFile("app/src/main/java/io/wanjuan/app/ui/book/read/ReaderBottomGlassStyle.kt").readText()
 
-        listOf(readMenu, mangaMenu, minimapButtons).forEach(::assertBookshelfBottomGlassRecipe)
+        listOf(readMenu, mangaMenu, minimapButtons).forEach(::assertDarkReaderGlassRecipe)
     }
 
     @Test
@@ -1816,15 +1816,15 @@ class ReadMenuLayoutTest {
     }
 
     @Test
-    fun darkBottomTabGlassUsesBookshelfSurfaceBlendAndTint() {
+    fun readerGlassUsesDarkTintWithoutHidingBlur() {
         val readMenu = repoFile("app/src/main/java/io/wanjuan/app/ui/book/read/ReadMenu.kt").readText()
 
         assertTrue(readMenu.contains("private fun bottomTabGlassSurfaceColor(): Int"))
-        assertTrue(readMenu.contains("ColorUtils.blendColors(baseColor, Color.WHITE, 0.72f)"))
-        assertTrue(readMenu.contains("ColorUtils.blendColors(baseColor, Color.BLACK, 0.24f)"))
+        assertTrue(readMenu.contains("ColorUtils.blendColors(baseColor, Color.BLACK, 0.84f)"))
+        assertTrue(readMenu.contains("ColorUtils.blendColors(baseColor, Color.BLACK, 0.44f)"))
         assertTrue(readMenu.contains("private fun bottomTabGlassTintColor(): FloatArray"))
-        assertTrue(readMenu.contains("floatArrayOf(0.08f, 0.10f, 0.14f)"))
-        assertTrue(readMenu.contains("0.12f + glassLevel * 0.18f"))
+        assertTrue(readMenu.contains("floatArrayOf(0.02f, 0.028f, 0.04f)"))
+        assertTrue(readMenu.contains("0.28f + glassLevel * 0.18f"))
     }
 
     @Test
@@ -1835,7 +1835,7 @@ class ReadMenuLayoutTest {
         val eInkShell = readMenu.substringAfter("if (AppConfig.isEInkMode)")
             .substringBefore("return@run")
 
-        assertTrue(glassShell.contains("val strokeAlpha = (0.22f + glassLevel * 0.22f).coerceIn(0f, 0.58f)"))
+        assertTrue(glassShell.contains("val strokeAlpha = (0.28f + glassLevel * 0.16f).coerceIn(0f, 0.48f)"))
         assertTrue(glassShell.contains("setStroke(1.dpToPx(), ColorUtils.withAlpha(surfaceColor, strokeAlpha))"))
         assertFalse(eInkShell.contains("1.dpToPx()"))
     }
@@ -2445,7 +2445,7 @@ class ReadMenuLayoutTest {
         assertTrue(readMenu.contains("return readBottomTabGlassFallbackShell(glassLevel, cornerRadius)"))
         assertTrue(readMenu.contains("refractionHeight = (12f + glassLevel * 10f).dpToPx()"))
         assertTrue(readMenu.contains("refractionOffset = (36f + glassLevel * 18f).dpToPx()"))
-        assertTrue(readMenu.contains("blurRadius = (6f + glassLevel * 12f).dpToPx()"))
+        assertTrue(readMenu.contains("blurRadius = (3f + glassLevel * 5f).dpToPx()"))
         assertTrue(readMenu.contains("tintAlpha = bottomTabGlassTintAlpha(glassLevel)"))
         assertFalse(
             Regex("""private fun bottomTabGlassShell\(glassLevel: Float\): GradientDrawable \{\s*return layoutAdjustGlassShell""")
@@ -2750,18 +2750,20 @@ class ReadMenuLayoutTest {
     private fun Element.appAttr(name: String): String =
         getAttributeNS(APP_NAMESPACE, name)
 
-    private fun assertBookshelfBottomGlassRecipe(source: String) {
+    private fun assertDarkReaderGlassRecipe(source: String) {
         listOf(
-            "0.32f + glassLevel * 0.44f",
-            "0.24f + glassLevel * 0.38f",
-            "0.18f + glassLevel * 0.32f",
-            "0.22f + glassLevel * 0.22f",
-            "0.12f + glassLevel * 0.18f",
-            "Color.WHITE, 0.72f",
-            "Color.BLACK, 0.24f",
+            "0.24f + glassLevel * 0.18f",
+            "0.20f + glassLevel * 0.16f",
+            "0.17f + glassLevel * 0.13f",
+            "0.28f + glassLevel * 0.16f",
+            "0.14f + glassLevel * 0.10f",
+            "0.28f + glassLevel * 0.18f",
+            "3f + glassLevel * 5f",
+            "Color.BLACK, 0.84f",
+            "Color.BLACK, 0.44f",
             "setStroke(1.dpToPx()"
         ).forEach { expected ->
-            assertTrue("Missing bookshelf glass recipe value: $expected", source.contains(expected))
+            assertTrue("Missing dark reader glass recipe value: $expected", source.contains(expected))
         }
         listOf(
             "0.34f + glassLevel * 0.12f",
@@ -2771,7 +2773,6 @@ class ReadMenuLayoutTest {
             "0.20f + glassLevel * 0.08f",
             "0.07f + glassLevel * 0.05f",
             "0.36f + glassLevel * 0.10f",
-            "0.14f + glassLevel * 0.10f",
             "(0.12f + glassLevel * 0.14f).coerceAtMost(0.26f)",
             "(0.06f + glassLevel * 0.10f).coerceAtMost(0.16f)",
             "0.42f + glassLevel * 0.14f",
@@ -2780,15 +2781,12 @@ class ReadMenuLayoutTest {
             "0.26f + glassLevel * 0.11f",
             "0.10f + glassLevel * 0.07f",
             "0.46f + glassLevel * 0.14f",
-            "0.20f + glassLevel * 0.14f",
             "(0.16f + glassLevel * 0.18f).coerceAtMost(0.34f)",
             "(0.08f + glassLevel * 0.14f).coerceAtMost(0.22f)",
             "0.52f + glassLevel * 0.18f",
-            "0.28f + glassLevel * 0.16f",
             "0.44f + glassLevel * 0.16f",
             "0.20f + glassLevel * 0.12f",
             "0.34f + glassLevel * 0.14f",
-            "0.14f + glassLevel * 0.10f",
             "0.58f + glassLevel * 0.16f",
             "0.26f + glassLevel * 0.18f",
             "(0.22f + glassLevel * 0.22f).coerceAtMost(0.44f)",
