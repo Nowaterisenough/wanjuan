@@ -133,6 +133,172 @@ class MangaSourceRuleTest {
         )
     }
 
+    @Test
+    fun hComicKeepsStableIdentityWhileUsingCurrentDomainRoutes() {
+        val source = source("H-Comic")
+        assertEquals("https://www.h-comic.site", source.bookSourceUrl)
+        assertTrue(source.searchUrl.orEmpty().startsWith("https://www.ikanhm.top/"))
+        assertTrue(
+            source.exploreUrl.orEmpty().lineSequence()
+                .filter { it.isNotBlank() }
+                .all { it.substringAfter("::").startsWith("https://www.ikanhm.top/") }
+        )
+        assertDirectSource(source, "qyyuapi.com/sy/js/爱看漫画")
+        val html = """
+            <ul class="manga-list-2">
+              <li>
+                <div class="manga-list-2-cover">
+                  <a href="/book/77"><img class="manga-list-2-cover-img" data-original="//cdn.example/77.jpg"></a>
+                </div>
+                <p class="manga-list-2-title"><a href="/book/77">测试 H 漫</a></p>
+                <p class="manga-list-2-tip">发现简介</p>
+              </li>
+            </ul>
+        """.trimIndent()
+
+        val books = parseBookList(source, source.getExploreRule(), html, H_COMIC_LIST_URL)
+
+        assertEquals(
+            listOf(
+                ParsedBook(
+                    name = "测试 H 漫",
+                    bookUrl = "https://www.ikanhm.top/book/77",
+                    coverUrl = "https://cdn.example/77.jpg",
+                    intro = "发现简介"
+                )
+            ),
+            books
+        )
+    }
+
+    @Test
+    fun hComicParsesCurrentSearchMarkup() {
+        val source = source("H-Comic")
+        assertDirectSource(source, "qyyuapi.com/sy/js/爱看漫画")
+        val html = """
+            <ul class="book-list">
+              <li>
+                <div class="book-list-cover">
+                  <a href="/book/88"><img class="book-list-cover-img" data-original="/covers/88.jpg"></a>
+                </div>
+                <div class="book-list-info">
+                  <p class="book-list-info-title">搜索结果</p>
+                  <p class="book-list-info-desc">搜索简介</p>
+                  <p class="book-list-info-bottom">
+                    <span class="book-list-info-bottom-item">作者：作者乙</span>
+                    <span class="book-list-info-bottom-right-font">已完结</span>
+                  </p>
+                </div>
+              </li>
+            </ul>
+        """.trimIndent()
+
+        val books = parseBookList(source, source.getSearchRule(), html, H_COMIC_SEARCH_URL)
+
+        assertEquals(
+            listOf(
+                ParsedBook(
+                    name = "搜索结果",
+                    author = "作者乙",
+                    bookUrl = "https://www.ikanhm.top/book/88",
+                    coverUrl = "https://www.ikanhm.top/covers/88.jpg",
+                    intro = "搜索简介",
+                    kind = "已完结"
+                )
+            ),
+            books
+        )
+    }
+
+    @Test
+    fun hComicParsesCurrentDetailAndTocMarkup() {
+        val source = source("H-Comic")
+        assertDirectSource(source, "qyyuapi.com/sy/js/爱看漫画")
+        val html = """
+            <div class="detail-main-cover"><img data-original="/covers/99.jpg"></div>
+            <p class="detail-main-info-title">详情漫画</p>
+            <p class="detail-main-info-author">图文：作者丙</p>
+            <div class="detail-main-info-class"><a>都市</a><a>韩国</a></div>
+            <p class="detail-desc">详情简介</p>
+            <ul class="detail-list-1">
+              <li><a href="/chapter/501">第1话</a></li>
+              <li><a href="/chapter/502">第2话</a></li>
+            </ul>
+        """.trimIndent()
+        val infoRule = source.getBookInfoRule()
+        val info = AnalyzeByJSoup(html)
+        val tocRule = source.getTocRule()
+        val chapters = AnalyzeByJSoup(html)
+            .getElements(tocRule.chapterList.orEmpty())
+            .map { element ->
+                val item = AnalyzeByJSoup(element)
+                item.readString(tocRule.chapterName) to absoluteUrl(
+                    H_COMIC_DETAIL_URL,
+                    item.readString(tocRule.chapterUrl)
+                )
+            }
+
+        assertEquals("详情漫画", info.readString(infoRule.name))
+        assertEquals("作者丙", info.readString(infoRule.author))
+        assertEquals(
+            "https://www.ikanhm.top/covers/99.jpg",
+            absoluteUrl(H_COMIC_DETAIL_URL, info.readString(infoRule.coverUrl))
+        )
+        assertEquals("详情简介", info.readString(infoRule.intro))
+        assertEquals("都市\n韩国", info.readString(infoRule.kind))
+        assertEquals(
+            listOf(
+                "第1话" to "https://www.ikanhm.top/chapter/501",
+                "第2话" to "https://www.ikanhm.top/chapter/502"
+            ),
+            chapters
+        )
+    }
+
+    @Test
+    fun hComicExtractsOnlyMangaImages() {
+        val source = source("H-Comic")
+        assertDirectSource(source, "qyyuapi.com/sy/js/爱看漫画")
+        val html = """
+            <img class="lazy" data-original="/static/images/logo.png">
+            <img class="lazy" data-original="//cdn.example/pages/1.jpg">
+            <img class="lazy" data-original="" data-fallback="/pages/2.jpg">
+            <img class="lazy" src="loading.gif">
+            <img class="lazy" data-original="//cdn.example/pages/1.jpg">
+        """.trimIndent()
+
+        val urls = evaluateContentUrls(source, html, H_COMIC_CHAPTER_URL)
+
+        assertEquals(
+            listOf(
+                "https://cdn.example/pages/1.jpg",
+                "https://www.ikanhm.top/pages/2.jpg"
+            ),
+            urls
+        )
+    }
+
+    @Test
+    fun hComicKeepsMangaImagesHostedUnderStaticUploadPath() {
+        val source = source("H-Comic")
+        val html = """
+            <div class="view-main-1 readForm" id="cp_img">
+              <img class="lazy" data-original="https://www.jjmhw6.top/static/upload/book/44/747/15989.jpg">
+              <img class="lazy" data-original="https://www.jjmhw6.top/static/upload/book/44/747/15996.jpg">
+            </div>
+        """.trimIndent()
+
+        val urls = evaluateContentUrls(source, html, H_COMIC_CHAPTER_URL)
+
+        assertEquals(
+            listOf(
+                "https://www.jjmhw6.top/static/upload/book/44/747/15989.jpg",
+                "https://www.jjmhw6.top/static/upload/book/44/747/15996.jpg"
+            ),
+            urls
+        )
+    }
+
     private fun parseBookList(
         source: BookSource,
         rule: BookListRule,
@@ -233,5 +399,9 @@ class MangaSourceRuleTest {
         const val KOREAN_LIST_URL = "https://www.hanguomanhua.me/book/1435_1.html"
         const val KOREAN_DETAIL_URL = "https://www.hanguomanhua.me/list/42.html"
         const val KOREAN_CHAPTER_URL = "https://www.hanguomanhua.me/view/101.html"
+        const val H_COMIC_LIST_URL = "https://www.ikanhm.top/booklist?page=1"
+        const val H_COMIC_SEARCH_URL = "https://www.ikanhm.top/search?keyword=test"
+        const val H_COMIC_DETAIL_URL = "https://www.ikanhm.top/book/99"
+        const val H_COMIC_CHAPTER_URL = "https://www.ikanhm.top/chapter/501"
     }
 }
