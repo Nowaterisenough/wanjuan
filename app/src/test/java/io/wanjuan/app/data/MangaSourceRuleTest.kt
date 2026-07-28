@@ -17,6 +17,32 @@ import java.net.URL
 class MangaSourceRuleTest {
 
     @Test
+    fun firstHanmanUpgradeReplacesLegacySourceWhileRequestingCurrentDomain() {
+        val source = source("第一韩漫")
+        val sourcesByPrimaryKey = linkedMapOf(
+            "https://hm8.me" to BookSource(
+                bookSourceUrl = "https://hm8.me",
+                bookSourceName = "第一韩漫"
+            )
+        )
+
+        sourcesByPrimaryKey[source.bookSourceUrl] = source
+
+        assertEquals(
+            "Importing the repaired source should replace the legacy record instead of creating a duplicate",
+            1,
+            sourcesByPrimaryKey.size
+        )
+        assertEquals("https://www.dymh.top/search/{{key}}", source.searchUrl)
+        assertTrue(
+            source.exploreUrl.orEmpty().lineSequence()
+                .filter { it.isNotBlank() }
+                .all { it.substringAfter("::").startsWith("https://www.dymh.top/") }
+        )
+        assertDirectSource(source, "qyyuapi.com/sy/js/第一韩漫")
+    }
+
+    @Test
     fun koreanOfficialSourceUsesReachableGetSearchRoute() {
         val source = source("韩国漫画官方")
 

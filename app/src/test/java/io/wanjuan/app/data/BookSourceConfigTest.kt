@@ -26,17 +26,16 @@ class BookSourceConfigTest {
         val searchUrl = fieldValue(source, "searchUrl")
 
         assertTrue("第一韩漫 source should exist", source.isNotBlank())
-        assertTrue("第一韩漫 should use the currently reachable direct domain", source.contains(""""bookSourceUrl": "https://www.dymh.top""""))
+        assertTrue("第一韩漫 should keep the legacy primary key so imports replace the old source", source.contains(""""bookSourceUrl": "https://hm8.me""""))
         assertTrue("第一韩漫 discover should stay enabled", source.contains(""""enabledExplore": true"""))
-        assertTrue("第一韩漫 discover should expose the reachable latest route", exploreUrl.contains("最近更新::/latest"))
+        assertTrue("第一韩漫 discover should expose the reachable latest route", exploreUrl.contains("最近更新::https://www.dymh.top/latest"))
         assertFalse("第一韩漫 should not request the site's fake 404 pagination", exploreUrl.contains("/latest/{{page}}"))
-        assertTrue("第一韩漫 discover should expose rankings", exploreUrl.contains("排行榜::/rank"))
-        assertTrue("第一韩漫 discover should expose Korean comics", exploreUrl.contains("韩漫::/zone/2.html"))
+        assertTrue("第一韩漫 discover should expose rankings", exploreUrl.contains("排行榜::https://www.dymh.top/rank"))
+        assertTrue("第一韩漫 discover should expose Korean comics", exploreUrl.contains("韩漫::https://www.dymh.top/zone/2.html"))
         assertTrue("第一韩漫 explore parser should read the current list-card markup", bookListRule.contains(".UpdateList .itemBox"))
         assertTrue("第一韩漫 explore parser should read homepage recommendation cards", bookListRule.contains(".imgBox li"))
-        assertTrue("第一韩漫 search should use the working path route", searchUrl.contains("/search/{{key}}"))
+        assertTrue("第一韩漫 search should use the absolute working route", searchUrl.contains("https://www.dymh.top/search/{{key}}"))
         assertFalse("第一韩漫 should not depend on remote qyyuapi rule scripts", source.contains("qyyuapi.com/sy/js/第一韩漫"))
-        assertFalse("第一韩漫 should not keep the stale hm8 source domain", source.contains("https://hm8.me"))
         assertFalse("第一韩漫 should not expose stale source-switch actions", source.contains("update()"))
     }
 
