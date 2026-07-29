@@ -213,7 +213,8 @@ class ReadBookActivity : BaseReadBookActivity(),
                 viewModel.searchResultIndex = index
                 binding.searchMenu.updateSearchResultIndex(index)
                 binding.searchMenu.selectedSearchResult?.let { currentResult ->
-                    ReadBook.saveCurrentBookProgress() //閫€鍑哄叏鏂囨悳绱㈡仮澶嶆鏃惰繘搴?
+                    confirmRestoreSearchProgress = null
+                    ReadBook.saveSearchOriginProgress()
                     skipToSearch(currentResult)
                     showActionMenu()
                 }
@@ -280,8 +281,8 @@ class ReadBookActivity : BaseReadBookActivity(),
     private val boundChapterMinimapGlassViewIds = hashSetOf<Int>()
     private var pendingChapterProgressMinimapLayoutSync = false
 
-    //鎭㈠璺宠浆鍓嶈繘搴﹀璇濇鐨勪氦浜掔粨鏋?
-    private var confirmRestoreProcess: Boolean? = null
+    // 恢复全文搜索前进度对话框的交互结果
+    private var confirmRestoreSearchProgress: Boolean? = null
     private val networkChangedListener by lazy {
         NetworkChangedListener(this)
     }
@@ -307,12 +308,12 @@ class ReadBookActivity : BaseReadBookActivity(),
             }
             if (isShowingSearchResult) {
                 exitSearchMenu()
-                restoreLastBookProcess()
+                restoreSearchOriginProgress()
                 return@addCallback
             }
-            //鎷︽埅杩斿洖渚涙仮澶嶉槄璇昏繘搴?
-            if (ReadBook.lastBookProgress != null && confirmRestoreProcess != false) {
-                restoreLastBookProcess()
+            // 拦截返回以恢复打开全文搜索结果前的阅读进度
+            if (ReadBook.searchOriginProgress != null && confirmRestoreSearchProgress != false) {
+                restoreSearchOriginProgress()
                 return@addCallback
             }
             if (BaseReadAloudService.isPlay()) {
@@ -1601,7 +1602,8 @@ class ReadBookActivity : BaseReadBookActivity(),
         binding.searchMenu.upSearchResultList(results)
         binding.searchMenu.updateSearchResultIndex(index)
         isShowingSearchResult = true
-        ReadBook.saveCurrentBookProgress()
+        confirmRestoreSearchProgress = null
+        ReadBook.saveSearchOriginProgress()
         binding.readMenu.runMenuOut {
             skipToSearch(searchResult)
             showActionMenu()
@@ -1646,7 +1648,7 @@ class ReadBookActivity : BaseReadBookActivity(),
         upNavigationBarColor()
     }
 
-    // 閫€鍑哄叏鏂囨悳绱?
+    // 退出全文搜索
     override fun exitSearchMenu() {
         if (isShowingSearchResult) {
             isShowingSearchResult = false
@@ -1657,24 +1659,24 @@ class ReadBookActivity : BaseReadBookActivity(),
         }
     }
 
-    /* 鎭㈠鍒?鍏ㄦ枃鎼滅储/杩涘害鏉¤烦杞墠鐨勪綅缃?*/
-    private fun restoreLastBookProcess() {
-        if (confirmRestoreProcess == true) {
-            ReadBook.restoreLastBookProgress()
-        } else if (confirmRestoreProcess == null) {
+    // 恢复到打开全文搜索结果前的位置
+    private fun restoreSearchOriginProgress() {
+        if (confirmRestoreSearchProgress == true) {
+            ReadBook.restoreSearchOriginProgress()
+        } else if (confirmRestoreSearchProgress == null) {
             alert(R.string.draw) {
                 setMessage(R.string.restore_last_book_process)
                 yesButton {
-                    confirmRestoreProcess = true
-                    ReadBook.restoreLastBookProgress() //鎭㈠鍚姩鍏ㄦ枃鎼滅储鍓嶇殑杩涘害
+                    confirmRestoreSearchProgress = true
+                    ReadBook.restoreSearchOriginProgress()
                 }
                 noButton {
-                    ReadBook.lastBookProgress = null
-                    confirmRestoreProcess = false
+                    ReadBook.searchOriginProgress = null
+                    confirmRestoreSearchProgress = false
                 }
                 onCancelled {
-                    ReadBook.lastBookProgress = null
-                    confirmRestoreProcess = false
+                    ReadBook.searchOriginProgress = null
+                    confirmRestoreSearchProgress = false
                 }
             }
         }
@@ -2076,9 +2078,8 @@ class ReadBookActivity : BaseReadBookActivity(),
         }
     }
 
-    /* 杩涘害鏉¤烦杞埌鎸囧畾绔犺妭 */
+    // 从目录跳转到指定章节
     override fun skipToChapter(index: Int) {
-        ReadBook.saveCurrentBookProgress() //閫€鍑虹珷鑺傝烦杞仮澶嶆鏃惰繘搴?
         viewModel.openChapter(index)
     }
 

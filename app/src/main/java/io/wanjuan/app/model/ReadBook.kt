@@ -90,8 +90,8 @@ object ReadBook : CoroutineScope by MainScope() {
     private val nextChapterLoadingLock = Mutex()
     var readStartTime: Long = System.currentTimeMillis()
 
-    /* 跳转进度前进度记录 */
-    var lastBookProgress: BookProgress? = null
+    /* 全文搜索结果跳转前的进度记录 */
+    var searchOriginProgress: BookProgress? = null
 
     /* web端阅读进度记录 */
     var webBookProgress: BookProgress? = null
@@ -143,7 +143,7 @@ object ReadBook : CoroutineScope by MainScope() {
         callBack?.upMenuView()
         callBack?.upPageAnim()
         upWebBook(book)
-        lastBookProgress = null
+        searchOriginProgress = null
         webBookProgress = null
         TextFile.clear()
         synchronized(this) {
@@ -238,17 +238,17 @@ object ReadBook : CoroutineScope by MainScope() {
         }
     }
 
-    //暂时保存跳转前进度
-    fun saveCurrentBookProgress() {
-        if (lastBookProgress != null) return //避免进度条连续跳转不能覆盖最初的进度记录
-        lastBookProgress = book?.let { BookProgress(it) }
+    // 暂时保存打开首个全文搜索结果前的进度
+    fun saveSearchOriginProgress() {
+        if (searchOriginProgress != null) return // 连续查看搜索结果时保留最初的阅读位置
+        searchOriginProgress = book?.let { BookProgress(it) }
     }
 
-    //恢复跳转前进度
-    fun restoreLastBookProgress() {
-        lastBookProgress?.let {
+    // 恢复打开全文搜索结果前的进度
+    fun restoreSearchOriginProgress() {
+        searchOriginProgress?.let {
             setProgress(it)
-            lastBookProgress = null
+            searchOriginProgress = null
         }
     }
 

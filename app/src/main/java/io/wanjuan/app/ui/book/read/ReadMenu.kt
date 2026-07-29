@@ -1014,7 +1014,6 @@ class ReadMenu @JvmOverloads constructor(
 
     private fun openBookmark(bookmark: Bookmark) {
         runMenuOut {
-            ReadBook.saveCurrentBookProgress()
             ReadBook.openChapter(bookmark.chapterIndex, bookmark.chapterPos)
         }
     }
