@@ -49,7 +49,7 @@ jobs:
           disable-animations: true
           script: |
             chmod +x gradlew
-            ./gradlew :app:connectedAppDebugAndroidTest "-Pandroid.testInstrumentationRunnerArguments.class=io.wanjuan.app.BookSourceSampleInstrumentedTest" --no-daemon --stacktrace --warning-mode all
+            ./gradlew :app:connectedAppDebugAndroidTest "-Pandroid.testInstrumentationRunnerArguments.class=io.wanjuan.app.TestBookSourceSampleInstrumented" --no-daemon --stacktrace --warning-mode all
 
   build:
     name: Build

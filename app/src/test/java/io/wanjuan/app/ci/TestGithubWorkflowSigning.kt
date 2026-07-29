@@ -1,0 +1,139 @@
+package io.wanjuan.app.ci
+
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import java.io.File
+
+class TestGithubWorkflowSigning {
+
+    @Test
+    fun releaseWorkflowFallsBackToStableCiSigningKey() {
+        val workflow = repoFile(".github/workflows/release.yml").readText()
+        val fallback = workflow
+            .substringAfter("Release signing secrets are not configured")
+            .substringBefore("fi")
+
+        assertStableCiSigningFallback(fallback)
+    }
+
+    @Test
+    fun testWorkflowUsesStableCiSigningKeyForInstallableArtifacts() {
+        val workflow = repoFile(".github/workflows/test.yml").readText()
+
+        assertStableCiSigningFallback(workflow)
+    }
+
+    @Test
+    fun ciSigningKeystoreIsCommittedForFallbackSigning() {
+        val keystore = repoFile("app/ci-release.keystore")
+
+        assertTrue(keystore.isFile)
+        assertFalse(gitIgnores("app/ci-release.keystore"))
+    }
+
+    @Test
+    fun bookSourceSampleTestsAreNonBlocking() {
+        listOf(
+            ".github/workflows/test.yml",
+            ".github/workflows/release.yml"
+        ).forEach { workflowPath ->
+            val workflow = repoFile(workflowPath).readText()
+            val bookSourceStep = workflow
+                .substringAfter("- name: Run book source sample tests")
+                .substringBefore("script: |")
+
+            assertTrue(
+                "$workflowPath should keep book source sample test failures visible but non-blocking",
+                bookSourceStep.contains("continue-on-error: true")
+            )
+        }
+    }
+
+    @Test
+    fun releaseWorkflowWritesGeneratedChangelogIntoBundledUpdateLogBeforeBuild() {
+        val workflow = repoFile(".github/workflows/release.yml").readText()
+        val buildJob = workflow.substringAfter("  build:")
+            .substringBefore("  publish:")
+        val publishJob = workflow.substringAfter("  publish:")
+
+        assertTrue(buildJob.contains("echo \"## Wanjuan \${VERSION}\" > release_notes.md"))
+        assertTrue(buildJob.contains("python3 .github/scripts/generate_changelog.py >> release_notes.md"))
+        assertTrue(buildJob.contains("cp release_notes.md app/src/main/assets/updateLog.md"))
+        assertTrue(buildJob.indexOf("cp release_notes.md app/src/main/assets/updateLog.md") <
+                buildJob.indexOf("- name: Build release APK"))
+        assertTrue(buildJob.contains("name: wanjuan.release-notes"))
+        assertTrue(publishJob.contains("name: wanjuan.release-notes"))
+        assertTrue(publishJob.contains("path: ."))
+        assertTrue(publishJob.contains("body_path: release_notes.md"))
+        assertFalse(publishJob.contains("python3 .github/scripts/generate_changelog.py >> release_notes.md"))
+    }
+
+    @Test
+    fun releasePublishJobCanCreateGitHubRelease() {
+        val workflow = repoFile(".github/workflows/release.yml").readText()
+        val publishJob = workflow.substringAfter("  publish:")
+        val permissions = publishJob.substringAfter("    permissions:")
+            .substringBefore("    env:")
+
+        assertTrue(publishJob.contains("    permissions:"))
+        assertTrue(permissions.contains("      actions: read"))
+        assertTrue(permissions.contains("      contents: write"))
+    }
+
+    @Test
+    fun ciWorkflowsUseCurrentMajorVersionForGeneratedVersions() {
+        listOf(
+            ".github/workflows/test.yml",
+            ".github/workflows/release.yml"
+        ).forEach { workflowPath ->
+            val workflow = repoFile(workflowPath).readText()
+
+            assertTrue(workflow.contains("  APP_MAJOR_VERSION: 4"))
+            assertTrue(workflow.contains("+${'$'}{APP_MAJOR_VERSION}.%y.%m%d%H%M"))
+            assertFalse(workflow.contains("+3.%y.%m%d%H%M"))
+        }
+    }
+
+    @Test
+    fun ciWorkflowsPassMonotonicVersionCodeToReleaseBuilds() {
+        listOf(
+            ".github/workflows/test.yml",
+            ".github/workflows/release.yml"
+        ).forEach { workflowPath ->
+            val workflow = repoFile(workflowPath).readText()
+            val setVersionStep = workflow.substringAfter("- name: Set version")
+                .substringBefore("- name: Set up JDK 21")
+            val buildStep = workflow.substringAfter("- name: Build release APK")
+                .substringBefore("- name: Organize build outputs")
+
+            assertTrue(setVersionStep.contains("VERSION_CODE=\"\$((\$(date -u +%s) / 60))\""))
+            assertTrue(setVersionStep.contains("echo \"VERSION_CODE=\${VERSION_CODE}\" >> \"\$GITHUB_ENV\""))
+            assertTrue(buildStep.contains("-PVERSION_CODE=\"\${VERSION_CODE}\""))
+        }
+    }
+
+    private fun assertStableCiSigningFallback(script: String) {
+        assertTrue(script.contains("RELEASE_STORE_FILE=./ci-release.keystore"))
+        assertTrue(script.contains("RELEASE_KEY_ALIAS=wanjuan-ci-release"))
+        assertTrue(script.contains("RELEASE_STORE_PASSWORD=wanjuan-ci-release"))
+        assertTrue(script.contains("RELEASE_KEY_PASSWORD=wanjuan-ci-release"))
+        assertFalse(script.contains("keytool -genkeypair"))
+        assertFalse(script.contains("ci-debug.keystore"))
+        assertFalse(script.contains("RELEASE_STORE_FILE=./wanjuan.jks"))
+    }
+
+    private fun repoFile(path: String): File {
+        return generateSequence(File("").absoluteFile) { it.parentFile }
+            .map { File(it, path) }
+            .firstOrNull { it.exists() }
+            ?: error("$path not found")
+    }
+
+    private fun gitIgnores(path: String): Boolean {
+        val process = ProcessBuilder("git", "check-ignore", "-q", path)
+            .redirectErrorStream(true)
+            .start()
+        return process.waitFor() == 0
+    }
+}
