@@ -335,6 +335,8 @@ class ReadMenu @JvmOverloads constructor(
             BackgroundSample(binding.backgroundCardNight, "宁静夜色.jpg"),
             BackgroundSample(binding.backgroundCardGreen, "护眼漫绿.jpg"),
             BackgroundSample(binding.backgroundCardInk, "山水墨影.jpg"),
+            BackgroundSample(backgroundCardAfter(binding.backgroundCardInk.root, 1), "素白宣纸.jpg"),
+            BackgroundSample(backgroundCardAfter(binding.backgroundCardInk.root, 2), "暖黄宣纸.png"),
             BackgroundSample(binding.backgroundCardParchment, "羊皮纸4.jpg"),
             BackgroundSample(binding.backgroundCardNewParchment, "新羊皮纸.jpg"),
             BackgroundSample(binding.backgroundCardParchment1, "羊皮纸1.jpg"),
@@ -347,6 +349,14 @@ class ReadMenu @JvmOverloads constructor(
             BackgroundSample(binding.backgroundCardBright, "明媚倾城.jpg")
         )
     }
+
+    private fun backgroundCardAfter(anchor: View, offset: Int): ViewReadBackgroundCardBinding {
+        val anchorIndex = binding.llBackgroundImageRow.indexOfChild(anchor)
+        return ViewReadBackgroundCardBinding.bind(
+            binding.llBackgroundImageRow.getChildAt(anchorIndex + offset)
+        )
+    }
+
     private val backgroundColorCardBinding by lazy {
         ViewReadBackgroundCardBinding.bind(
             binding.llBackgroundImageRow.getChildAt(0)

@@ -3158,6 +3158,20 @@
                             android:layout_marginEnd="8dp" />
 
                         <include
+                            android:tag="background_card_white_paper"
+                            layout="@layout/view_read_background_card"
+                            android:layout_width="96dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginEnd="8dp" />
+
+                        <include
+                            android:tag="background_card_warm_paper"
+                            layout="@layout/view_read_background_card"
+                            android:layout_width="96dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginEnd="8dp" />
+
+                        <include
                             android:id="@+id/background_card_parchment"
                             layout="@layout/view_read_background_card"
                             android:layout_width="96dp"

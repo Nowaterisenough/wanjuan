@@ -1279,6 +1279,8 @@ class ReadMenuLayoutTest {
             "background_card_landscape",
             "background_card_bright"
         ).map { id -> layout.elementById(id) }
+            .plus(layout.elementByTag("background_card_white_paper"))
+            .plus(layout.elementByTag("background_card_warm_paper"))
             .plus(colorCard)
 
         backgroundCards.forEach { card ->
@@ -1290,6 +1292,8 @@ class ReadMenuLayoutTest {
         assertTrue(layout.elementById("seek_background_saturation").hasAncestor(backgroundPanel))
         assertTrue(layout.elementById("seek_background_alpha").hasAncestor(backgroundPanel))
         assertTrue(readMenu.contains("午后沙滩.jpg"))
+        assertTrue(readMenu.contains("素白宣纸.jpg"))
+        assertTrue(readMenu.contains("暖黄宣纸.png"))
         assertTrue(readMenu.contains("羊皮纸4.jpg"))
         assertTrue(readMenu.contains("ReadBookConfig.bgAlpha"))
         assertTrue(readMenu.contains("bindBackgroundColorCard("))

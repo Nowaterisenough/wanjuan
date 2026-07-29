@@ -1,20 +1,24 @@
 package io.wanjuan.app.help.config
 
-import org.junit.Assert.assertTrue
+import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.io.File
 
 class BuiltInReaderBackgroundAssetsTest {
 
     @Test
-    fun paperTextureBackgroundsAreBundledWithDisplayNames() {
+    fun everyBundledBackgroundIsExposedInReaderSelector() {
         val backgroundNames = repoFile("app/src/main/assets/bg")
             .list()
             ?.toSet()
             .orEmpty()
+        val selectableBackgroundNames = Regex(
+            """BackgroundSample\(.*,\s*"([^"]+)"\)"""
+        ).findAll(
+            repoFile("app/src/main/java/io/wanjuan/app/ui/book/read/ReadMenu.kt").readText()
+        ).map { it.groupValues[1] }.toSet()
 
-        assertTrue("素白宣纸.jpg should be a bundled background", "素白宣纸.jpg" in backgroundNames)
-        assertTrue("暖黄宣纸.png should be a bundled background", "暖黄宣纸.png" in backgroundNames)
+        assertEquals(backgroundNames, selectableBackgroundNames)
     }
 
     private fun repoFile(path: String): File {
