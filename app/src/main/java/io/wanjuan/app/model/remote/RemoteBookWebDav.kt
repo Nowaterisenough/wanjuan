@@ -42,7 +42,7 @@ class RemoteBookWebDav(
                 || bookFileRegex.matches(webDavFile.displayName)
                 || archiveFileRegex.matches(webDavFile.displayName)
             ) {
-                //扩展名符合阅读的格式则认为是书籍
+                //扩展名符合万卷的格式则认为是书籍
                 remoteBooks.add(RemoteBook(webDavFile))
             }
         }

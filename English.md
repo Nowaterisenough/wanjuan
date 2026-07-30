@@ -7,7 +7,7 @@
 <div align="center">
 <img width="125" height="125" src="https://github.com/gedoor/wanjuan/raw/master/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png" alt="wanjuan"/>
 
-Wanjuan / 开源阅读
+Wanjuan / 万卷
 <br>
 <a href="https://gedoor.github.io" target="_blank">gedoor.github.io</a> / <a href="https://www.wanjuan.top/" target="_blank">wanjuan.top</a>
 <br>

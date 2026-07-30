@@ -1255,7 +1255,7 @@
     <string name="scope_title">Act on the title</string>
     <string name="scope_content">Act on the content</string>
     <string name="join_qq_channel">Join QQ channel</string>
-    <string name="qq_channel_summary">点击加入阅读QQ频道</string>
+    <string name="qq_channel_summary">点击加入万卷QQ频道</string>
     <string name="menu_refresh_dur">Refresh the current chapter</string>
     <string name="menu_refresh_after">Refresh the chapter after</string>
     <string name="menu_refresh_all">Refresh all chapters</string>
@@ -1270,7 +1270,7 @@
     <string name="welcome_style">Launch interface style</string>
     <string name="welcome_style_summary">Startup screen image and whether to display text, etc.</string>
     <string name="show_welcome_text">Display text</string>
-    <string name="welcome_text">阅读|享受美好时光</string>
+    <string name="welcome_text">万卷|享受美好时光</string>
     <string name="custom_welcome">Customize the welcome page</string>
     <string name="custom_welcome_summary">Whether to use a customized welcome page</string>
     <string name="show_icon">Show icon</string>
@@ -1472,7 +1472,7 @@
     <string name="font_weight_text">N/B/L</string>
     <string name="keep_swipe_tip">Keep swiping to load the next chapter…</string>
     <string name="enable_optimize_render">启用绘制优化</string>
-    <string name="ignore_battery_permission_rationale">阅读需要请求后台权限以保持服务正常运行</string>
+    <string name="ignore_battery_permission_rationale">万卷需要请求后台权限以保持服务正常运行</string>
     <string name="simulated_reading">Simulated Reading</string>
     <string name="switch_on">Switch</string>
     <string name="start_from">Start from</string>
@@ -1483,7 +1483,7 @@
     <string name="stream_read_aloud_audio_summary">即边下边播，网络不好时播放会断断续续，仅TTS源有效</string>
     <string name="pause_read_aloud_while_phone_calls_title">来电期间暂停朗读</string>
     <string name="pause_read_aloud_while_phone_calls_summary">在通话期间暂停朗读，需要读取手机状态权限</string>
-    <string name="read_aloud_read_phone_state_permission_rationale">阅读需要读取手机状态实现来电期间暂停朗读功能</string>
+    <string name="read_aloud_read_phone_state_permission_rationale">万卷需要读取手机状态实现来电期间暂停朗读功能</string>
     <string name="read_aloud_by_media_button_title">耳机按键启动朗读</string>
     <string name="read_aloud_by_media_button_summary">通过耳机按键来启动朗读</string>
     <string name="group_sources_by_domain">按域名分组显示</string>
@@ -1564,7 +1564,7 @@
     <string name="font_size">字体大小 %d</string>
     <string name="view_code">查看代码</string>
     <string name="show_bookname">显示书名</string>
-    <string name="float_permission_rationale">阅读需要悬浮窗权限来显示播放窗口</string>
+    <string name="float_permission_rationale">万卷需要悬浮窗权限来显示播放窗口</string>
     <string name="video">视频</string>
     <string name="float_window">悬浮窗</string>
     <string name="video_play">视频播放</string>

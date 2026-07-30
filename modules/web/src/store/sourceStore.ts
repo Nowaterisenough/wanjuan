@@ -15,7 +15,7 @@ export const useSourceStore = defineStore('source', {
     return {
       bookSources: shallowRef([] as BookSoure[]), // 临时存放所有书源,
       rssSources: shallowRef([] as RssSource[]), // 临时存放所有订阅源
-      savedSources: [] as Source[], // 批量保存到阅读app成功的源
+      savedSources: [] as Source[], // 批量保存到万卷 App 成功的源
       currentSource: JSON.parse(JSON.stringify(emptySource)) as Source, // 当前编辑的源
       currentTab: localStorage.getItem('tabName') || 'editTab',
       editTabSource: {} as Source, // 生成序列化的json数据

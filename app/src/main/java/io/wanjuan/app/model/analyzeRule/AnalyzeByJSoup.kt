@@ -292,7 +292,7 @@ class AnalyzeByJSoup(doc: Any) {
     }
 
     /**
-     * 1.支持阅读原有写法，':'分隔索引，!或.表示筛选方式，索引可为负数
+     * 1.支持万卷原有写法，':'分隔索引，!或.表示筛选方式，索引可为负数
      * 例如 tag.div.-1:10:2 或 tag.div!0:3
      *
      * 2. 支持与jsonPath类似的[]索引写法
@@ -492,7 +492,7 @@ class AnalyzeByJSoup(doc: Any) {
                         curMinus = false //重置
                     }
                 }
-            } else while (len-- >= 0) { //阅读原本写法，逆向遍历,可以无前置规则
+            } else while (len-- >= 0) { //万卷原本写法，逆向遍历,可以无前置规则
 
                 val rl = rus[len]
                 if (rl == ' ') continue //跳过空格

@@ -1,5 +1,5 @@
 # js变量和函数
-> 阅读使用[Rhino v1.8.1](https://github.com/mozilla/rhino) 作为JavaScript引擎以便于[调用Java类和方法](https://m.jb51.net/article/92138.htm)，查看[ECMAScript兼容性表格](https://mozilla.github.io/rhino/compat/engines.html)　
+> 万卷使用[Rhino v1.8.1](https://github.com/mozilla/rhino) 作为JavaScript引擎以便于[调用Java类和方法](https://m.jb51.net/article/92138.htm)，查看[ECMAScript兼容性表格](https://mozilla.github.io/rhino/compat/engines.html)　
 
 > [Rhino运行时](https://github.com/mozilla/rhino/blob/master/rhino/src/main/java/org/mozilla/javascript/ScriptRuntime.java)懒加载导入的Java类和方法
 
@@ -9,11 +9,11 @@
 ||getClass|Packages java javax ...|[NativeJavaTopPackage](https://github.com/mozilla/rhino/blob/master/rhino/src/main/java/org/mozilla/javascript/NativeJavaTopPackage.java)|默认导入JavaScript中的Java类|
 |JavaAdapter|||[JavaAdapter](https://github.com/mozilla/rhino/blob/master/rhino/src/main/java//org/mozilla/javascript/JavaAdapter.java)|继承Java类|
 
-> 注意`java`变量指向已经被阅读修改，如果想要调用`java.*`下的包，请使用`Packages.java.*`
+> 注意`java`变量指向已经被万卷修改，如果想要调用`java.*`下的包，请使用`Packages.java.*`
 
-> 在书源规则中使用`@js` `<js>` `{{}}`可使用JavaScript调用阅读部分内置的类和方法
+> 在书源规则中使用`@js` `<js>` `{{}}`可使用JavaScript调用万卷部分内置的类和方法
 
-> 注意为了安全，阅读会屏蔽部分java类调用，见[RhinoClassShutter](https://github.com/gedoor/wanjuan/blob/master/modules/rhino/src/main/java/com/script/rhino/RhinoClassShutter.kt)　
+> 注意为了安全，万卷会屏蔽部分java类调用，见[RhinoClassShutter](https://github.com/gedoor/wanjuan/blob/master/modules/rhino/src/main/java/com/script/rhino/RhinoClassShutter.kt)　
 
 > 不同的书源规则中支持的调用的Java类和方法可能有所不同
 
@@ -44,7 +44,7 @@
 > 订阅添加跳转url拦截, js, 返回true拦截,js变量url,可以通过js打开url
 > url跳转拦截规则不能执行耗时操作
 
-* 调用阅读搜索
+* 调用万卷搜索
 ```js
 * @param key 搜索关键词
 * @param searchScope 搜索作用域，为空时调用所以书源搜索
@@ -317,7 +317,7 @@ java.timeFormat(time: Long): String
 java.htmlFormat(str: String): String
 ```
 * 文件
->  所有对于文件的读写删操作都是相对路径,只能操作阅读缓存/android/data/{package}/cache/内的文件
+>  所有对于文件的读写删操作都是相对路径,只能操作万卷缓存/android/data/{package}/cache/内的文件
 ```js
 //文件下载 url用于生成文件名，返回文件路径
 downloadFile(url: String): String
@@ -503,7 +503,7 @@ source.putLoginHeader(header: String)
 source.removeLoginHeader()
 ```
 * 用户登录信息操作
-> 使用`登录UI`规则，并成功登录，阅读自动加密保存登录UI规则中除type为button的信息
+> 使用`登录UI`规则，并成功登录，万卷自动加密保存登录UI规则中除type为button的信息
 ```js
 login函数获取登录信息
 source.getLoginInfo()

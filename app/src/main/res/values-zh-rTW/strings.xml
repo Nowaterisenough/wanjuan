@@ -4,12 +4,12 @@
     <string name="app_name_a">萬卷·A</string>
     <string name="receiving_shared_label">萬卷·搜尋</string>
     <string name="compose_type">排版</string>
-    <string name="tip_perm_request_storage">閱讀需要存取記憶卡權限，請前往「設定」—「應用程式權限」—打開所需權限</string>
+    <string name="tip_perm_request_storage">萬卷需要存取記憶卡權限，請前往「設定」—「應用程式權限」—打開所需權限</string>
 
     <!--Other-->
     <string name="menu_backup">備份</string>
     <string name="menu_restore">復原</string>
-    <string name="menu_import_old">匯入閱讀資料</string>
+    <string name="menu_import_old">匯入萬卷資料</string>
     <string name="webdav_cache_backup">離線快取書籍備份</string>
     <string name="webdav_cache_backup_s">匯出本機同時備份到wanjuan資料夾下exports目錄</string>
     <string name="backup_path">備份路徑</string>
@@ -99,7 +99,7 @@
         \u3000\u3000這是一款使用Kotlin全新開發的開源的閱讀軟體，歡迎您的加入。
     </string>
     <string name="app_share_description">
-        閱讀3.0下載網址：\nhttps://github.com/Nowaterisenough/wanjuan/releases
+        萬卷3.0下載網址：\nhttps://github.com/Nowaterisenough/wanjuan/releases
     </string>
     <string name="version_name">Version %s</string>
     <string name="pt_background_verification">後臺校驗書源</string>
@@ -646,7 +646,7 @@
     <string name="app_folder_picker">內建資料夾選擇器</string>
     <string name="app_file_picker">內建資料夾選擇器</string>
     <string name="a10_permission_toast">Android10以上因權限限制可能無法讀寫文件</string>
-    <string name="add_to_text_context_menu_s">長按文字在操作選單中顯示閱讀·搜尋</string>
+    <string name="add_to_text_context_menu_s">長按文字在操作選單中顯示萬卷·搜尋</string>
     <string name="add_to_text_context_menu_t">文字操作顯示搜尋</string>
     <string name="record_log">記錄日誌</string>
     <string name="log">日誌</string>
@@ -688,7 +688,7 @@
     <string name="btn_default_s">預設</string>
     <string name="main_menu">主選單</string>
     <string name="request_permission">點擊授予權限</string>
-    <string name="tip_local_perm_request_storage">閱讀需要存取記憶卡權限，請點擊下方的"授予權限"按鈕，或前往「設定」—「應用權限」—打開所需權限。如果授予權限後仍然不正常，請點擊右上角的「選擇資料夾」，使用系統資料夾選擇器。</string>
+    <string name="tip_local_perm_request_storage">萬卷需要存取記憶卡權限，請點擊下方的"授予權限"按鈕，或前往「設定」—「應用權限」—打開所需權限。如果授予權限後仍然不正常，請點擊右上角的「選擇資料夾」，使用系統資料夾選擇器。</string>
     <string name="alouding_disable">全文朗讀中不能朗讀選中文字</string>
     <string name="read_body_to_lh">擴展到瀏海</string>
     <string name="toc_updateing">更新目錄中</string>
@@ -957,7 +957,7 @@
     <string name="scope_title">作用於標題</string>
     <string name="scope_content">作用於正文</string>
     <string name="join_qq_channel">加入QQ頻道</string>
-    <string name="qq_channel_summary">點擊加入閱讀QQ頻道</string>
+    <string name="qq_channel_summary">點擊加入萬卷QQ頻道</string>
     <string name="menu_refresh_dur">重新整理目前章節</string>
     <string name="menu_refresh_after">重新整理之後章節</string>
     <string name="menu_refresh_all">重新整理全部章節</string>
@@ -972,7 +972,7 @@
     <string name="welcome_style">啟動介面樣式</string>
     <string name="welcome_style_summary">啟動介面圖片和是否顯示文字等</string>
     <string name="show_welcome_text">顯示文字</string>
-    <string name="welcome_text">閱讀|享受美好時光</string>
+    <string name="welcome_text">萬卷|享受美好時光</string>
     <string name="custom_welcome">自訂歡迎頁</string>
     <string name="custom_welcome_summary">是否使用自訂歡迎頁</string>
     <string name="show_icon">顯示圖示</string>
@@ -1080,7 +1080,7 @@
     <string name="tip_divider_color">分隔线颜色</string>
     <string name="same_title_removed">移除重复标题</string>
     <string name="update_book_fail">更新失败</string>
-    <string name="notification_permission_rationale">阅读需要发送通知来显示朗读控制和下载进度</string>
+    <string name="notification_permission_rationale">萬卷需要發送通知來顯示朗讀控制和下載進度</string>
     <string name="webdav_after_local_restore_confirm">webDav书源比本地新,是否恢复</string>
     <string name="c_whitelist">白名单(contentWhitelist)</string>
     <string name="c_blacklist">黑名单(contentBlacklist)</string>
@@ -1167,7 +1167,7 @@
     <string name="font_weight_text">中/粗/细</string>
     <string name="keep_swipe_tip">继续滑动以加载下一章…</string>
     <string name="enable_optimize_render">启用绘制优化</string>
-    <string name="ignore_battery_permission_rationale">阅读需要请求后台权限以保持服务正常运行</string>
+    <string name="ignore_battery_permission_rationale">萬卷需要請求後台權限以保持服務正常運行</string>
     <string name="simulated_reading">模擬追讀</string>
     <string name="switch_on">開關</string>
     <string name="start_from">起始日期</string>
@@ -1178,7 +1178,7 @@
     <string name="stream_read_aloud_audio_summary">即边下边播，网络不好时播放会断断续续，仅TTS源有效</string>
     <string name="pause_read_aloud_while_phone_calls_title">来电期间暂停朗读</string>
     <string name="pause_read_aloud_while_phone_calls_summary">在通话期间暂停朗读，需要读取手机状态权限</string>
-    <string name="read_aloud_read_phone_state_permission_rationale">阅读需要读取手机状态实现来电期间暂停朗读功能</string>
+    <string name="read_aloud_read_phone_state_permission_rationale">萬卷需要讀取手機狀態實現來電期間暫停朗讀功能</string>
     <string name="read_aloud_by_media_button_title">耳机按键启动朗读</string>
     <string name="read_aloud_by_media_button_summary">通过耳机按键来启动朗读</string>
     <string name="group_sources_by_domain">按域名分组显示</string>

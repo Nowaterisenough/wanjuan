@@ -2,7 +2,7 @@
 
 ## 🚧开发注意
 
-如果你想要调试项目 请修改文件`.env.development`里`VITE_API`为阅读web服务ip
+如果你想要调试项目，请修改文件 `.env.development` 里的 `VITE_API` 为万卷 Web 服务 IP
 
 ## 路由
 

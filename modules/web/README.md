@@ -1,4 +1,4 @@
-# 阅读web端
+# 万卷 Web 端
  使用vue3 web书架和web源编辑
 ## 路由
 * http://localhost:8080/ 书架
@@ -12,7 +12,7 @@
 | Edge ≥ 85                                                              | Firefox ≥ 79                                                                      | Chrome ≥ 85                                                                    | Safari ≥ 14.1                                                                    |
 
 ## 开发
-> 需要阅读app提供后端服务
+> 需要万卷 App 提供后端服务
 
 ```bash
 pnpm dev

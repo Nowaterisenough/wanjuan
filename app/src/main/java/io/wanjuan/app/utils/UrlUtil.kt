@@ -42,7 +42,7 @@ object UrlUtil {
     }
 
 
-    /* 阅读定义的url,{urlOption} */
+    /* 万卷定义的url,{urlOption} */
     fun getFileName(analyzeUrl: AnalyzeUrl): String? {
         return getFileName(analyzeUrl.url, analyzeUrl.headerMap)
     }

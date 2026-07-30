@@ -1,4 +1,4 @@
-# 阅读[API](/app/src/main/java/io/wanjuan/app/api/controller)
+# 万卷[API](/app/src/main/java/io/wanjuan/app/api/controller)
 
 ## 对于[Web](/app/src/main/java/io/wanjuan/app/web/)的配置
 
@@ -9,7 +9,7 @@
 ### Web
 
 以下说明假设您的操作在本机进行，且开放端口为1234。  
-如果您要从远程计算机访问[阅读]()，请将`127.0.0.1`替换成手机IP。
+如果您要从远程计算机访问[万卷]()，请将`127.0.0.1`替换成手机IP。
 
 #### 插入单个书源
 

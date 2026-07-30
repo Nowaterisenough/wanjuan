@@ -2,7 +2,7 @@
   <div :class="{ 'index-wrapper': true, night: isNight, day: !isNight }">
     <div class="navigation-wrapper">
       <div class="navigation-title-wrapper">
-        <div class="navigation-title">阅读</div>
+        <div class="navigation-title">万卷</div>
         <div class="navigation-sub-title">清风不识字，何故乱翻书</div>
       </div>
       <div class="search-wrapper">

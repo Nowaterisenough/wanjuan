@@ -100,7 +100,7 @@ export const useBookStore = defineStore('book', {
         console.log('返回缓存书架数据')
         return this.shelf
       } else {
-        console.log('从阅读后端获取书架数据...')
+        console.log('从万卷后端获取书架数据...')
         return await fetchBookshellf_promise
       }
     },
@@ -137,7 +137,7 @@ export const useBookStore = defineStore('book', {
         console.log(`返回书籍《${name}》 缓存的章节目录`)
         return this.catalog
       } else {
-        console.log(`从阅读后端获取书籍《${name}》 章节目录数据...`)
+        console.log(`从万卷后端获取书籍《${name}》 章节目录数据...`)
         return await fetchChapterList_promise
       }
     },

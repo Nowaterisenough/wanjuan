@@ -170,7 +170,7 @@ const debug = (
 }
 
 /**
- * 从阅读获取需要特定处理的书籍封面
+ * 从万卷获取需要特定处理的书籍封面
  * @param {string} coverUrl
  */
 const getProxyCoverUrl = (coverUrl: string) => {
@@ -181,7 +181,7 @@ const getProxyCoverUrl = (coverUrl: string) => {
   ).toString()
 }
 /**
- * 从阅读获取需要特定处理的图片
+ * 从万卷获取需要特定处理的图片
  * @param {string} bookUrl
  * @param {string} src
  * @param {number|`${number}`} width

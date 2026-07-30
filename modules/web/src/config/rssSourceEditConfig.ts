@@ -121,7 +121,7 @@ export default {
         title: '预注入Js',
         id: 'preloadJs',
         type: 'String',
-        hint: '在网页加载前就注入到网页的js代码\n可注入阅读js函数到网页中\n例: window.ajaxAwait = ajaxAwait;\nwindow.java = java;',
+        hint: '在网页加载前就注入到网页的js代码\n可注入万卷js函数到网页中\n例: window.ajaxAwait = ajaxAwait;\nwindow.java = java;',
       },
     ],
   },

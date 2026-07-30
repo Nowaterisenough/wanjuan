@@ -64,7 +64,7 @@ const getImageSrc = (content: string) => {
   const src = content.match(imgPattern())![1] //reg tested in template
   const dataUrl = src.match(imgDataUrlPattern())
   if (dataUrl) {
-      return dataUrl[0] //现成的base64图片，去掉阅读格式后缀
+      return dataUrl[0] //现成的base64图片，去掉万卷格式后缀
   }
   if (isWanjuanUrl(src))
     return API.getProxyImageUrl(

@@ -747,7 +747,7 @@ class AnalyzeUrl(
     }
 
     /**
-     *获取处理过阅读定义的urlOption和cookie的GlideUrl
+     *获取处理过万卷定义的urlOption和cookie的GlideUrl
      */
     fun getGlideUrl(): GlideUrl {
         setCookie()

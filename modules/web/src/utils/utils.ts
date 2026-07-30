@@ -13,7 +13,7 @@ export const isWanjuanUrl = (/** @type {string} */ url: string) =>
   )
 
 /**
- * 验证输入的URL是否符合阅读后端地址规则
+ * 验证输入的 URL 是否符合万卷后端地址规则
  * @param allowedProtocols 允许的协议，默认`["https:", "http:"]`
  */
 export const validatorHttpUrl = (

@@ -345,14 +345,14 @@ object Restore {
         try {
             val file = File(path, fileName)
             if (file.exists()) {
-                LogUtils.d(TAG, "阅读恢复备份 $fileName 文件大小 ${file.length()}")
+                LogUtils.d(TAG, "万卷恢复备份 $fileName 文件大小 ${file.length()}")
                 FileInputStream(file).use {
                     return GSON.fromJsonArray<T>(it).getOrThrow().also { list ->
-                        LogUtils.d(TAG, "阅读恢复备份 $fileName 列表大小 ${list.size}")
+                        LogUtils.d(TAG, "万卷恢复备份 $fileName 列表大小 ${list.size}")
                     }
                 }
             } else {
-                LogUtils.d(TAG, "阅读恢复备份 $fileName 文件不存在")
+                LogUtils.d(TAG, "万卷恢复备份 $fileName 文件不存在")
             }
         } catch (e: Exception) {
             AppLog.put("$fileName\n读取解析出错\n${e.localizedMessage}", e)
@@ -366,7 +366,7 @@ object Restore {
         try {
             val file = File(path, fileName)
             if (file.exists()) {
-                LogUtils.d(TAG, "阅读恢复备份 $fileName 文件大小 ${file.length()}")
+                LogUtils.d(TAG, "万卷恢复备份 $fileName 文件大小 ${file.length()}")
                 val list = arrayListOf<Book>()
                 file.reader().use { reader ->
                     val jsonArray = JsonParser.parseReader(reader).asJsonArray
@@ -384,10 +384,10 @@ object Restore {
                         }
                     }
                 }
-                LogUtils.d(TAG, "阅读恢复备份 $fileName 列表大小 ${list.size}")
+                LogUtils.d(TAG, "万卷恢复备份 $fileName 列表大小 ${list.size}")
                 return list
             } else {
-                LogUtils.d(TAG, "阅读恢复备份 $fileName 文件不存在")
+                LogUtils.d(TAG, "万卷恢复备份 $fileName 文件不存在")
             }
         } catch (e: Exception) {
             AppLog.put("$fileName\n读取解析出错\n${e.localizedMessage}", e)

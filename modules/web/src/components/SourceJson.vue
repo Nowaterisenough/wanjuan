@@ -3,7 +3,7 @@
     id="source-json"
     v-model="sourceString"
     type="textarea"
-    placeholder="这里输出序列化的JSON数据,可直接导入'阅读'APP"
+    placeholder="这里输出序列化的 JSON 数据，可直接导入万卷 App"
     :rows="30"
     @change="update"
     style="margin-bottom: 4px"

@@ -161,7 +161,7 @@ class RuleAnalyzer(data: String, code: Boolean = false) {
 
     /**
      * 不用正则,不到最后不切片也不用中间变量存储,只在序列中标记当前查找字段的开头结尾,到返回时才切片,高效快速准确切割规则
-     * 解决jsonPath自带的"&&"和"||"与阅读的规则冲突,以及规则正则或字符串中包含"&&"、"||"、"%%"、"@"导致的冲突
+     * 解决jsonPath自带的"&&"和"||"与万卷的规则冲突,以及规则正则或字符串中包含"&&"、"||"、"%%"、"@"导致的冲突
      */
     tailrec fun splitRule(vararg split: String): ArrayList<String> { //首段匹配,elementsType为空
 

@@ -1,6 +1,6 @@
 # 源规则帮助
 
-* [阅读3.0(Wanjuan)规则说明](https://mgz0227.github.io/The-tutorial-of-Wanjuan/)　
+* [万卷 3.0（Wanjuan）规则说明](https://mgz0227.github.io/The-tutorial-of-Wanjuan/)　
 * [书源帮助文档](https://mgz0227.github.io/The-tutorial-of-Wanjuan/Rule/source.html)　
 * [订阅源帮助文档](https://mgz0227.github.io/The-tutorial-of-Wanjuan/Rule/rss.html)　
 * 辅助键盘❓中可插入URL参数模板,打开帮助,js教程,正则教程,选择文件
@@ -341,7 +341,7 @@ decodeImage(result, key)
 
 > 本地html中的额外支持的js函数  
 
-> 异步执行阅读函数，并返回字符串结果
+> 异步执行万卷函数，并返回字符串结果
 ```js
 window.run("java.toast('执行成功');'成功'")
 .then(r=>alert(r))

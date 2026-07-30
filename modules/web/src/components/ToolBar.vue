@@ -119,7 +119,7 @@ const push = () => {
           store.setPushReturnSources(okData)
         }
         ElMessage({
-          message: `批量推送源到「阅读3.0APP」\n共计: ${
+          message: `批量推送源到「万卷 3.0 App」\n共计: ${
             sources.length
           } 条\n成功: ${okData.length} 条\n失败: ${
             sources.length - okData.length
@@ -173,7 +173,7 @@ const saveSource = () => {
       const sourceName = getSourceName(source)
       if (data.isSuccess) {
         ElMessage({
-          message: `源《${sourceName}》已成功保存到「阅读3.0APP」`,
+          message: `源《${sourceName}》已成功保存到「万卷 3.0 App」`,
           type: 'success',
         })
         //save to store

@@ -1,6 +1,6 @@
 # 订阅源规则帮助
 
-* [阅读3.0(Wanjuan)规则说明](https://mgz0227.github.io/The-tutorial-of-Wanjuan/)　
+* [万卷 3.0（Wanjuan）规则说明](https://mgz0227.github.io/The-tutorial-of-Wanjuan/)　
 * [书源帮助文档](https://mgz0227.github.io/The-tutorial-of-Wanjuan/Rule/source.html)　
 * [订阅源帮助文档](https://mgz0227.github.io/The-tutorial-of-Wanjuan/Rule/rss.html)　
 * 辅助键盘❓中可插入URL参数模板,打开帮助,js教程,正则教程,选择文件
@@ -42,7 +42,7 @@ java.toast("调用java函数");
 
 > 异步函数，函数参数和返回结果类型均为字符串
 ```js
-//执行阅读函数代码字符串，并返回字符串结果
+//执行万卷函数代码字符串，并返回字符串结果
 run("java.toast('执行成功');'成功'")
 .then(r=>alert(r))
 .catch(e=>alert("执行出错:"+e));
@@ -97,4 +97,3 @@ source.login();
 source.getLoginInfo();
 cache.putMemory("cs","v");
 ```
-

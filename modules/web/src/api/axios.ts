@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-/** @type {string} localStorage保存自定义阅读http服务接口的键值 */
+/** @type {string} localStorage 保存自定义万卷 HTTP 服务接口的键值 */
 export const baseURL_localStorage_key = 'remoteUrl'
 const SECOND = 1000
 

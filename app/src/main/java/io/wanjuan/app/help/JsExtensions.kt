@@ -81,7 +81,7 @@ import io.wanjuan.app.help.config.ThemeConfig
 /**
  * js扩展类, 在js中通过java变量调用
  * 添加方法，请更新文档/wanjuan/app/src/main/assets/help/JsHelp.md
- * 所有对于文件的读写删操作都是相对路径,只能操作阅读缓存内的文件
+ * 所有对于文件的读写删操作都是相对路径,只能操作万卷缓存内的文件
  * /android/data/{package}/cache/...
  */
 @Keep
@@ -385,7 +385,7 @@ interface JsExtensions : JsEncodeUtils {
     }
 
     /**
-     * 可从网络，本地文件(阅读私有数据目录相对路径)导入JavaScript脚本
+     * 可从网络，本地文件(万卷私有数据目录相对路径)导入JavaScript脚本
      */
     @JavascriptInterface
     fun importScript(path: String): String {

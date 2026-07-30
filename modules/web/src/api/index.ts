@@ -50,7 +50,7 @@ const responseCheckInterceptor = (resp: AxiosResponse) => {
 
 const axiosErrorInterceptor = (err: unknown) => {
   notification.error({
-    message: '后端连接失败，请检查阅读WEB服务或者设置其它可用链接',
+    message: '后端连接失败，请检查万卷 Web 服务或者设置其它可用链接',
     grouping: true,
   })
   connectionStore.setConnectType('danger')
@@ -66,7 +66,7 @@ setWebsocketOnMessage(() => {
   connectionStore.setConnectStatus('已连接 ' + wanjuan_http_entry_point)
 })
 /**
- * 按照阅读的默认规则 解析阅读HTTP WebSocket API入口地址
+ * 按照万卷的默认规则解析万卷 HTTP WebSocket API 入口地址
  * @returns [http_url, webSocekt_url]
  */
 export const parseLeagdoHttpUrlWithDefault = (

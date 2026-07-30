@@ -251,7 +251,7 @@ object LocalBook {
     }
 
     /**
-     * 下载在线的文件并自动导入到阅读（txt umd epub)
+     * 下载在线的文件并自动导入到万卷（txt umd epub)
      */
     suspend fun importFileOnLine(
         str: String,

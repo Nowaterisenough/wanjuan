@@ -21,12 +21,12 @@ body:
   - type: textarea
     attributes:
       label: 期望实现方式 / How to implement
-      placeholder: 阅读应该如何实现该功能
+      placeholder: 万卷应该如何实现该功能
     validations:
       required: true
   - type: input
     attributes:
-      label: 阅读版本 / Wanjuan version
+      label: 万卷版本 / Wanjuan version
       placeholder: "3.22.110823"
     validations:
       required: true
