@@ -6,11 +6,13 @@ import io.wanjuan.app.sync.local.SyncOutbox
 import io.wanjuan.app.sync.model.SyncBookGroupPayload
 import io.wanjuan.app.sync.model.SyncBookPayload
 import io.wanjuan.app.sync.model.SyncBookSourcePayload
+import io.wanjuan.app.sync.model.SyncDeleteKeyPayload
 import io.wanjuan.app.sync.model.SyncObjectType
 import io.wanjuan.app.sync.model.SyncOrderPayload
 import io.wanjuan.app.sync.model.SyncResult
 import io.wanjuan.app.sync.model.SyncRssSourcePayload
 import io.wanjuan.app.sync.model.SyncRuleSubPayload
+import io.wanjuan.app.sync.model.SyncTombstonePayload
 import io.wanjuan.app.sync.remote.SyncRemoteStore
 import io.wanjuan.app.sync.remote.WebDavSyncClient
 import io.wanjuan.app.utils.GSON
@@ -26,11 +28,11 @@ class SyncRepository(
     private val deviceIdProvider: () -> String
 ) {
 
-    fun markDirty(objectType: String, objectId: String, payload: Any?, operation: String) {
+    fun markDirty(objectType: String, objectId: String, payload: Any, operation: String) {
         if (SyncScope.isApplyingRemote) return
         val now = clock.now()
         val deviceId = deviceIdProvider()
-        val payloadJson = payload?.let { GSON.toJson(it) }
+        val payloadJson = GSON.toJson(payload)
         db.runInTransaction {
             val metadata = db.syncMetadataDao.get(objectType, objectId)?.copy(
                 localUpdatedAt = now,
@@ -80,9 +82,7 @@ class SyncRepository(
         for (item in items) {
             currentCoroutineContext().ensureActive()
             try {
-                val json = requireNotNull(item.payloadJson) {
-                    "Missing sync payload: ${item.objectType}/${item.objectId}"
-                }
+                val json = item.payloadJsonForUpload(deviceIdProvider)
                 remoteStore.uploadJson(item.remotePath(), json)
                 db.runInTransaction {
                     db.syncOutboxDao.delete(item.id)
@@ -151,4 +151,40 @@ class SyncRepository(
             else -> error("Unsupported sync hash type: $objectType")
         }
     }
+}
+
+internal fun SyncOutbox.payloadJsonForUpload(deviceIdProvider: () -> String): String {
+    val json = payloadJson?.takeIf { it.isNotBlank() }
+    if (operation != "delete") {
+        return requireNotNull(json) {
+            "Missing sync payload: $objectType/$objectId"
+        }
+    }
+
+    val tombstone = json?.let {
+        runCatching { GSON.fromJsonObject<SyncTombstonePayload>(it).getOrThrow() }.getOrNull()
+    }
+    val isValidTombstone = runCatching {
+        tombstone != null &&
+            tombstone.objectType == objectType &&
+            tombstone.objectId == objectId &&
+            tombstone.deletedAt > 0L &&
+            tombstone.deletedByDeviceId.isNotBlank()
+    }.getOrDefault(false)
+    if (isValidTombstone) return requireNotNull(json)
+
+    val legacyObjectKey = json?.let {
+        runCatching {
+            GSON.fromJsonObject<SyncDeleteKeyPayload>(it).getOrThrow().key.takeIf(String::isNotBlank)
+        }.getOrNull()
+    }
+    return GSON.toJson(
+        SyncTombstonePayload(
+            objectType = objectType,
+            objectId = objectId,
+            deletedAt = versionTimestamp.takeIf { it > 0L } ?: createdAt,
+            deletedByDeviceId = versionDeviceId.takeIf(String::isNotBlank) ?: deviceIdProvider(),
+            objectKey = legacyObjectKey
+        )
+    )
 }

@@ -87,7 +87,19 @@ class BookshelfSyncCoordinator(
 
     fun enqueueBookDelete(book: Book) {
         val id = SyncIds.bookId(book)
-        repository.markDirty(SyncObjectType.Book, id, null, "delete")
+        val deletedAt = clock.now()
+        val deviceId = deviceIdProvider()
+        repository.markDirty(
+            SyncObjectType.Book,
+            id,
+            SyncTombstonePayload(
+                objectType = SyncObjectType.Book,
+                objectId = id,
+                deletedAt = deletedAt,
+                deletedByDeviceId = deviceId
+            ),
+            "delete"
+        )
     }
 
     fun enqueueBook(book: Book) {

@@ -10,7 +10,6 @@ import io.wanjuan.app.sync.local.SyncMetadata
 import io.wanjuan.app.sync.mapper.BookSourceSyncMapper
 import io.wanjuan.app.sync.model.SyncBookSource
 import io.wanjuan.app.sync.model.SyncBookSourcePayload
-import io.wanjuan.app.sync.model.SyncDeleteKeyPayload
 import io.wanjuan.app.sync.model.SyncObjectType
 import io.wanjuan.app.sync.model.SyncOrderPayload
 import io.wanjuan.app.sync.model.SyncTombstonePayload
@@ -30,7 +29,20 @@ class BookSourceSyncCoordinator(
 
     fun enqueueDelete(sourceUrl: String) {
         val id = SyncIds.hashKey("book-source", sourceUrl)
-        repository.markDirty(SyncObjectType.BookSource, id, SyncDeleteKeyPayload(sourceUrl), "delete")
+        val deletedAt = clock.now()
+        val deviceId = deviceIdProvider()
+        repository.markDirty(
+            SyncObjectType.BookSource,
+            id,
+            SyncTombstonePayload(
+                objectType = SyncObjectType.BookSource,
+                objectId = id,
+                deletedAt = deletedAt,
+                deletedByDeviceId = deviceId,
+                objectKey = sourceUrl
+            ),
+            "delete"
+        )
     }
 
     fun enqueueOrder(items: List<BookSourcePart>) {

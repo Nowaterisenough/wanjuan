@@ -24,7 +24,21 @@ class RuleSubSyncCoordinator(
     }
 
     fun enqueueDelete(ruleSub: RuleSub) {
-        repository.markDirty(SyncObjectType.RuleSub, SyncIds.ruleSubId(ruleSub), null, "delete")
+        val id = SyncIds.ruleSubId(ruleSub)
+        val deletedAt = clock.now()
+        val deviceId = deviceIdProvider()
+        repository.markDirty(
+            SyncObjectType.RuleSub,
+            id,
+            SyncTombstonePayload(
+                objectType = SyncObjectType.RuleSub,
+                objectId = id,
+                deletedAt = deletedAt,
+                deletedByDeviceId = deviceId,
+                objectKey = "${ruleSub.type}\n${ruleSub.url}"
+            ),
+            "delete"
+        )
     }
 
     fun enqueueOrder(items: List<RuleSub>) {
