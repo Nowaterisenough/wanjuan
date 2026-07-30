@@ -74,8 +74,16 @@ abstract class BaseService : LifecycleService() {
 
     @CallSuper
     override fun onTimeout(startId: Int, fgsType: Int) {
-        super.onTimeout(startId, fgsType)
         LogUtils.d(simpleName, "onTimeout startId:$startId fgsType:$fgsType")
+        stopForegroundAndSelf()
+        super.onTimeout(startId, fgsType)
+    }
+
+    protected fun stopForegroundAndSelf() {
+        if (isForeground) {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            isForeground = false
+        }
         stopSelf()
     }
 

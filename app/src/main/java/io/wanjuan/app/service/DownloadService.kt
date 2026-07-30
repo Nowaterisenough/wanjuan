@@ -35,7 +35,6 @@ import splitties.systemservices.notificationManager
 class DownloadService : BaseService() {
     private val groupKey = "${appCtx.packageName}.download"
     private val downloads = hashMapOf<Long, DownloadInfo>()
-    private val completeDownloads = hashSetOf<Long>()
     private var upStateJob: Job? = null
     private val downloadReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -55,11 +54,14 @@ class DownloadService : BaseService() {
     }
 
     override fun onDestroy() {
-        super.onDestroy()
+        upStateJob?.cancel()
+        upStateJob = null
         unregisterReceiver(downloadReceiver)
+        super.onDestroy()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        val result = super.onStartCommand(intent, flags, startId)
         when (intent?.action) {
             IntentAction.start -> startDownload(
                 intent.getStringExtra("url"),
@@ -68,9 +70,7 @@ class DownloadService : BaseService() {
 
             IntentAction.play -> {
                 val id = intent.getLongExtra("downloadId", 0)
-                if (completeDownloads.contains(id)) {
-                    openDownload(id, downloads[id]?.fileName)
-                } else {
+                if (!openDownload(id, intent.getStringExtra("fileName"))) {
                     toastOnUi("未完成,下载的文件夹Download")
                 }
             }
@@ -80,7 +80,8 @@ class DownloadService : BaseService() {
                 removeDownload(downloadId)
             }
         }
-        return super.onStartCommand(intent, flags, startId)
+        stopIfIdle()
+        return result
     }
 
     /**
@@ -129,12 +130,11 @@ class DownloadService : BaseService() {
      */
     @Synchronized
     private fun removeDownload(downloadId: Long) {
-        if (!completeDownloads.contains(downloadId)) {
+        downloads.remove(downloadId)?.let { downloadInfo ->
             downloadManager.remove(downloadId)
+            notificationManager.cancel(downloadInfo.notificationId)
         }
-        downloads.remove(downloadId)
-        completeDownloads.remove(downloadId)
-        notificationManager.cancel(downloadId.toInt())
+        stopIfIdle()
     }
 
     /**
@@ -142,11 +142,8 @@ class DownloadService : BaseService() {
      */
     @Synchronized
     private fun successDownload(downloadId: Long) {
-        if (!completeDownloads.contains(downloadId)) {
-            completeDownloads.add(downloadId)
-            val fileName = downloads[downloadId]?.fileName
-            openDownload(downloadId, fileName)
-        }
+        val fileName = downloads[downloadId]?.fileName
+        openDownload(downloadId, fileName)
     }
 
     private fun checkDownloadState() {
@@ -165,12 +162,14 @@ class DownloadService : BaseService() {
     @Synchronized
     private fun queryState() {
         if (downloads.isEmpty()) {
-            stopSelf()
+            stopIfIdle()
             return
         }
-        val ids = downloads.keys
+        val ids = downloads.keys.toLongArray()
+        val foundIds = hashSetOf<Long>()
+        val terminalIds = hashSetOf<Long>()
         val query = DownloadManager.Query()
-        query.setFilterById(*ids.toLongArray())
+        query.setFilterById(*ids)
         downloadManager.query(query).use { cursor ->
             if (cursor.moveToFirst()) {
                 val idIndex = cursor.getColumnIndex(DownloadManager.COLUMN_ID)
@@ -180,6 +179,7 @@ class DownloadService : BaseService() {
                 val statusIndex = cursor.getColumnIndex(DownloadManager.COLUMN_STATUS)
                 do {
                     val id = cursor.getLong(idIndex)
+                    foundIds.add(id)
                     val progress = cursor.getInt(progressIndex)
                     val max = cursor.getInt(fileSizeIndex)
                     val status = when (cursor.getInt(statusIndex)) {
@@ -188,10 +188,15 @@ class DownloadService : BaseService() {
                         DownloadManager.STATUS_RUNNING -> getString(R.string.downloading)
                         DownloadManager.STATUS_SUCCESSFUL -> {
                             successDownload(id)
+                            terminalIds.add(id)
                             getString(R.string.download_success)
                         }
 
-                        DownloadManager.STATUS_FAILED -> getString(R.string.download_error)
+                        DownloadManager.STATUS_FAILED -> {
+                            terminalIds.add(id)
+                            getString(R.string.download_error)
+                        }
+
                         else -> getString(R.string.unknown_state)
                     }
                     downloads[id]?.let { downloadInfo ->
@@ -207,20 +212,32 @@ class DownloadService : BaseService() {
                 } while (cursor.moveToNext())
             }
         }
+        terminalIds.forEach(downloads::remove)
+        ids.filterNot(foundIds::contains).forEach { id ->
+            downloads.remove(id)?.let { notificationManager.cancel(it.notificationId) }
+        }
+        stopIfIdle()
     }
 
     /**
      * 打开下载文件
      */
-    private fun openDownload(downloadId: Long, fileName: String?) {
+    private fun openDownload(downloadId: Long, fileName: String?): Boolean {
+        val uri = downloadManager.getUriForDownloadedFile(downloadId) ?: return false
         kotlin.runCatching {
-            downloadManager.getUriForDownloadedFile(downloadId)?.let { uri ->
-                val type = IntentType.from(fileName)
-                openFileUri(uri, type)
-            }
+            val type = IntentType.from(fileName)
+            openFileUri(uri, type)
         }.onFailure {
             AppLog.put("打开下载文件${fileName}出错", it)
         }
+        return true
+    }
+
+    private fun stopIfIdle() {
+        if (downloads.isNotEmpty()) return
+        upStateJob?.cancel()
+        upStateJob = null
+        stopForegroundAndSelf()
     }
 
     override fun startForegroundNotification() {
@@ -253,6 +270,7 @@ class DownloadService : BaseService() {
             .setContentIntent(
                 servicePendingIntent<DownloadService>(IntentAction.play, downloadId.toInt()) {
                     putExtra("downloadId", downloadId)
+                    putExtra("fileName", downloads[downloadId]?.fileName)
                 }
             )
             .setDeleteIntent(
