@@ -45,7 +45,7 @@
     "unplugin-auto-import": "^21.0.0",
     "unplugin-icons": "^23.0.1",
     "unplugin-vue-components": "^32.0.0",
-    "vite": "^8.0.11",
+    "vite": "^8.1.5",
     "vue-tsc": "^3.2.8"
   }
 }
