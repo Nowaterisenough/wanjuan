@@ -1526,7 +1526,7 @@
     <string name="discover_group_other">其他</string>
     <string name="ai_view_log">查看日志</string>
     <string name="change_book_source_action">更换书源</string>
-    <string name="ai_import_default_skill">安装默认 阅读R Skill</string>
+    <string name="ai_import_default_skill">安装默认 万卷 Skill</string>
     <string name="ai_import_default_skill_summary">从 DandanLLab/wanjuanSkill 下载真实 SKILL.md</string>
     <string name="ai_skill_prompt">管理 Skill</string>
     <string name="ai_skill_prompt_hint">粘贴 SKILL.md 内容</string>
