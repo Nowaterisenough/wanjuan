@@ -13,6 +13,8 @@ class TestWebDavSyncClientSource {
         assertTrue(source.contains("sync/v1/"))
         assertTrue(source.contains("application/json"))
         assertTrue(source.contains("makeAsDir"))
+        assertTrue(source.contains("ensureDirsMutex.withLock"))
+        assertTrue(source.contains("readyEndpoint = endpoint"))
         assertTrue(source.indexOf("syncRoot,") < source.indexOf("root,"))
         assertTrue(source.contains("listFiles"))
         assertTrue(source.contains("Sync path must be relative"))

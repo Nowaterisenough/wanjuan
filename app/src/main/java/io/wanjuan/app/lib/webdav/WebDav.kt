@@ -15,6 +15,7 @@ import io.wanjuan.app.utils.findNS
 import io.wanjuan.app.utils.findNSPrefix
 import io.wanjuan.app.utils.printOnDebug
 import io.wanjuan.app.utils.toRequestBody
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -31,14 +32,26 @@ import org.jsoup.parser.Parser
 import java.io.File
 import java.io.FileOutputStream
 import java.io.InputStream
+import java.io.IOException
 import java.net.MalformedURLException
 import java.net.URL
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
-import java.util.concurrent.TimeUnit
 
 internal fun isSuccessfulWebDavDeleteStatus(code: Int): Boolean =
     code in 200..299 || code == 404
+
+internal enum class WebDavResourceStatus {
+    EXISTS,
+    MISSING,
+    ERROR
+}
+
+internal fun webDavResourceStatus(code: Int): WebDavResourceStatus = when {
+    code in 200..299 -> WebDavResourceStatus.EXISTS
+    code == 404 -> WebDavResourceStatus.MISSING
+    else -> WebDavResourceStatus.ERROR
+}
 
 @Suppress("unused", "MemberVisibilityCanBePrivate")
 open class WebDav(
@@ -105,7 +118,6 @@ open class WebDav(
             chain.proceed(request)
         }
         okHttpClient.newBuilder().run {
-            callTimeout(0, TimeUnit.SECONDS)
             interceptors().add(0, authInterceptor)
             addNetworkInterceptor(authInterceptor)
             build()
@@ -244,18 +256,33 @@ open class WebDav(
     /**
      * 文件是否存在
      */
+    @Throws(WebDavException::class)
     suspend fun exists(): Boolean {
-        val url = httpUrl ?: return false
-        return kotlin.runCatching {
-            return webDavClient.newCallResponse {
-                url(url)
-                addHeader("Depth", "0")
-                val requestBody = EXISTS.toRequestBody("application/xml".toMediaType())
-                method("PROPFIND", requestBody)
-            }.use { it.isSuccessful }
-        }.onFailure {
+        val url = httpUrl ?: throw WebDavException("WebDav检查目录失败\nurl为空")
+        return try {
+            requestResourceExists(url)
+        } catch (e: IOException) {
             currentCoroutineContext().ensureActive()
-        }.getOrDefault(false)
+            requestResourceExists(url)
+        }
+    }
+
+    private suspend fun requestResourceExists(url: String): Boolean {
+        return webDavClient.newCallResponse {
+            url(url)
+            addHeader("Depth", "0")
+            val requestBody = EXISTS.toRequestBody("application/xml".toMediaType())
+            method("PROPFIND", requestBody)
+        }.use {
+            when (webDavResourceStatus(it.code)) {
+                WebDavResourceStatus.EXISTS -> true
+                WebDavResourceStatus.MISSING -> false
+                WebDavResourceStatus.ERROR -> {
+                    checkResult(it)
+                    false
+                }
+            }
+        }
     }
 
     /**
@@ -278,10 +305,10 @@ open class WebDav(
      * 根据自己的URL，在远程处创建对应的文件夹
      * @return 是否创建成功
      */
+    @Throws(WebDavException::class)
     suspend fun makeAsDir(): Boolean {
-        val url = httpUrl ?: return false
-        //防止报错
-        return kotlin.runCatching {
+        val url = httpUrl ?: throw WebDavException("WebDav初始化目录失败\nurl为空")
+        try {
             if (!exists()) {
                 webDavClient.newCallResponse {
                     url(url)
@@ -290,10 +317,17 @@ open class WebDav(
                     checkResult(it)
                 }
             }
-        }.onFailure {
+            return true
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
             currentCoroutineContext().ensureActive()
-            AppLog.put("WebDav创建目录失败\n${it.localizedMessage}", it)
-        }.isSuccess
+            AppLog.put("WebDav初始化目录失败\n${e.localizedMessage}", e)
+            if (e is WebDavException) throw e
+            throw WebDavException("WebDav初始化目录失败\n${e.localizedMessage}").also {
+                it.initCause(e)
+            }
+        }
     }
 
     /**

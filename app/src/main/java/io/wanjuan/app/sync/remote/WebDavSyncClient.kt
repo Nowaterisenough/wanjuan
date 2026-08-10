@@ -11,6 +11,8 @@ import io.wanjuan.app.utils.GSON
 import io.wanjuan.app.utils.fromJsonObject
 import java.nio.charset.StandardCharsets
 import java.io.File
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 internal fun syncRemotePath(directory: String, href: String): String {
     val fileName = href.replace('\\', '/').trimEnd('/').substringAfterLast('/')
@@ -32,6 +34,8 @@ class WebDavSyncClient(
         private const val JSON = "application/json"
         const val SYNC_DIR = "sync/v1/"
         private val SCHEME = Regex("^[A-Za-z][A-Za-z0-9+.-]*:")
+        private val ensureDirsMutex = Mutex()
+        private var readyEndpoint: String? = null
     }
 
     private fun baseUrl(): String = rootUrlProvider().trimEnd('/') + "/"
@@ -68,29 +72,36 @@ class WebDavSyncClient(
 
     override suspend fun ensureDirs() {
         val authorization = requireAuthorization()
-        val syncRoot = baseUrl() + "sync/"
-        val root = rootUrl()
-        listOf(
-            syncRoot,
-            root,
-            "${root}devices/",
-            "${root}books/",
-            "${root}bookGroups/",
-            "${root}bookSources/",
-            "${root}rssSources/",
-            "${root}ruleSubs/",
-            "${root}order/",
-            "${root}assets/",
-            "${root}assets/library/",
-            "${root}assets/exports/",
-            "${root}assets/cachePackages/",
-            "${root}tombstones/",
-            "${root}tombstones/books/",
-            "${root}tombstones/bookGroups/",
-            "${root}tombstones/bookSources/",
-            "${root}tombstones/rssSources/",
-            "${root}tombstones/ruleSubs/"
-        ).forEach { WebDav(it, authorization).makeAsDir() }
+        val base = baseUrl()
+        val endpoint = "$base\u0000${authorization.data}"
+        ensureDirsMutex.withLock {
+            if (readyEndpoint == endpoint) return
+
+            val syncRoot = base + "sync/"
+            val root = syncRoot + "v1/"
+            listOf(
+                syncRoot,
+                root,
+                "${root}devices/",
+                "${root}books/",
+                "${root}bookGroups/",
+                "${root}bookSources/",
+                "${root}rssSources/",
+                "${root}ruleSubs/",
+                "${root}order/",
+                "${root}assets/",
+                "${root}assets/library/",
+                "${root}assets/exports/",
+                "${root}assets/cachePackages/",
+                "${root}tombstones/",
+                "${root}tombstones/books/",
+                "${root}tombstones/bookGroups/",
+                "${root}tombstones/bookSources/",
+                "${root}tombstones/rssSources/",
+                "${root}tombstones/ruleSubs/"
+            ).forEach { WebDav(it, authorization).makeAsDir() }
+            readyEndpoint = endpoint
+        }
     }
 
     override suspend fun list(relativeDir: String): List<SyncRemoteFile> {
