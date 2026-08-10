@@ -27,7 +27,8 @@ internal fun syncRemotePath(directory: String, href: String): String {
 
 class WebDavSyncClient(
     private val rootUrlProvider: () -> String,
-    private val authorizationProvider: () -> Authorization?
+    private val authorizationProvider: () -> Authorization?,
+    private val authorizationLoader: suspend () -> Authorization? = { authorizationProvider() }
 ) : SyncRemoteStore {
 
     companion object {
@@ -42,8 +43,10 @@ class WebDavSyncClient(
 
     private fun rootUrl(): String = baseUrl() + SYNC_DIR
 
-    private fun requireAuthorization(): Authorization {
-        return authorizationProvider() ?: throw NoStackTraceException("WebDAV 未配置")
+    private suspend fun requireAuthorization(): Authorization {
+        return authorizationProvider()
+            ?: authorizationLoader()
+            ?: throw NoStackTraceException("WebDAV 未配置")
     }
 
     private fun resolve(relativePath: String, asDirectory: Boolean = false): String {
@@ -173,6 +176,7 @@ class WebDavSyncClient(
 fun AppWebDav.newSyncClient(): WebDavSyncClient {
     return WebDavSyncClient(
         rootUrlProvider = { syncRootWebDavUrl() },
-        authorizationProvider = { authorization }
+        authorizationProvider = { authorization },
+        authorizationLoader = { requireAuthorization() }
     )
 }

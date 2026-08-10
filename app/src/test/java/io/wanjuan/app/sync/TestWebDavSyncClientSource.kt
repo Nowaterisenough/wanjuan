@@ -15,6 +15,7 @@ class TestWebDavSyncClientSource {
         assertTrue(source.contains("makeAsDir"))
         assertTrue(source.contains("ensureDirsMutex.withLock"))
         assertTrue(source.contains("readyEndpoint = endpoint"))
+        assertTrue(source.contains("authorizationLoader()"))
         assertTrue(source.indexOf("syncRoot,") < source.indexOf("root,"))
         assertTrue(source.contains("listFiles"))
         assertTrue(source.contains("Sync path must be relative"))
@@ -27,5 +28,13 @@ class TestWebDavSyncClientSource {
         assertTrue(source.contains("404:"))
         assertTrue(source.contains("fun AppWebDav.newSyncClient()"))
         assertTrue(appWebDavSource.contains("fun syncRootWebDavUrl()"))
+        assertTrue(appWebDavSource.contains("configMutex.withLock"))
+        assertTrue(appWebDavSource.contains("requireAuthorization()"))
+        assertTrue(appWebDavSource.contains("WebDav(rootWebDavUrl, authorization).listFiles()"))
+        assertTrue(appWebDavSource.contains("WebDav(rootWebDavUrl + name, requireAuthorization())"))
+        assertTrue(appWebDavSource.contains("WebDav(putUrl, requireAuthorization()).upload"))
+        assertTrue(appWebDavSource.contains("authorizationProvider = { mAuthorization }"))
+        assertTrue(appWebDavSource.contains("finally {"))
+        assertTrue(appWebDavSource.contains("authorization = mAuthorization"))
     }
 }
