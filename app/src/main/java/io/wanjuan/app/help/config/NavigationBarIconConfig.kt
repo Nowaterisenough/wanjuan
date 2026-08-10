@@ -20,7 +20,6 @@ import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.DrawableCompat
 import io.wanjuan.app.R
 import io.wanjuan.app.constant.PreferKey
-import io.wanjuan.app.help.AppWebDav
 import io.wanjuan.app.lib.theme.ThemeStore
 import io.wanjuan.app.lib.theme.bottomBackground
 import io.wanjuan.app.lib.theme.getSecondaryTextColor
@@ -30,7 +29,6 @@ import io.wanjuan.app.utils.GSON
 import io.wanjuan.app.utils.SvgUtils
 import io.wanjuan.app.utils.compress.ZipUtils
 import io.wanjuan.app.utils.externalFiles
-import io.wanjuan.app.utils.fromJsonArray
 import io.wanjuan.app.utils.fromJsonObject
 import io.wanjuan.app.utils.getFile
 import io.wanjuan.app.utils.getPrefBoolean
@@ -66,9 +64,6 @@ object NavigationBarIconConfig {
     private val tempDir: File
         get() = appCtx.externalFiles.getFile("navigationBarTemp").apply { mkdirs() }
 
-    private val remoteCacheDir: File
-        get() = rootDir.getFile("remote_cache").apply { mkdirs() }
-
     data class NavItem(
         val key: String,
         @StringRes val titleRes: Int,
@@ -91,20 +86,8 @@ object NavigationBarIconConfig {
 
     data class Entry(
         val config: Config,
-        val source: Source,
         val dirName: String,
-        val localDir: File? = null,
-        val remoteUpdatedAt: Long = 0L
-    )
-
-    enum class Source { BUILTIN, LOCAL, REMOTE, BOTH }
-
-    @Keep
-    private data class RemoteCache(
-        val name: String,
-        val dirName: String,
-        val isNightMode: Boolean,
-        val updatedAt: Long
+        val localDir: File? = null
     )
 
     val items = listOf(
@@ -122,33 +105,16 @@ object NavigationBarIconConfig {
             ?: DEFAULT_DIR_NAME
     }
 
-    suspend fun loadEntries(isNight: Boolean, includeRemote: Boolean): List<Entry> {
+    suspend fun loadEntries(isNight: Boolean): List<Entry> {
         migrateLegacyIconsIfNeeded(isNight)
-        val local = loadLocal(isNight).associateBy { it.dirName }
-        val remote = if (includeRemote && AppConfig.syncThemePackages) {
-            loadRemoteOrCache(isNight).associateBy { it.dirName }
-        } else {
-            emptyMap()
-        }
         val entries = linkedMapOf<String, Entry>()
         entries[DEFAULT_DIR_NAME] = defaultEntry(isNight)
-        (local.keys + remote.keys).forEach { key ->
-            val localEntry = local[key]
-            val remoteEntry = remote[key]
-            entries[key] = when {
-                localEntry != null && remoteEntry != null -> localEntry.copy(
-                    source = Source.BOTH,
-                    remoteUpdatedAt = remoteEntry.remoteUpdatedAt
-                )
-                localEntry != null -> localEntry
-                remoteEntry != null -> remoteEntry
-                else -> return@forEach
-            }
+        loadLocal(isNight).forEach { entry ->
+            entries[entry.dirName] = entry
         }
         return entries.values.sortedWith(
             compareBy<Entry> { it.dirName != DEFAULT_DIR_NAME }
-                .thenBy { it.source == Source.REMOTE }
-                .thenByDescending { if (it.source == Source.REMOTE) it.remoteUpdatedAt else it.config.updatedAt }
+                .thenByDescending { it.config.updatedAt }
                 .thenBy { it.config.name }
                 .thenBy { it.dirName }
         )
@@ -190,8 +156,7 @@ object NavigationBarIconConfig {
         val name = config.name.trim().ifBlank { defaultName(config.isNightMode) }
         val keepOldDir = oldEntry != null &&
             oldEntry.dirName.isNotBlank() &&
-            oldEntry.dirName != DEFAULT_DIR_NAME &&
-            oldEntry.source != Source.REMOTE
+            oldEntry.dirName != DEFAULT_DIR_NAME
         val dirName = if (keepOldDir) {
             oldEntry!!.dirName
         } else {
@@ -212,7 +177,7 @@ object NavigationBarIconConfig {
             icons = source.icons.toMutableMap()
         )
         File(dir, packageFileName).writeText(GSON.toJson(normalized))
-        return Entry(normalized, Source.LOCAL, dirName, localDir = dir)
+        return Entry(normalized, dirName, localDir = dir)
     }
 
     fun deleteLocal(entry: Entry) {
@@ -221,25 +186,9 @@ object NavigationBarIconConfig {
         resetActiveIfNeeded(entry)
     }
 
-    suspend fun delete(entry: Entry) {
-        if (entry.dirName == DEFAULT_DIR_NAME) return
-        when (entry.source) {
-            Source.REMOTE -> deleteRemote(entry)
-            Source.BOTH -> {
-                val remoteResult = runCatching { deleteRemote(entry) }
-                deleteLocal(entry)
-                remoteResult.getOrThrow()
-            }
-            Source.LOCAL -> deleteLocal(entry)
-            Source.BUILTIN -> return
-        }
-        resetActiveIfNeeded(entry)
-    }
-
     suspend fun exportZip(entry: Entry): File {
-        val localEntry = if (entry.source == Source.REMOTE) download(entry) else entry
-        val dir = localEntry.localDir ?: localDir(localEntry.config.isNightMode, localEntry.dirName)
-        val zipFile = tempDir.getFile("${localEntry.dirName}.zip")
+        val dir = entry.localDir ?: localDir(entry.config.isNightMode, entry.dirName)
+        val zipFile = tempDir.getFile("${entry.dirName}.zip")
         if (zipFile.exists()) zipFile.delete()
         ZipUtils.zipFile(dir, zipFile)
         return zipFile
@@ -247,22 +196,6 @@ object NavigationBarIconConfig {
 
     fun importZip(zipFile: File): Entry {
         return importZipInternal(zipFile)
-    }
-
-    suspend fun upload(entry: Entry) {
-        if (entry.dirName == DEFAULT_DIR_NAME) return
-        AppWebDav.uploadNavigationBarPackage(entry.config.isNightMode, entry.dirName, exportZip(entry))
-    }
-
-    suspend fun download(entry: Entry): Entry {
-        val zipFile = tempDir.getFile("${entry.dirName}.zip")
-        AppWebDav.downloadNavigationBarPackage(entry.config.isNightMode, entry.dirName, zipFile)
-        return importZipInternal(zipFile, entry.remoteUpdatedAt).copy(source = Source.BOTH, remoteUpdatedAt = entry.remoteUpdatedAt)
-    }
-
-    suspend fun deleteRemote(entry: Entry) {
-        if (entry.dirName == DEFAULT_DIR_NAME) return
-        AppWebDav.deleteNavigationBarPackage(entry.config.isNightMode, entry.dirName)
     }
 
     fun saveIconToPackage(
@@ -388,7 +321,6 @@ object NavigationBarIconConfig {
                 opacity = 76,
                 updatedAt = 0L
             ),
-            Source.BUILTIN,
             DEFAULT_DIR_NAME
         )
     }
@@ -400,66 +332,9 @@ object NavigationBarIconConfig {
             .orEmpty()
     }
 
-    private suspend fun loadRemote(isNight: Boolean): List<Entry> {
-        return AppWebDav.listNavigationBarPackages(isNight).mapNotNull { file ->
-            val name = file.displayName.removeSuffix(".zip")
-            Entry(
-                Config(name = name, isNightMode = isNight, updatedAt = file.lastModify),
-                Source.REMOTE,
-                name.normalizeFileName(),
-                remoteUpdatedAt = file.lastModify
-            )
-        }
-    }
-
-    private suspend fun loadRemoteOrCache(isNight: Boolean): List<Entry> {
-        return runCatching {
-            loadRemote(isNight).also { writeRemoteCache(isNight, it) }
-        }.getOrElse {
-            readRemoteCache(isNight)
-        }
-    }
-
-    private fun remoteCacheFile(isNight: Boolean): File {
-        return remoteCacheDir.getFile(if (isNight) "night.json" else "day.json")
-    }
-
-    private fun readRemoteCache(isNight: Boolean): List<Entry> {
-        val file = remoteCacheFile(isNight)
-        if (!file.exists()) return emptyList()
-        return GSON.fromJsonArray<RemoteCache>(file.readText()).getOrDefault(emptyList())
-            .filter { it.isNightMode == isNight }
-            .mapNotNull { cache ->
-                val dirName = cache.dirName.ifBlank { cache.name.normalizeFileName() }
-                    .ifBlank { return@mapNotNull null }
-                Entry(
-                    Config(
-                        name = cache.name.ifBlank { dirName },
-                        isNightMode = cache.isNightMode,
-                        updatedAt = cache.updatedAt
-                    ),
-                    Source.REMOTE,
-                    dirName,
-                    remoteUpdatedAt = cache.updatedAt
-                )
-            }
-    }
-
-    private fun writeRemoteCache(isNight: Boolean, entries: List<Entry>) {
-        val cache = entries.map {
-            RemoteCache(
-                name = it.config.name,
-                dirName = it.dirName,
-                isNightMode = it.config.isNightMode,
-                updatedAt = it.remoteUpdatedAt.takeIf { time -> time > 0L } ?: it.config.updatedAt
-            )
-        }
-        remoteCacheFile(isNight).writeText(GSON.toJson(cache))
-    }
-
     private fun readEntry(dir: File): Entry? {
         val config = readConfig(dir) ?: return null
-        return Entry(config, Source.LOCAL, dir.name, localDir = dir)
+        return Entry(config, dir.name, localDir = dir)
     }
 
     private fun readConfig(dir: File): Config? {
@@ -468,7 +343,7 @@ object NavigationBarIconConfig {
         return GSON.fromJsonObject<Config>(file.readText()).getOrNull()?.let(::normalizeConfig)
     }
 
-    private fun importZipInternal(zipFile: File, remoteUpdatedAt: Long = 0L): Entry {
+    private fun importZipInternal(zipFile: File): Entry {
         val unzipDir = tempDir.getFile("import_${System.currentTimeMillis()}").apply {
             if (exists()) FileUtils.delete(this, deleteRootDir = true)
             mkdirs()
@@ -482,9 +357,7 @@ object NavigationBarIconConfig {
                 config.name = "${config.name}_${appCtx.getString(R.string.navigation_bar_import_suffix)}"
             }
             config.opacity = config.opacity.coerceIn(0, 100)
-            if (remoteUpdatedAt == 0L) {
-                config.updatedAt = System.currentTimeMillis()
-            }
+            config.updatedAt = System.currentTimeMillis()
             val dirName = config.name.normalizeFileName().ifBlank { "navigation_${System.currentTimeMillis()}" }
             val targetDir = localDir(config.isNightMode, dirName)
             if (targetDir.exists()) {
@@ -493,7 +366,7 @@ object NavigationBarIconConfig {
             targetDir.mkdirs()
             packageFile.parentFile?.copyRecursively(targetDir, overwrite = true)
             File(targetDir, packageFileName).writeText(GSON.toJson(config))
-            Entry(config, Source.LOCAL, dirName, localDir = targetDir, remoteUpdatedAt = remoteUpdatedAt)
+            Entry(config, dirName, localDir = targetDir)
         } finally {
             FileUtils.delete(unzipDir, deleteRootDir = true)
         }

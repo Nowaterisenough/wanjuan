@@ -1093,10 +1093,10 @@
     <string name="cover_book_progress">Overlay Cloud Progress</string>
     <string name="current_progress_exceeds_cloud">The current progress exceeds the cloud progress. Do you want to synchronize?</string>
     <string name="cloud_progress_exceeds_current">The cloud progress exceeds the current progress. Do you want to synchronize?</string>
-    <string name="sync_book_progress_t">Synchronous reading progress</string>
-    <string name="sync_book_progress_s">Synchronize reading progress when entering / exiting the reading interface</string>
-    <string name="sync_book_progress_plus_t">Sync Enhancement</string>
-    <string name="sync_book_progress_plus_s">Sync cloud progress when re-entering the page (screen off, returning from background, etc.) or when the network becomes available. You will be prompted before syncing new progress.</string>
+    <string name="sync_book_progress_t">Object-level two-way sync</string>
+    <string name="sync_book_progress_s">Sync the bookshelf, books, reading progress, sources, subscriptions, and their order</string>
+    <string name="sync_book_progress_plus_t">Enhanced sync while reading</string>
+    <string name="sync_book_progress_plus_s">Check the reading progress inside the cloud book object when returning to the reader or reconnecting, and prompt before applying newer progress.</string>
     <string name="sync_book_progress_success">Sync progress success</string>
     <string name="create_bookmark_error">Failed to create bookmark</string>
     <string name="single_url">Single URL</string>

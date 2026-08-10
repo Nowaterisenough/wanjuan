@@ -128,16 +128,6 @@ class BackupConfigFragment : PreferenceFragment(),
                 editText.setSelection(editText.text.length)
             }
         }
-        findPreference<Preference>(PreferKey.syncThemePackages)?.let {
-            it.onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, newValue ->
-                if (newValue == true && !hasWebDavAccount()) {
-                    toastOnUi("请先填写 WebDAV 账号和密码")
-                    false
-                } else {
-                    true
-                }
-            }
-        }
         upPreferenceSummary(PreferKey.webDavUrl, getPrefString(PreferKey.webDavUrl))
         upPreferenceSummary(PreferKey.webDavAccount, getPrefString(PreferKey.webDavAccount))
         upPreferenceSummary(PreferKey.webDavPassword, getPrefString(PreferKey.webDavPassword))
@@ -252,7 +242,7 @@ class BackupConfigFragment : PreferenceFragment(),
             "web_dav_backup" -> backup()
             "web_dav_restore" -> restore()
             "web_dav_sync_now" -> {
-                SyncManager.syncNow { result ->
+                SyncManager.syncNow(force = true) { result ->
                     if (result.isSuccess) {
                         appCtx.toastOnUi(
                             "同步完成：上传 ${result.uploaded}，下载 ${result.downloaded}，" +

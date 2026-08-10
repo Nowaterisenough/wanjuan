@@ -1,5 +1,6 @@
 package io.wanjuan.app.sync.remote
 
+import android.net.Uri
 import io.wanjuan.app.help.AppWebDav
 import io.wanjuan.app.exception.NoStackTraceException
 import io.wanjuan.app.lib.webdav.Authorization
@@ -9,6 +10,7 @@ import io.wanjuan.app.lib.webdav.WebDavException
 import io.wanjuan.app.utils.GSON
 import io.wanjuan.app.utils.fromJsonObject
 import java.nio.charset.StandardCharsets
+import java.io.File
 
 internal fun syncRemotePath(directory: String, href: String): String {
     val fileName = href.replace('\\', '/').trimEnd('/').substringAfterLast('/')
@@ -74,11 +76,14 @@ class WebDavSyncClient(
             "${root}devices/",
             "${root}books/",
             "${root}bookGroups/",
-            "${root}bookProgress/",
             "${root}bookSources/",
             "${root}rssSources/",
             "${root}ruleSubs/",
             "${root}order/",
+            "${root}assets/",
+            "${root}assets/library/",
+            "${root}assets/exports/",
+            "${root}assets/cachePackages/",
             "${root}tombstones/",
             "${root}tombstones/books/",
             "${root}tombstones/bookGroups/",
@@ -125,6 +130,22 @@ class WebDavSyncClient(
     suspend fun upload(relativePath: String, payload: Any) {
         uploadJson(relativePath, GSON.toJson(payload))
     }
+
+    suspend fun upload(relativePath: String, bytes: ByteArray, contentType: String) {
+        WebDav(resolve(relativePath), requireAuthorization()).upload(bytes, contentType)
+    }
+
+    suspend fun upload(relativePath: String, uri: Uri, contentType: String) {
+        WebDav(resolve(relativePath), requireAuthorization()).upload(uri, contentType)
+    }
+
+    suspend fun upload(relativePath: String, file: File, contentType: String) {
+        WebDav(resolve(relativePath), requireAuthorization()).upload(file, contentType)
+    }
+
+    fun directoryUrl(relativePath: String): String = resolve(relativePath, asDirectory = true)
+
+    fun authorizationOrNull(): Authorization? = authorizationProvider()
 
     override suspend fun uploadJson(relativePath: String, json: String) {
         val authorization = requireAuthorization()

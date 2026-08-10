@@ -22,6 +22,9 @@ interface SyncMetadataDao {
     @Query("delete from sync_metadata where objectType = :objectType and objectId = :objectId")
     fun delete(objectType: String, objectId: String)
 
+    @Query("delete from sync_metadata")
+    fun deleteAll()
+
     @Query(
         """update sync_metadata
         set dirty = 0, lastSyncedHash = :hash

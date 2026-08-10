@@ -7,7 +7,7 @@ import io.wanjuan.app.constant.AppLog
 import io.wanjuan.app.constant.BookType
 import io.wanjuan.app.data.appDb
 import io.wanjuan.app.exception.NoStackTraceException
-import io.wanjuan.app.help.AppWebDav
+import io.wanjuan.app.sync.SyncManager
 import io.wanjuan.app.help.config.AppConfig
 import io.wanjuan.app.lib.webdav.Authorization
 import io.wanjuan.app.model.analyzeRule.CustomUrl
@@ -104,7 +104,7 @@ class RemoteBookViewModel(application: Application) : BaseViewModel(application)
                 return@execute
             }
             isDefaultWebdav = true
-            remoteBookWebDav = AppWebDav.defaultBookWebDav
+            remoteBookWebDav = SyncManager.assets.remoteBookWebDav()
                 ?: throw NoStackTraceException("webDav没有配置")
         }.onError {
             context.toastOnUi("初始化webDav出错:${it.localizedMessage}")

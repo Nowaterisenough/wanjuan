@@ -51,7 +51,7 @@ import io.wanjuan.app.data.entities.BookChapter
 import io.wanjuan.app.data.entities.BookSource
 import io.wanjuan.app.databinding.ActivityBookInfoBinding
 import io.wanjuan.app.exception.NoStackTraceException
-import io.wanjuan.app.help.AppWebDav
+import io.wanjuan.app.sync.SyncManager
 import io.wanjuan.app.help.GlideImageGetter
 import io.wanjuan.app.help.TextViewTagHandler
 import io.wanjuan.app.help.WebCacheManager
@@ -610,7 +610,7 @@ class BookInfoActivity :
 
     private fun upLoadBook(
         book: Book,
-        bookWebDav: RemoteBookWebDav? = AppWebDav.defaultBookWebDav,
+        bookWebDav: RemoteBookWebDav? = SyncManager.assets.remoteBookWebDav(),
     ) {
         lifecycleScope.launch {
             waitDialog.setText(getString(R.string.book_info_uploading))

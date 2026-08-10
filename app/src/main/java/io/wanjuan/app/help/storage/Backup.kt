@@ -11,12 +11,10 @@ import io.wanjuan.app.exception.NoStackTraceException
 import io.wanjuan.app.help.AppWebDav
 import io.wanjuan.app.help.DirectLinkUpload
 import io.wanjuan.app.help.config.AppConfig
-import io.wanjuan.app.help.config.LocalConfig
 import io.wanjuan.app.help.config.ReadBookConfig
 import io.wanjuan.app.help.config.ThemeConfig
 import io.wanjuan.app.help.config.ThemePackageManager
 import io.wanjuan.app.help.config.NavigationBarIconConfig
-import io.wanjuan.app.help.coroutine.Coroutine
 import io.wanjuan.app.model.BookCover
 import io.wanjuan.app.utils.FileUtils
 import io.wanjuan.app.utils.GSON
@@ -45,7 +43,6 @@ import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import java.util.concurrent.TimeUnit
 import androidx.core.content.edit
 import io.wanjuan.app.model.VideoPlay.VIDEO_PREF_NAME
 
@@ -108,30 +105,6 @@ object Backup {
         }.normalizeFileName()
     }
 
-    private fun shouldBackup(): Boolean {
-        val lastBackup = LocalConfig.lastBackup
-        return lastBackup + TimeUnit.DAYS.toMillis(1) < System.currentTimeMillis()
-    }
-
-    fun autoBack(context: Context) {
-        if (shouldBackup()) {
-            Coroutine.async {
-                mutex.withLock {
-                    if (shouldBackup()) {
-                        val backupZipFileName = getNowZipFileName()
-                        if (!AppWebDav.hasBackUp(backupZipFileName)) {
-                            backup(context, AppConfig.backupPath)
-                        } else {
-                            LocalConfig.lastBackup = System.currentTimeMillis()
-                        }
-                    }
-                }
-            }.onError {
-                AppLog.put("自动备份失败\n${it.localizedMessage}")
-            }
-        }
-    }
-
     suspend fun backupLocked(context: Context, path: String?) {
         mutex.withLock {
             withContext(IO) {
@@ -142,7 +115,6 @@ object Backup {
 
     private suspend fun backup(context: Context, path: String?) {
         LogUtils.d(TAG, "开始备份 path:$path")
-        LocalConfig.lastBackup = System.currentTimeMillis()
         val aes = BackupAES()
         FileUtils.delete(backupPath)
         writeListToJson(appDb.bookDao.all, "bookshelf.json", backupPath)
@@ -266,16 +238,6 @@ object Backup {
         }
         FileUtils.delete(backupPath)
         FileUtils.delete(zipFilePath)
-        currentCoroutineContext().ensureActive()
-        ReadBookConfig.getAllPicBgStr().map {
-            if (it.contains(File.separator)) {
-                File(it)
-            } else {
-                appCtx.externalFiles.getFile("bg", it)
-            }
-        }.let {
-            AppWebDav.upBgs(it.toTypedArray())
-        }
     }
 
     private suspend fun writeListToJson(list: List<Any>, fileName: String, path: String) {

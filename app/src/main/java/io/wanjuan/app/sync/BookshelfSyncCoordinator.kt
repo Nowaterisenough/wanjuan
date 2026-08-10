@@ -1,16 +1,23 @@
 package io.wanjuan.app.sync
 
+import io.wanjuan.app.constant.AppLog
 import io.wanjuan.app.data.appDb
 import io.wanjuan.app.data.AppDatabase
 import io.wanjuan.app.data.entities.Book
+import io.wanjuan.app.data.entities.BookProgress
+import io.wanjuan.app.help.config.AppConfig
 import io.wanjuan.app.sync.mapper.BookSyncMapper
 import io.wanjuan.app.sync.local.SyncMetadata
+import io.wanjuan.app.sync.merge.SyncMerge
 import io.wanjuan.app.sync.model.SyncBook
 import io.wanjuan.app.sync.model.SyncBookPayload
 import io.wanjuan.app.sync.model.SyncObjectType
 import io.wanjuan.app.sync.model.SyncOrderPayload
 import io.wanjuan.app.sync.model.SyncTombstonePayload
 import io.wanjuan.app.sync.remote.WebDavSyncClient
+import io.wanjuan.app.utils.NetworkUtils
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 
 interface BookshelfSyncStore {
     fun allBooks(): List<Book>
@@ -137,6 +144,82 @@ class BookshelfSyncCoordinator(
         runCatching { client.delete("tombstones/books/${payload.bookSyncId}.json") }
     }
 
+    suspend fun pullProgress(book: Book): BookProgress? {
+        val id = SyncIds.bookId(book)
+        val payload = client.download<SyncBookPayload>("books/$id.json") ?: return null
+        if (payload.bookSyncId != id) return null
+        val remoteUpdatedAt = payload.effectiveProgressUpdatedAt()
+        if (!SyncMerge.remoteProgressWins(book.localProgressUpdatedAt(), remoteUpdatedAt)) {
+            return null
+        }
+        return BookProgress(
+            name = payload.book.name,
+            author = payload.book.author,
+            durChapterIndex = payload.book.durChapterIndex,
+            durChapterPos = payload.book.durChapterPos,
+            durChapterTime = remoteUpdatedAt,
+            durChapterTitle = payload.book.durChapterTitle
+        )
+    }
+
+    /**
+     * Reading progress is one component of the book sync object. Update that component in the
+     * existing remote object so a progress upload cannot overwrite newer shelf/catalog fields.
+     */
+    suspend fun pushProgress(book: Book, toast: Boolean = false, force: Boolean = false): Boolean {
+        if (!AppConfig.webDavObjectSync) return false
+        if (!NetworkUtils.isAvailable()) return false
+        return try {
+            val id = SyncIds.bookId(book)
+            val localUpdatedAt = book.localProgressUpdatedAt()
+                .takeIf { it > 0L }
+                ?: book.durChapterTime
+            val remote = client.download<SyncBookPayload>("books/$id.json")
+            if (!force && remote != null && SyncMerge.remoteProgressWins(
+                    localUpdatedAt,
+                    remote.effectiveProgressUpdatedAt()
+                )
+            ) {
+                return false
+            }
+            val deviceId = deviceIdProvider()
+            val payload = if (remote == null) {
+                BookSyncMapper.toBookPayload(
+                    book = book,
+                    deviceId = deviceId,
+                    shelfUpdatedAt = clock.now(),
+                    catalogUpdatedAt = clock.now(),
+                    progressUpdatedAt = localUpdatedAt
+                )
+            } else {
+                remote.copy(
+                    book = remote.book.withProgressFrom(book, localUpdatedAt),
+                    progressUpdatedAt = localUpdatedAt,
+                    progressUpdatedByDeviceId = deviceId
+                )
+            }
+            client.upload("books/$id.json", payload)
+            runCatching { client.delete("tombstones/books/$id.json") }
+            book.syncTime = localUpdatedAt
+            true
+        } catch (e: Exception) {
+            currentCoroutineContext().ensureActive()
+            AppLog.put("上传进度失败\n${e.localizedMessage}", e, toast)
+            false
+        }
+    }
+
+    fun applyProgress(book: Book, progress: BookProgress) {
+        SyncScope.remoteApply {
+            book.durChapterIndex = progress.durChapterIndex
+            book.durChapterPos = progress.durChapterPos
+            book.durChapterTitle = progress.durChapterTitle
+            book.durChapterTime = progress.durChapterTime
+            book.syncTime = progress.durChapterTime
+            appDb.bookDao.update(book)
+        }
+    }
+
     fun applyRemoteBook(payload: SyncBookPayload) {
         repository.applyRemote {
             appDb.runInTransaction {
@@ -247,6 +330,18 @@ class BookshelfSyncCoordinator(
     } else {
         coordinator.remoteLegacyMaskToLocalMask(book.group)
     }
+
+    private fun Book.localProgressUpdatedAt(): Long = syncTime
+
+    private fun SyncBook.withProgressFrom(book: Book, progressUpdatedAt: Long): SyncBook = copy(
+        durChapterTitle = book.durChapterTitle,
+        durChapterIndex = book.durChapterIndex,
+        durVolumeIndex = book.durVolumeIndex,
+        chapterInVolumeIndex = book.chapterInVolumeIndex,
+        durChapterPos = book.durChapterPos,
+        durChapterTime = book.durChapterTime,
+        syncTime = progressUpdatedAt
+    )
 
     private fun SyncBook.toBook(localGroupMask: Long): Book {
         return Book(

@@ -56,7 +56,6 @@ import io.wanjuan.app.help.config.AppConfig
 import io.wanjuan.app.help.config.NavigationBarIconConfig
 import io.wanjuan.app.help.config.LocalConfig
 import io.wanjuan.app.help.coroutine.Coroutine
-import io.wanjuan.app.help.storage.Backup
 import io.wanjuan.app.lib.dialogs.alert
 import io.wanjuan.app.lib.theme.ThemeStore
 import io.wanjuan.app.lib.theme.UiCorner
@@ -1588,7 +1587,6 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
             BookHelp.clearInvalidCache()
         }
         if (!BuildConfig.DEBUG) {
-            Backup.autoBack(this)
         }
     }
 

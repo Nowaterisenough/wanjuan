@@ -19,7 +19,7 @@ import io.wanjuan.app.data.entities.BookChapter
 import io.wanjuan.app.data.entities.BookSource
 import io.wanjuan.app.exception.NoBooksDirException
 import io.wanjuan.app.exception.NoStackTraceException
-import io.wanjuan.app.help.AppWebDav
+import io.wanjuan.app.sync.SyncManager
 import io.wanjuan.app.help.book.addType
 import io.wanjuan.app.help.book.BookHelp
 import io.wanjuan.app.help.book.getExportFileName
@@ -180,7 +180,7 @@ class BookInfoViewModel(application: Application) : BaseViewModel(application) {
             if (book.isLocal) {
                 book.tocUrl = ""
                 book.getRemoteUrl()?.let {
-                    val bookWebDav = AppWebDav.defaultBookWebDav
+                    val bookWebDav = SyncManager.assets.remoteBookWebDav()
                         ?: throw NoStackTraceException("webDav没有配置")
                     val remoteBook = bookWebDav.getRemoteBook(it)
                     if (remoteBook == null) {

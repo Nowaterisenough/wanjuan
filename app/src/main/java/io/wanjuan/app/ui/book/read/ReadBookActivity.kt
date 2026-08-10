@@ -58,7 +58,6 @@ import io.wanjuan.app.help.config.ReadBookConfig
 import io.wanjuan.app.help.config.ReadTipConfig
 import io.wanjuan.app.help.coroutine.Coroutine
 import io.wanjuan.app.help.source.getSourceType
-import io.wanjuan.app.help.storage.Backup
 import io.wanjuan.app.lib.dialogs.SelectItem
 import io.wanjuan.app.lib.dialogs.alert
 import io.wanjuan.app.lib.dialogs.selector
@@ -238,7 +237,7 @@ class ReadBookActivity : BaseReadBookActivity(),
     }
     private var menu: Menu? = null
     private var modernMenuPopup: PopupWindow? = null
-    private var backupJob: Job? = null
+    private var progressSyncJob: Job? = null
     private var tts: TTS? = null
     private var commentWebViewSession: CommentWebViewSession? = null
     @Volatile
@@ -393,7 +392,7 @@ class ReadBookActivity : BaseReadBookActivity(),
         networkChangedListener.register()
         networkChangedListener.onNetworkChanged = {
             // 褰撶綉缁滄槸鍙敤鐘舵€佷笖鏃犻渶鍒濆鍖栨椂鍚屾杩涘害锛堝垵濮嬪寲涓凡鏈夊悓姝ヨ繘搴﹂€昏緫锛?
-            if (AppConfig.syncBookProgressPlus && NetworkUtils.isAvailable() && !justInitData && ReadBook.inBookshelf) {
+            if (AppConfig.webDavReadingSyncEnhancement && NetworkUtils.isAvailable() && !justInitData && ReadBook.inBookshelf) {
                 ReadBook.syncProgress()
             }
         }
@@ -402,20 +401,19 @@ class ReadBookActivity : BaseReadBookActivity(),
     override fun onPause() {
         super.onPause()
         autoPageStop()
-        backupJob?.cancel()
+        progressSyncJob?.cancel()
         ReadBook.saveRead()
         ReadBook.cancelPreDownloadTask()
         unregisterReceiver(timeBatteryReceiver)
         upSystemUiVisibility()
         if (!BuildConfig.DEBUG && ReadBook.inBookshelf) {
-            if (AppConfig.syncBookProgressPlus) {
+            if (AppConfig.webDavReadingSyncEnhancement) {
                 ReadBook.syncProgress()
             } else {
                 ReadBook.uploadProgress()
             }
         }
         if (!BuildConfig.DEBUG) {
-            Backup.autoBack(this)
         }
         justInitData = false
         networkChangedListener.unRegister()
@@ -1172,7 +1170,7 @@ class ReadBookActivity : BaseReadBookActivity(),
             updateChapterProgressMinimap()
         }
         executor.execute {
-            startBackupJob()
+            scheduleProgressSync()
         }
     }
 
@@ -2175,15 +2173,14 @@ class ReadBookActivity : BaseReadBookActivity(),
         }
     }
 
-    private fun startBackupJob() {
-        backupJob?.cancel()
-        backupJob = lifecycleScope.launch(IO) {
+    private fun scheduleProgressSync() {
+        progressSyncJob?.cancel()
+        progressSyncJob = lifecycleScope.launch(IO) {
             delay(300000)
             ReadBook.book?.let {
-                SyncManager.progress.pushProgress(it)
+                SyncManager.bookshelf.pushProgress(it)
                 ensureActive()
                 it.update()
-                Backup.autoBack(this@ReadBookActivity)
             }
         }
     }
@@ -2248,7 +2245,6 @@ class ReadBookActivity : BaseReadBookActivity(),
             viewModel.removeFromBookshelf(null)
         }
         if (!BuildConfig.DEBUG) {
-            Backup.autoBack(this)
         }
     }
 

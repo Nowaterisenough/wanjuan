@@ -43,27 +43,19 @@ import io.wanjuan.app.ui.image.ImageCropContract
 import io.wanjuan.app.ui.widget.number.NumberPickerDialog
 import io.wanjuan.app.ui.widget.seekbar.SeekBarChangeListener
 import io.wanjuan.app.utils.ColorUtils
-import io.wanjuan.app.utils.GSON
 import io.wanjuan.app.utils.applyNavigationBarMargin
 import io.wanjuan.app.utils.ImageCropHelper
 import io.wanjuan.app.utils.externalFiles
-import io.wanjuan.app.utils.fromJsonArray
 import io.wanjuan.app.utils.getCompatColor
 import io.wanjuan.app.utils.getFile
 import io.wanjuan.app.utils.getPrefBoolean
 import io.wanjuan.app.utils.getPrefInt
 import io.wanjuan.app.utils.getPrefString
 import io.wanjuan.app.utils.hexString
-import io.wanjuan.app.utils.putPrefString
-import io.wanjuan.app.utils.removePref
 import io.wanjuan.app.utils.toastOnUi
 import io.wanjuan.app.utils.viewbindingdelegate.viewBinding
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 import java.text.SimpleDateFormat
@@ -88,9 +80,6 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
     private var pendingUiCornerSearchFollow = false
     private var pendingUiCornerReplyFollow = false
     private var loadVersion = 0
-    private val pendingRemoteSyncTasks = linkedMapOf<String, RemoteSyncTask>()
-    @Volatile
-    private var syncingRemoteTasks = false
     private var appliedDayThemeOverride: String? = null
     private var appliedNightThemeOverride: String? = null
     private var pendingImageCropRequest: ImageCropHelper.Request? = null
@@ -132,7 +121,6 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
     }
 
     override fun onActivityCreated(savedInstanceState: Bundle?) {
-        restorePendingRemoteSyncTasks()
         initView()
         lifecycleScope.launch {
             kotlin.runCatching {
@@ -141,7 +129,6 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
             }
             loadThemes()
         }
-        flushPendingRemoteSyncTasks()
     }
 
     private fun initView() = binding.run {
@@ -189,15 +176,14 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
 
     private fun loadThemes() {
         val version = ++loadVersion
-        val useCloud = AppConfig.syncThemePackages
-        binding.tvSummary.text = appendPendingRemoteSummary(getString(R.string.theme_package_summary_default))
+        binding.tvSummary.text = getString(R.string.theme_package_summary_default)
         lifecycleScope.launch {
             kotlin.runCatching {
                 ThemePackageManager.loadLocalOnly(isNightTheme)
             }.onSuccess {
                 if (version != loadVersion) return@launch
                 adapter.items = it
-                binding.tvSummary.text = appendPendingRemoteSummary(
+                binding.tvSummary.text =
                     if (it.isEmpty()) {
                         getString(
                             R.string.theme_package_empty,
@@ -206,45 +192,10 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
                     } else {
                         getString(R.string.theme_package_summary_default)
                     }
-                )
-                if (useCloud) {
-                    loadThemesRemote(version)
-                }
             }.onFailure {
                 if (it.isJobCancellation()) return@onFailure
                 if (version != loadVersion) return@launch
-                binding.tvSummary.text = if (useCloud) {
-                    getString(R.string.theme_package_cloud_load_failed, it.localizedMessage)
-                } else {
-                    getString(R.string.theme_package_load_failed, it.localizedMessage)
-                }
-            }
-        }
-    }
-
-    private fun loadThemesRemote(version: Int) {
-        lifecycleScope.launch {
-            kotlin.runCatching {
-                ThemePackageManager.load(isNightTheme)
-            }.onSuccess {
-                if (version != loadVersion) return@onSuccess
-                adapter.items = it
-                binding.tvSummary.text = appendPendingRemoteSummary(
-                    if (it.isEmpty()) {
-                        getString(
-                            R.string.theme_package_empty,
-                            getString(if (isNightTheme) R.string.theme_night_short else R.string.theme_day_short)
-                        )
-                    } else {
-                        getString(R.string.theme_package_summary_default)
-                    }
-                )
-            }.onFailure {
-                if (it.isJobCancellation()) return@onFailure
-                if (version != loadVersion) return@onFailure
-                binding.tvSummary.text = appendPendingRemoteSummary(
-                    getString(R.string.theme_package_cloud_load_failed, it.localizedMessage)
-                )
+                binding.tvSummary.text = getString(R.string.theme_package_load_failed, it.localizedMessage)
             }
         }
     }
@@ -283,11 +234,7 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
     private fun showEditDialog(entry: ThemePackageManager.Entry) {
         lifecycleScope.launch {
             kotlin.runCatching {
-                if (entry.source == ThemePackageManager.Source.REMOTE) {
-                    ThemePackageManager.download(entry)
-                } else {
-                    entry
-                }
+                entry
             }.onSuccess { localEntry ->
                 alert(getString(R.string.theme_edit)) {
                     val dialogBinding = createEditBinding(ThemePackageManager.getConfig(localEntry), localEntry)
@@ -333,7 +280,7 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
             setupImageRow(rowMainBackground, R.string.theme_image_main_background, true)
             setupImageRow(rowBookInfoBackground, R.string.theme_image_book_info_background, false)
             setupInterfaceRows(this)
-            etName.isEnabled = entry?.source != ThemePackageManager.Source.REMOTE
+            etName.isEnabled = true
         }
     }
 
@@ -574,12 +521,7 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
                 }
                 val entry = ThemePackageManager.addFromConfig(config)
                 if (oldEntry != null && oldEntry.dirName != entry.dirName) {
-                    if (oldEntry.source != ThemePackageManager.Source.REMOTE) {
-                        ThemePackageManager.deleteLocal(oldEntry)
-                    }
-                    if (AppConfig.syncThemePackages && oldEntry.source != ThemePackageManager.Source.LOCAL) {
-                        enqueueRemoteDelete(oldEntry)
-                    }
+                    ThemePackageManager.deleteLocal(oldEntry)
                 }
                 if (wasApplied) {
                     ThemePackageManager.apply(this@ThemeManageActivity, entry, switchNightMode = false)
@@ -588,24 +530,11 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
             }.onSuccess {
                 toastOnUi(getString(R.string.theme_saved_local))
                 loadThemes()
-                enqueueUploadIfNeeded(it)
             }.onFailure {
                 if (it.isJobCancellation()) return@onFailure
                 toastOnUi(getString(R.string.theme_save_failed, it.localizedMessage))
             }
         }
-    }
-
-    private fun enqueueUploadIfNeeded(entry: ThemePackageManager.Entry) {
-        if (!AppConfig.syncThemePackages) return
-        enqueueRemoteSync(
-            RemoteSyncTask(
-                key = "upload:${entry.packageInfo.isNightTheme}:${entry.dirName}",
-                type = RemoteSyncTask.Type.UPLOAD,
-                isNightTheme = entry.packageInfo.isNightTheme,
-                dirName = entry.dirName
-            )
-        )
     }
 
     private fun currentConfig(): ThemeConfig.Config {
@@ -682,13 +611,9 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
         val actions = buildList {
             add(ThemeAction.APPLY)
             add(ThemeAction.EDIT)
-            if (entry.source != ThemePackageManager.Source.REMOTE) add(ThemeAction.EXPORT)
-            if (entry.source != ThemePackageManager.Source.LOCAL) add(ThemeAction.DOWNLOAD)
-            if (entry.source != ThemePackageManager.Source.REMOTE) add(ThemeAction.UPLOAD)
+            add(ThemeAction.EXPORT)
             if (!isApplied(entry)) {
-                if (entry.source != ThemePackageManager.Source.REMOTE) add(ThemeAction.DELETE_LOCAL)
-                if (entry.source != ThemePackageManager.Source.LOCAL) add(ThemeAction.DELETE_REMOTE)
-                if (entry.source == ThemePackageManager.Source.BOTH) add(ThemeAction.DELETE_BOTH)
+                add(ThemeAction.DELETE_LOCAL)
             }
         }
         selector(entry.packageInfo.name, actions.map { getString(it.titleRes) }) { _, index ->
@@ -696,20 +621,8 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
                 ThemeAction.APPLY -> applyTheme(entry)
                 ThemeAction.EDIT -> showEditDialog(entry)
                 ThemeAction.EXPORT -> exportThemeZip(entry)
-                ThemeAction.DOWNLOAD -> runAction(getString(R.string.theme_downloaded)) { ThemePackageManager.download(entry) }
-                ThemeAction.UPLOAD -> {
-                    enqueueUploadIfNeeded(entry)
-                    toastOnUi(getString(R.string.theme_sync_queued))
-                }
                 ThemeAction.DELETE_LOCAL -> confirmDeleteTheme(entry, getString(R.string.theme_delete_local_confirm)) {
                     ThemePackageManager.deleteLocal(entry)
-                }
-                ThemeAction.DELETE_REMOTE -> confirmDeleteTheme(entry, getString(R.string.theme_delete_remote_confirm)) {
-                    enqueueRemoteDelete(entry)
-                }
-                ThemeAction.DELETE_BOTH -> confirmDeleteTheme(entry, getString(R.string.theme_delete_both_confirm)) {
-                    ThemePackageManager.deleteLocal(entry)
-                    enqueueRemoteDelete(entry)
                 }
             }
         }
@@ -748,7 +661,6 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
             }.onSuccess {
                 toastOnUi(getString(R.string.theme_imported))
                 loadThemes()
-                enqueueUploadIfNeeded(it)
             }.onFailure {
                 if (it.isJobCancellation()) return@onFailure
                 toastOnUi(getString(R.string.theme_import_failed, it.localizedMessage))
@@ -759,12 +671,7 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
     private fun applyTheme(entry: ThemePackageManager.Entry) {
         lifecycleScope.launch {
             kotlin.runCatching {
-                val localEntry = if (entry.source == ThemePackageManager.Source.REMOTE) {
-                    ThemePackageManager.download(entry)
-                } else {
-                    entry
-                }
-                ThemePackageManager.apply(this@ThemeManageActivity, localEntry, switchNightMode = false)
+                ThemePackageManager.apply(this@ThemeManageActivity, entry, switchNightMode = false)
             }.onFailure {
                 if (it.isJobCancellation()) return@onFailure
                 toastOnUi(getString(R.string.theme_apply_failed, it.localizedMessage))
@@ -805,99 +712,6 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
                 if (it.isJobCancellation()) return@onFailure
                 toastOnUi(it.localizedMessage)
             }
-        }
-    }
-
-    private fun enqueueRemoteDelete(entry: ThemePackageManager.Entry) {
-        if (!AppConfig.syncThemePackages) return
-        enqueueRemoteSync(
-            RemoteSyncTask(
-                key = "delete:${entry.packageInfo.isNightTheme}:${entry.dirName}",
-                type = RemoteSyncTask.Type.DELETE,
-                isNightTheme = entry.packageInfo.isNightTheme,
-                dirName = entry.dirName
-            )
-        )
-    }
-
-    private fun enqueueRemoteSync(task: RemoteSyncTask) {
-        synchronized(pendingRemoteSyncTasks) {
-            pendingRemoteSyncTasks[task.key] = task
-            savePendingRemoteSyncTasksLocked()
-        }
-        flushPendingRemoteSyncTasks()
-    }
-
-    private fun restorePendingRemoteSyncTasks() {
-        val tasks = getPrefString(PreferKey.themePackageSyncTasks).orEmpty()
-            .takeIf { it.isNotBlank() }
-            ?.let { GSON.fromJsonArray<RemoteSyncTask>(it).getOrNull() }
-            .orEmpty()
-        if (tasks.isEmpty()) return
-        synchronized(pendingRemoteSyncTasks) {
-            pendingRemoteSyncTasks.clear()
-            tasks.forEach { task ->
-                pendingRemoteSyncTasks[task.key] = task.copy(lastError = "")
-            }
-        }
-    }
-
-    private fun savePendingRemoteSyncTasksLocked() {
-        val tasks = pendingRemoteSyncTasks.values.toList()
-        if (tasks.isEmpty()) {
-            removePref(PreferKey.themePackageSyncTasks)
-        } else {
-            putPrefString(PreferKey.themePackageSyncTasks, GSON.toJson(tasks))
-        }
-    }
-
-    private fun flushPendingRemoteSyncTasks() {
-        val hasPending = synchronized(pendingRemoteSyncTasks) { pendingRemoteSyncTasks.isNotEmpty() }
-        if (syncingRemoteTasks || !hasPending || !AppConfig.syncThemePackages) return
-        syncingRemoteTasks = true
-        themeRemoteSyncScope.launch {
-            val failed = linkedMapOf<String, RemoteSyncTask>()
-            val tasks = synchronized(pendingRemoteSyncTasks) { pendingRemoteSyncTasks.values.toList() }
-            tasks.forEach { task ->
-                kotlin.runCatching {
-                    task.execute()
-                }.onSuccess {
-                    synchronized(pendingRemoteSyncTasks) {
-                        if (pendingRemoteSyncTasks[task.key] == task) {
-                            pendingRemoteSyncTasks.remove(task.key)
-                            savePendingRemoteSyncTasksLocked()
-                        }
-                    }
-                }.onFailure {
-                    if (!it.isJobCancellation()) {
-                        failed[task.key] = task
-                    }
-                }
-            }
-            syncingRemoteTasks = false
-            withContext(Dispatchers.Main) {
-                if (isFinishing || isDestroyed) return@withContext
-                if (failed.isEmpty()) {
-                    toastOnUi(getString(R.string.theme_sync_done))
-                    loadThemes()
-                } else {
-                    binding.tvSummary.text = appendPendingRemoteSummary(getString(R.string.theme_sync_failed_retry))
-                    toastOnUi(getString(R.string.theme_sync_failed, failed.values.first().lastError))
-                }
-            }
-            val pendingKeys = synchronized(pendingRemoteSyncTasks) { pendingRemoteSyncTasks.keys.toSet() }
-            if (pendingKeys.any { it !in failed.keys }) {
-                flushPendingRemoteSyncTasks()
-            }
-        }
-    }
-
-    private fun appendPendingRemoteSummary(base: String): String {
-        val pendingCount = synchronized(pendingRemoteSyncTasks) { pendingRemoteSyncTasks.size }
-        return if (pendingCount > 0) {
-            "$base\n${getString(R.string.theme_sync_pending, pendingCount)}"
-        } else {
-            base
         }
     }
 
@@ -942,8 +756,6 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
                         val old = oldItems[oldItemPosition]
                         val new = value[newItemPosition]
                         return old.packageInfo == new.packageInfo &&
-                                old.source == new.source &&
-                                old.remoteUpdatedAt == new.remoteUpdatedAt &&
                                 isApplied(old) == isApplied(new)
                     }
                 }).dispatchUpdatesTo(this)
@@ -993,7 +805,7 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
                     }
                     append(getString(if (pkg.isNightTheme) R.string.theme_night_short else R.string.theme_day_short))
                     append(" · ")
-                    val time = maxOf(pkg.updatedAt, entry.remoteUpdatedAt)
+                    val time = pkg.updatedAt
                     append(if (time > 0) dateFormat.format(Date(time)) else getString(R.string.theme_time_unknown))
                 }
                 tvName.setTextColor(primaryTextColor)
@@ -1075,7 +887,6 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
     }
 
     companion object {
-        private val themeRemoteSyncScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         private const val requestMainBackground = 301
         private const val requestBookInfoBackground = 302
         private const val colorPrimary = 401
@@ -1088,11 +899,7 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
         APPLY(R.string.theme_apply),
         EDIT(R.string.edit),
         EXPORT(R.string.theme_export_zip),
-        DOWNLOAD(R.string.theme_download_local),
-        UPLOAD(R.string.theme_upload_remote),
-        DELETE_LOCAL(R.string.theme_delete_local),
-        DELETE_REMOTE(R.string.theme_delete_remote),
-        DELETE_BOTH(R.string.theme_delete_both)
+        DELETE_LOCAL(R.string.theme_delete_local)
     }
 
     private enum class ThemeImageAction(val titleRes: Int) {
@@ -1101,39 +908,4 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
         DELETE(R.string.theme_image_delete)
     }
 
-    private data class RemoteSyncTask(
-        val key: String,
-        val type: Type,
-        val isNightTheme: Boolean,
-        val dirName: String,
-        var lastError: String = ""
-    ) {
-        suspend fun execute() {
-            val entry = ThemePackageManager.Entry(
-                packageInfo = ThemePackageManager.Package(
-                    name = dirName,
-                    dirName = dirName,
-                    isNightTheme = isNightTheme,
-                    updatedAt = 0L,
-                    config = null
-                ),
-                source = ThemePackageManager.Source.LOCAL,
-                localDir = ThemePackageManager.localDir(isNightTheme, dirName)
-            )
-            runCatching {
-                when (type) {
-                    Type.UPLOAD -> ThemePackageManager.upload(entry)
-                    Type.DELETE -> ThemePackageManager.deleteRemote(entry)
-                }
-            }.onFailure {
-                lastError = it.localizedMessage ?: it.toString()
-                throw it
-            }.getOrThrow()
-        }
-
-        enum class Type {
-            UPLOAD,
-            DELETE
-        }
-    }
 }

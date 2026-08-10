@@ -573,7 +573,7 @@ object LocalBook {
                 WebDav.fromPath(webDavUrl)
             }.getOrElse {
                 AppWebDav.authorization?.let { WebDav(webDavUrl, it) }
-                    ?: throw WebDavException("Unexpected defaultBookWebDav")
+                    ?: throw WebDavException("WebDAV authorization is unavailable")
             }
             val inputStream = runBlocking {
                 webdav.downloadInputStream()

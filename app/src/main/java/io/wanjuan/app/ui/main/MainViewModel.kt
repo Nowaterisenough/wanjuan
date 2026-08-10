@@ -265,13 +265,13 @@ class MainViewModel(application: Application) : BaseViewModel(application) {
     }
 
     private suspend fun pullRemoteProgressAfterToc(book: Book) {
-        if (!AppConfig.syncBookProgress) return
+        if (!AppConfig.webDavObjectSync) return
         kotlin.runCatching {
-            SyncManager.progress.pullProgress(book)
+            SyncManager.bookshelf.pullProgress(book)
         }.onSuccess { progress ->
             progress ?: return@onSuccess
             if (progress.durChapterIndex in 0..book.lastChapterIndex) {
-                SyncManager.progress.applyProgress(book, progress)
+                SyncManager.bookshelf.applyProgress(book, progress)
             }
         }.onFailure {
             currentCoroutineContext().ensureActive()

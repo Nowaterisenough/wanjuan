@@ -279,7 +279,7 @@ object ReadBook : CoroutineScope by MainScope() {
     ) {
         book?.let { book ->
             launch(IO) {
-                if (!SyncManager.progress.pushProgress(book, toast, force)) {
+                if (!SyncManager.bookshelf.pushProgress(book, toast, force)) {
                     return@launch
                 }
                 ensureActive()
@@ -298,16 +298,16 @@ object ReadBook : CoroutineScope by MainScope() {
         uploadSuccessAction: (() -> Unit)? = null,
         syncSuccessAction: (() -> Unit)? = null
     ) {
-        if (!AppConfig.syncBookProgress) return
+        if (!AppConfig.webDavObjectSync) return
         val book = book ?: return
         Coroutine.async {
-            SyncManager.progress.pullProgress(book)
+            SyncManager.bookshelf.pullProgress(book)
         }.onError {
             AppLog.put("拉取阅读进度失败", it)
         }.onSuccess { progress ->
             if (progress == null) {
                 Coroutine.async {
-                    if (!SyncManager.progress.pushProgress(book)) {
+                    if (!SyncManager.bookshelf.pushProgress(book)) {
                         return@async
                     }
                     uploadSuccessAction?.invoke()

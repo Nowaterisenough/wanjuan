@@ -1374,9 +1374,11 @@ object AppConfig : SharedPreferences.OnSharedPreferenceChangeListener {
             appCtx.putPrefInt(PreferKey.preDownloadNum, value)
         }
 
-    val syncBookProgress get() = appCtx.getPrefBoolean(PreferKey.syncBookProgress, true)
+    // Keep the persisted key for existing users; this now controls the complete object sync.
+    val webDavObjectSync get() = appCtx.getPrefBoolean(PreferKey.syncBookProgress, true)
 
-    val syncBookProgressPlus get() = appCtx.getPrefBoolean(PreferKey.syncBookProgressPlus, false)
+    val webDavReadingSyncEnhancement
+        get() = appCtx.getPrefBoolean(PreferKey.syncBookProgressPlus, false)
 
     val mediaButtonOnExit get() = appCtx.getPrefBoolean("mediaButtonOnExit", true)
 
@@ -1388,10 +1390,6 @@ object AppConfig : SharedPreferences.OnSharedPreferenceChangeListener {
     val webDavDir get() = appCtx.getPrefString(PreferKey.webDavDir, "wanjuan")
 
     val webDavDeviceName get() = appCtx.getPrefString(PreferKey.webDavDeviceName, Build.MODEL)
-
-    var syncThemePackages
-        get() = appCtx.getPrefBoolean(PreferKey.syncThemePackages, false)
-        set(value) = appCtx.putPrefBoolean(PreferKey.syncThemePackages, value)
 
     val recordHeapDump get() = appCtx.getPrefBoolean(PreferKey.recordHeapDump, false)
 

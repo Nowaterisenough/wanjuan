@@ -67,7 +67,14 @@ fun productionSyncPullHandlers(
             objectType = SyncObjectType.Book,
             objectId = { it.bookSyncId },
             version = {
-                SyncVersion(maxOf(it.shelfUpdatedAt, it.catalogUpdatedAt), it.updatedByDeviceId)
+                listOf(
+                    SyncVersion(it.shelfUpdatedAt, it.updatedByDeviceId),
+                    SyncVersion(it.catalogUpdatedAt, it.updatedByDeviceId),
+                    SyncVersion(
+                        it.effectiveProgressUpdatedAt(),
+                        it.effectiveProgressUpdatedByDeviceId()
+                    )
+                ).maxOrNull()!!
             },
             contentHash = SyncPayloadHash::book,
             apply = {
@@ -229,3 +236,12 @@ private fun SyncRemoteFile.jsonId(): String? =
     displayName.takeIf { it.endsWith(".json") }
         ?.removeSuffix(".json")
         ?.takeIf { it.isNotBlank() }
+
+internal fun SyncBookPayload.effectiveProgressUpdatedAt(): Long =
+    progressUpdatedAt.takeIf { it > 0L }
+        ?: book.syncTime.takeIf { it > 0L }
+        ?: book.durChapterTime
+
+internal fun SyncBookPayload.effectiveProgressUpdatedByDeviceId(): String =
+    progressUpdatedByDeviceId?.takeIf { it.isNotBlank() }
+        ?: updatedByDeviceId

@@ -19,11 +19,11 @@ class TestSyncMapper {
             durChapterTitle = "C"
             durChapterTime = 123456L
         }
-        val payload = BookSyncMapper.toProgressPayload(book, "device")
+        val payload = BookSyncMapper.toBookPayload(book, "device", 10L, 20L)
         assertEquals(123456L, payload.progressUpdatedAt)
-        assertEquals(3, payload.durChapterIndex)
-        assertEquals(99, payload.durChapterPos)
-        assertEquals("C", payload.durChapterTitle)
+        assertEquals(3, payload.book.durChapterIndex)
+        assertEquals(99, payload.book.durChapterPos)
+        assertEquals("C", payload.book.durChapterTitle)
     }
 
     @Test
@@ -32,7 +32,7 @@ class TestSyncMapper {
             durChapterTime = 123456L
             syncTime = 234567L
         }
-        val payload = BookSyncMapper.toProgressPayload(book, "device")
+        val payload = BookSyncMapper.toBookPayload(book, "device", 10L, 20L)
         assertEquals(234567L, payload.progressUpdatedAt)
     }
 

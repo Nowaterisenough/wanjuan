@@ -10,18 +10,6 @@ import io.wanjuan.app.data.entities.rule.ReviewRule
 import io.wanjuan.app.data.entities.rule.SearchRule
 import io.wanjuan.app.data.entities.rule.TocRule
 
-data class SyncManifest(
-    val version: Int = 1,
-    val updatedAt: Long = 0L,
-    val updatedByDeviceId: String = "",
-    val booksChangedAt: Long = 0L,
-    val bookProgressChangedAt: Long = 0L,
-    val bookSourcesChangedAt: Long = 0L,
-    val ruleSubsChangedAt: Long = 0L,
-    val bookGroupsChangedAt: Long = 0L,
-    val tombstonesChangedAt: Long = 0L
-)
-
 data class SyncDevice(
     val deviceId: String,
     val deviceName: String,
@@ -35,7 +23,9 @@ data class SyncBookPayload(
     val book: SyncBook,
     val shelfUpdatedAt: Long,
     val catalogUpdatedAt: Long,
+    val progressUpdatedAt: Long = 0L,
     val updatedByDeviceId: String,
+    val progressUpdatedByDeviceId: String? = updatedByDeviceId,
     val schemaVersion: Int = 2
 ) {
     constructor(
@@ -43,7 +33,9 @@ data class SyncBookPayload(
         book: Book,
         shelfUpdatedAt: Long,
         catalogUpdatedAt: Long,
+        progressUpdatedAt: Long = book.syncTime.takeIf { it > 0L } ?: book.durChapterTime,
         updatedByDeviceId: String,
+        progressUpdatedByDeviceId: String? = updatedByDeviceId,
         schemaVersion: Int = 2,
         groupSyncIds: List<String> = emptyList()
     ) : this(
@@ -51,22 +43,12 @@ data class SyncBookPayload(
         book = SyncBook.from(book, groupSyncIds),
         shelfUpdatedAt = shelfUpdatedAt,
         catalogUpdatedAt = catalogUpdatedAt,
+        progressUpdatedAt = progressUpdatedAt,
         updatedByDeviceId = updatedByDeviceId,
+        progressUpdatedByDeviceId = progressUpdatedByDeviceId,
         schemaVersion = schemaVersion
     )
 }
-
-data class SyncBookProgressPayload(
-    val bookSyncId: String,
-    val name: String,
-    val author: String,
-    val durChapterIndex: Int,
-    val durChapterPos: Int,
-    val durChapterTitle: String?,
-    val progressUpdatedAt: Long,
-    val updatedByDeviceId: String,
-    val schemaVersion: Int = 1
-)
 
 data class SyncBookSourcePayload(
     val sourceHash: String,

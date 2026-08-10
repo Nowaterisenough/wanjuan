@@ -228,7 +228,7 @@ object BookController {
     suspend fun saveBook(postData: String?): ReturnData {
         val returnData = ReturnData()
         GSON.fromJsonObject<Book>(postData).getOrNull()?.let { book ->
-            SyncManager.progress.pushProgress(book)
+            SyncManager.bookshelf.pushProgress(book)
             book.save()
             return returnData.setData("")
         }
@@ -261,7 +261,7 @@ object BookController {
                     book.durChapterTitle = bookProgress.durChapterTitle
                     book.durChapterTime = bookProgress.durChapterTime
                     book.syncTime = bookProgress.durChapterTime
-                    SyncManager.progress.pushProgress(book)
+                    SyncManager.bookshelf.pushProgress(book)
                     appDb.bookDao.update(book)
                     ReadBook.book?.let {
                         if (it.name == bookProgress.name &&

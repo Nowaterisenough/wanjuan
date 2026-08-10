@@ -29,12 +29,6 @@ by appCtx.getSharedPreferences("local", Context.MODE_PRIVATE) {
             }
         }
 
-    var lastBackup: Long
-        get() = getLong("lastBackup", 0)
-        set(value) {
-            putLong("lastBackup", value)
-        }
-
     var privacyPolicyOk: Boolean
         get() = getBoolean("privacyPolicyOk")
         set(value) {

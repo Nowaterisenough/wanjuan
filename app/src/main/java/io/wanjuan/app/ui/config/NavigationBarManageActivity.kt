@@ -242,7 +242,7 @@ class NavigationBarManageActivity : BaseActivity<ActivityThemeManageBinding>() {
         lifecycleScope.launch {
             kotlin.runCatching {
                 withContext(Dispatchers.IO) {
-                    NavigationBarIconConfig.loadEntries(isNightMode, includeRemote = AppConfig.syncThemePackages)
+                    NavigationBarIconConfig.loadEntries(isNightMode)
                 }
             }.onSuccess {
                 adapter.submit(it, NavigationBarIconConfig.activeDirName(isNightMode))
@@ -267,7 +267,6 @@ class NavigationBarManageActivity : BaseActivity<ActivityThemeManageBinding>() {
                 effectMode = AppConfig.bottomBarEffectMode,
                 opacity = if (AppConfig.bottomBarEffectMode == "frosted") AppConfig.frostedGlassLevel else AppConfig.liquidGlassLevel
             ),
-            NavigationBarIconConfig.Source.LOCAL,
             ""
         )
         if (base.dirName == NavigationBarIconConfig.DEFAULT_DIR_NAME) {
@@ -530,11 +529,7 @@ class NavigationBarManageActivity : BaseActivity<ActivityThemeManageBinding>() {
             if (entry.dirName != NavigationBarIconConfig.DEFAULT_DIR_NAME) {
                 add(NavAction.EDIT)
                 add(NavAction.EXPORT)
-                if (AppConfig.syncThemePackages) add(NavAction.UPLOAD)
-                if (entry.source != NavigationBarIconConfig.Source.LOCAL) add(NavAction.DOWNLOAD)
-                if (entry.source != NavigationBarIconConfig.Source.REMOTE) add(NavAction.DELETE_LOCAL)
-                if (entry.source != NavigationBarIconConfig.Source.LOCAL) add(NavAction.DELETE_REMOTE)
-                if (entry.source == NavigationBarIconConfig.Source.BOTH) add(NavAction.DELETE_BOTH)
+                add(NavAction.DELETE_LOCAL)
             }
         }
         selector(entry.config.name, actions.map { getString(it.titleRes) }) { _, index ->
@@ -542,17 +537,8 @@ class NavigationBarManageActivity : BaseActivity<ActivityThemeManageBinding>() {
                 NavAction.APPLY -> applyPackage(entry)
                 NavAction.EDIT -> showEditDialog(entry)
                 NavAction.EXPORT -> exportPackage(entry)
-                NavAction.UPLOAD -> runAction { NavigationBarIconConfig.upload(entry) }
-                NavAction.DOWNLOAD -> runAction { NavigationBarIconConfig.download(entry) }
                 NavAction.DELETE_LOCAL -> confirmDelete(entry, getString(R.string.navigation_bar_delete_local_confirm)) {
                     NavigationBarIconConfig.deleteLocal(entry)
-                    postEvent(EventBus.NAVIGATION_BAR_CHANGED, entry.config.isNightMode)
-                }
-                NavAction.DELETE_REMOTE -> confirmDelete(entry, getString(R.string.navigation_bar_delete_remote_confirm)) {
-                    NavigationBarIconConfig.deleteRemote(entry)
-                }
-                NavAction.DELETE_BOTH -> confirmDelete(entry, getString(R.string.navigation_bar_delete_both_confirm)) {
-                    NavigationBarIconConfig.delete(entry)
                     postEvent(EventBus.NAVIGATION_BAR_CHANGED, entry.config.isNightMode)
                 }
             }
@@ -575,7 +561,7 @@ class NavigationBarManageActivity : BaseActivity<ActivityThemeManageBinding>() {
     private fun applyPackage(entry: NavigationBarIconConfig.Entry) {
         lifecycleScope.launch {
             kotlin.runCatching {
-                withContext(Dispatchers.IO) { if (entry.source == NavigationBarIconConfig.Source.REMOTE) NavigationBarIconConfig.download(entry) else entry }
+                entry
             }.onSuccess {
                 NavigationBarIconConfig.apply(it)
                 postEvent(EventBus.NAVIGATION_BAR_CHANGED, it.config.isNightMode)
@@ -679,11 +665,7 @@ class NavigationBarManageActivity : BaseActivity<ActivityThemeManageBinding>() {
         APPLY(R.string.theme_apply),
         EDIT(R.string.edit),
         EXPORT(R.string.export),
-        UPLOAD(R.string.navigation_bar_upload),
-        DOWNLOAD(R.string.action_download),
-        DELETE_LOCAL(R.string.theme_delete_local),
-        DELETE_REMOTE(R.string.theme_delete_remote),
-        DELETE_BOTH(R.string.theme_delete_both)
+        DELETE_LOCAL(R.string.theme_delete_local)
     }
 
     private inner class Adapter : RecyclerView.Adapter<Adapter.Holder>() {
@@ -742,14 +724,11 @@ class NavigationBarManageActivity : BaseActivity<ActivityThemeManageBinding>() {
                     append("%")
                     if (entry.config.updatedAt > 0) {
                         append(" · ")
-                        append(dateFormat.format(Date(maxOf(entry.config.updatedAt, entry.remoteUpdatedAt))))
+                        append(dateFormat.format(Date(entry.config.updatedAt)))
                     }
                 }
                 tvSource.text = when {
                     entry.dirName == activeDirName -> getString(R.string.theme_source_using)
-                    entry.source == NavigationBarIconConfig.Source.BUILTIN -> getString(R.string.theme_source_local)
-                    entry.source == NavigationBarIconConfig.Source.REMOTE -> getString(R.string.theme_source_remote)
-                    entry.source == NavigationBarIconConfig.Source.BOTH -> getString(R.string.theme_source_both)
                     else -> getString(R.string.theme_source_local)
                 }
                 tvName.setTextColor(primaryTextColor)

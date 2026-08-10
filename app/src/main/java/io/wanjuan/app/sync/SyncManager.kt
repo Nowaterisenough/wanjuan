@@ -21,7 +21,6 @@ object SyncManager {
     }
     private val groupCoordinator by lazy { BookGroupSyncCoordinator() }
 
-    val progress by lazy { ProgressSyncCoordinator(client, SyncDeviceStore::deviceId) }
     val bookshelf by lazy {
         BookshelfSyncCoordinator(
             client,
@@ -31,6 +30,7 @@ object SyncManager {
             groupCoordinator
         )
     }
+    val assets by lazy { SyncAssetCoordinator(client) }
     val bookSources by lazy {
         BookSourceSyncCoordinator(client, repository, SystemSyncClock, SyncDeviceStore::deviceId)
     }
@@ -93,15 +93,17 @@ object SyncManager {
     suspend fun sync(): SyncResult = orchestrator.sync()
 
     fun onAppStart() {
-        if (!AppConfig.syncBookProgress) return
+        if (!AppConfig.webDavObjectSync) return
         syncNow()
     }
 
     fun onNetworkAvailable() {
+        if (!AppConfig.webDavObjectSync) return
         syncNow()
     }
 
-    fun syncNow(onComplete: (SyncResult) -> Unit = {}) {
+    fun syncNow(force: Boolean = false, onComplete: (SyncResult) -> Unit = {}) {
+        if (!force && !AppConfig.webDavObjectSync) return
         Coroutine.async { sync() }
             .onSuccess { onComplete(it) }
     }

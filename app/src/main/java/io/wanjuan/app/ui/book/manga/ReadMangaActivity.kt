@@ -45,7 +45,6 @@ import io.wanjuan.app.help.book.isImage
 import io.wanjuan.app.help.book.removeType
 import io.wanjuan.app.help.config.AppConfig
 import io.wanjuan.app.help.source.getSourceType
-import io.wanjuan.app.help.storage.Backup
 import io.wanjuan.app.lib.dialogs.alert
 import io.wanjuan.app.model.ReadManga
 import io.wanjuan.app.receiver.NetworkChangedListener
@@ -1041,7 +1040,7 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
         networkChangedListener.register()
         networkChangedListener.onNetworkChanged = {
             // 当网络是可用状态且无需初始化时同步进度（初始化中已有同步进度逻辑）
-            if (AppConfig.syncBookProgressPlus && NetworkUtils.isAvailable() && !justInitData && ReadManga.inBookshelf) {
+            if (AppConfig.webDavReadingSyncEnhancement && NetworkUtils.isAvailable() && !justInitData && ReadManga.inBookshelf) {
                 ReadManga.syncProgress()
             }
         }
@@ -1058,7 +1057,7 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
         if (ReadManga.inBookshelf) {
             ReadManga.saveRead()
             if (!BuildConfig.DEBUG) {
-                if (AppConfig.syncBookProgressPlus) {
+                if (AppConfig.webDavReadingSyncEnhancement) {
                     ReadManga.syncProgress()
                 } else {
                     ReadManga.uploadProgress()
@@ -1066,7 +1065,6 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
             }
         }
         if (!BuildConfig.DEBUG) {
-            Backup.autoBack(this)
         }
         ReadManga.cancelPreDownloadTask()
         networkChangedListener.unRegister()

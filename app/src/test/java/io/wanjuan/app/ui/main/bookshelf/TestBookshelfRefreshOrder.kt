@@ -111,7 +111,7 @@ class TestBookshelfRefreshOrder {
         assertTrue(
             "Remote progress should only be applied when the refreshed catalog contains it.",
             main.contains("progress.durChapterIndex in 0..book.lastChapterIndex") &&
-                    main.contains("SyncManager.progress.applyProgress(book, progress)")
+                    main.contains("SyncManager.bookshelf.applyProgress(book, progress)")
         )
     }
 

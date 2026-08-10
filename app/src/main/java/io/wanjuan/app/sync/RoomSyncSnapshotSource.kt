@@ -50,6 +50,7 @@ class RoomSyncSnapshotSource(
                     deviceId = version.deviceId,
                     shelfUpdatedAt = version.timestamp,
                     catalogUpdatedAt = version.timestamp,
+                    progressUpdatedAt = book.syncTime.takeIf { it > 0L } ?: book.durChapterTime,
                     groupSyncIds = groupCoordinator.localMaskToRemoteGroupIds(book.group)
                 )
                 add(snapshot(SyncObjectType.Book, payload.bookSyncId, payload, SyncPayloadHash.book(payload), version))

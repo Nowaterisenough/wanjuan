@@ -32,7 +32,6 @@ import io.wanjuan.app.help.DirectLinkUpload
 import io.wanjuan.app.help.LauncherIconHelp
 import io.wanjuan.app.help.book.isLocal
 import io.wanjuan.app.help.book.upType
-import io.wanjuan.app.help.config.LocalConfig
 import io.wanjuan.app.help.config.NavigationBarIconConfig
 import io.wanjuan.app.help.config.ReadBookConfig
 import io.wanjuan.app.help.config.ThemeConfig
@@ -99,7 +98,6 @@ object Restore {
         }
         kotlin.runCatching {
             restoreLocked(Backup.backupPath)
-            LocalConfig.lastBackup = System.currentTimeMillis()
         }.onFailure {
             appCtx.toastOnUi("恢复备份出错\n${it.localizedMessage}")
             AppLog.put("恢复备份出错\n${it.localizedMessage}", it)
@@ -267,7 +265,6 @@ object Restore {
         restoreBackgroundAssets(path)
         restoreThemePackages(path)
         restoreNavigationIcons(path)
-        //AppWebDav.downBgs()
         appCtx.getSharedPreferences(path, "config")?.all?.let { map ->
             val edit = appCtx.defaultSharedPreferences.edit()
 
@@ -330,6 +327,12 @@ object Restore {
             hideStatusBar = appCtx.getPrefBoolean(PreferKey.hideStatusBar)
             hideNavigationBar = appCtx.getPrefBoolean(PreferKey.hideNavigationBar)
             autoReadSpeed = appCtx.getPrefInt(PreferKey.autoReadSpeed, 46)
+        }
+        // A ZIP contains business data, not the live sync journal. Keeping the old journal after
+        // a restore can turn objects absent from the restored snapshot into fresh deletions.
+        appDb.runInTransaction {
+            appDb.syncOutboxDao.deleteAll()
+            appDb.syncMetadataDao.deleteAll()
         }
         appCtx.toastOnUi(R.string.restore_success)
         withContext(Main) {
@@ -518,7 +521,6 @@ object Restore {
             PreferKey.aiMcpServerList,
             PreferKey.aiChatSessionList,
             PreferKey.aiReadHistoryList,
-            PreferKey.themePackageSyncTasks,
             PreferKey.aiCurrentChatSessionId,
             PreferKey.aiSystemPrompt,
             PreferKey.aiSkillPrompt,

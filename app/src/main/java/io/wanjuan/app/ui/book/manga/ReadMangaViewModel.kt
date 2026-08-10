@@ -108,7 +108,7 @@ class ReadMangaViewModel(application: Application) : BaseViewModel(application) 
             // 有章节跳转不同步阅读进度
             ReadManga.chapterChanged = false
         } else if (ReadManga.inBookshelf) {
-            if (AppConfig.syncBookProgressPlus) {
+            if (AppConfig.webDavReadingSyncEnhancement) {
                 ReadManga.syncProgress()
             } else {
                 syncBookProgress(book)
@@ -217,9 +217,9 @@ class ReadMangaViewModel(application: Application) : BaseViewModel(application) 
         book: Book,
         alertSync: ((progress: BookProgress) -> Unit)? = null
     ) {
-        if (!AppConfig.syncBookProgress) return
+        if (!AppConfig.webDavObjectSync) return
         execute {
-            SyncManager.progress.pullProgress(book)
+            SyncManager.bookshelf.pullProgress(book)
         }.onError {
             AppLog.put("拉取阅读进度失败《${book.name}》\n${it.localizedMessage}", it)
         }.onSuccess { progress ->

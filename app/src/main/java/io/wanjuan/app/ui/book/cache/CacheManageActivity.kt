@@ -13,7 +13,7 @@ import io.wanjuan.app.data.appDb
 import io.wanjuan.app.data.entities.Book
 import io.wanjuan.app.data.entities.BookChapter
 import io.wanjuan.app.databinding.ActivityCacheManageBinding
-import io.wanjuan.app.help.AppWebDav
+import io.wanjuan.app.sync.SyncManager
 import io.wanjuan.app.lib.dialogs.alert
 import io.wanjuan.app.lib.dialogs.selector
 import io.wanjuan.app.lib.theme.UiCorner
@@ -183,7 +183,7 @@ class CacheManageActivity :
             kotlin.runCatching {
                 val zipFile = viewModel.createCachePackage(item.book)
                 withContext(Dispatchers.IO) {
-                    AppWebDav.uploadCachePackage(zipFile.name, zipFile)
+                    SyncManager.assets.uploadCachePackage(zipFile.name, zipFile)
                 }
             }.onSuccess {
                 toastOnUi(R.string.cache_manage_upload_success)
@@ -270,7 +270,7 @@ class CacheManageActivity :
                 kotlin.runCatching {
                     val zipFile = viewModel.createCachePackage(item.book)
                     withContext(Dispatchers.IO) {
-                        AppWebDav.uploadCachePackage(zipFile.name, zipFile)
+                        SyncManager.assets.uploadCachePackage(zipFile.name, zipFile)
                     }
                 }.onSuccess {
                     success++

@@ -42,15 +42,6 @@
             app:iconSpaceReserved="false" />
 
         <io.wanjuan.app.lib.prefs.SwitchPreference
-            android:defaultValue="false"
-            android:key="syncThemePackages"
-            android:summary="开启后主题管理会后台同步云端主题包"
-            android:title="同步云端主题"
-            app:allowDividerAbove="false"
-            app:allowDividerBelow="false"
-            app:iconSpaceReserved="false" />
-
-        <io.wanjuan.app.lib.prefs.SwitchPreference
             android:defaultValue="true"
             android:key="syncBookProgress"
             android:summary="@string/sync_book_progress_s"

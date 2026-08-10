@@ -4,7 +4,6 @@ import io.wanjuan.app.data.entities.Book
 import io.wanjuan.app.sync.SyncIds
 import io.wanjuan.app.sync.model.SyncBook
 import io.wanjuan.app.sync.model.SyncBookPayload
-import io.wanjuan.app.sync.model.SyncBookProgressPayload
 
 object BookSyncMapper {
 
@@ -13,6 +12,7 @@ object BookSyncMapper {
         deviceId: String,
         shelfUpdatedAt: Long,
         catalogUpdatedAt: Long,
+        progressUpdatedAt: Long = book.syncTime.takeIf { it > 0L } ?: book.durChapterTime,
         groupSyncIds: List<String> = emptyList()
     ): SyncBookPayload {
         return SyncBookPayload(
@@ -20,22 +20,6 @@ object BookSyncMapper {
             book = SyncBook.from(book, groupSyncIds),
             shelfUpdatedAt = shelfUpdatedAt,
             catalogUpdatedAt = catalogUpdatedAt,
-            updatedByDeviceId = deviceId
-        )
-    }
-
-    fun toProgressPayload(
-        book: Book,
-        deviceId: String,
-        progressUpdatedAt: Long = book.syncTime.takeIf { it > 0L } ?: book.durChapterTime
-    ): SyncBookProgressPayload {
-        return SyncBookProgressPayload(
-            bookSyncId = SyncIds.bookId(book),
-            name = book.name,
-            author = book.author,
-            durChapterIndex = book.durChapterIndex,
-            durChapterPos = book.durChapterPos,
-            durChapterTitle = book.durChapterTitle,
             progressUpdatedAt = progressUpdatedAt,
             updatedByDeviceId = deviceId
         )

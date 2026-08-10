@@ -20,12 +20,15 @@ import kotlinx.coroutines.runBlocking
 class RemoteBookWebDav(
     val rootBookUrl: String,
     val authorization: Authorization,
-    val serverID: Long? = null
+    val serverID: Long? = null,
+    ensureRoot: Boolean = true
 ) : RemoteBookManager() {
 
     init {
-        runBlocking {
-            WebDav(rootBookUrl, authorization).makeAsDir()
+        if (ensureRoot) {
+            runBlocking {
+                WebDav(rootBookUrl, authorization).makeAsDir()
+            }
         }
     }
 

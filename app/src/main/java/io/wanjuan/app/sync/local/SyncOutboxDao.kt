@@ -22,6 +22,9 @@ interface SyncOutboxDao {
     @Query("delete from sync_outbox where objectType = :objectType and objectId = :objectId")
     fun deleteForObject(objectType: String, objectId: String)
 
+    @Query("delete from sync_outbox")
+    fun deleteAll()
+
     @Query(
         """select * from sync_outbox
         where objectType = :objectType and objectId = :objectId

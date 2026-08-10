@@ -17,7 +17,7 @@ import io.wanjuan.app.data.appDb
 import io.wanjuan.app.data.entities.Book
 import io.wanjuan.app.data.entities.BookChapter
 import io.wanjuan.app.exception.NoStackTraceException
-import io.wanjuan.app.help.AppWebDav
+import io.wanjuan.app.sync.SyncManager
 import io.wanjuan.app.help.book.BookHelp
 import io.wanjuan.app.help.book.ContentProcessor
 import io.wanjuan.app.help.book.getExportFileName
@@ -265,7 +265,7 @@ class ExportBookService : BaseService() {
         }
         if (AppConfig.exportToWebDav) {
             // 导出到webdav
-            AppWebDav.exportWebDav(bookDoc.uri, filename)
+            SyncManager.assets.uploadExport(bookDoc.uri, filename)
         }
     }
 
@@ -372,7 +372,7 @@ class ExportBookService : BaseService() {
 
         if (AppConfig.exportToWebDav) {
             // 导出到webdav
-            AppWebDav.exportWebDav(bookDoc.uri, filename)
+            SyncManager.assets.uploadExport(bookDoc.uri, filename)
         }
     }
 
@@ -829,7 +829,7 @@ class ExportBookService : BaseService() {
 
             if (AppConfig.exportToWebDav) {
                 // 导出到webdav
-                AppWebDav.exportWebDav(bookDoc.uri, filename)
+                SyncManager.assets.uploadExport(bookDoc.uri, filename)
             }
         }
 
