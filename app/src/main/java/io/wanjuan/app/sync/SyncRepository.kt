@@ -84,6 +84,11 @@ class SyncRepository(
             try {
                 val json = item.payloadJsonForUpload(deviceIdProvider)
                 remoteStore.uploadJson(item.remotePath(), json)
+                if (item.operation != "delete" && remoteStore is WebDavSyncClient) {
+                    item.remoteTombstonePath()?.let { path ->
+                        runCatching { remoteStore.delete(path) }
+                    }
+                }
                 db.runInTransaction {
                     db.syncOutboxDao.delete(item.id)
                     db.syncMetadataDao.markClean(
@@ -121,6 +126,15 @@ class SyncRepository(
         SyncObjectType.RssSourceOrder -> "order/rssSources.json"
         SyncObjectType.RuleSubOrder -> "order/ruleSubs.json"
         else -> error("Unsupported sync object type: $objectType")
+    }
+
+    private fun SyncOutbox.remoteTombstonePath(): String? = when (objectType) {
+        SyncObjectType.Book -> "tombstones/books/$objectId.json"
+        SyncObjectType.BookGroup -> "tombstones/bookGroups/$objectId.json"
+        SyncObjectType.BookSource -> "tombstones/bookSources/$objectId.json"
+        SyncObjectType.RssSource -> "tombstones/rssSources/$objectId.json"
+        SyncObjectType.RuleSub -> "tombstones/ruleSubs/$objectId.json"
+        else -> null
     }
 
     private fun SyncOutbox.contentHash(): String {

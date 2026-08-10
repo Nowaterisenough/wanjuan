@@ -134,6 +134,7 @@ class BookshelfSyncCoordinator(
     suspend fun pushBookPayload(payload: SyncBookPayload) {
         recordLocalBookClocks(payload)
         client.upload("books/${payload.bookSyncId}.json", payload)
+        runCatching { client.delete("tombstones/books/${payload.bookSyncId}.json") }
     }
 
     fun applyRemoteBook(payload: SyncBookPayload) {
