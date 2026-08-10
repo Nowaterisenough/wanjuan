@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.view.View
 import android.widget.PopupWindow
 import androidx.appcompat.widget.SearchView
+import androidx.core.view.children
 import androidx.core.view.isGone
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
@@ -21,7 +22,6 @@ import io.wanjuan.app.data.entities.Book
 import io.wanjuan.app.data.entities.BookGroup
 import io.wanjuan.app.databinding.FragmentBookshelf2Binding
 import io.wanjuan.app.help.config.AppConfig
-import io.wanjuan.app.lib.theme.accentColor
 import io.wanjuan.app.lib.theme.primaryColor
 import io.wanjuan.app.lib.theme.primaryTextColor
 import io.wanjuan.app.sync.SyncManager
@@ -33,7 +33,6 @@ import io.wanjuan.app.ui.main.bookshelf.BaseBookshelfFragment
 import io.wanjuan.app.ui.widget.GridColumnsPopup
 import io.wanjuan.app.utils.applyMainBottomBarPadding
 import io.wanjuan.app.utils.cnCompare
-import io.wanjuan.app.utils.dpToPx
 import io.wanjuan.app.utils.flowWithLifecycleAndDatabaseChangeFirst
 import io.wanjuan.app.utils.observeEvent
 import io.wanjuan.app.utils.setEdgeEffectColor
@@ -112,8 +111,9 @@ class BookshelfFragment2() : BaseBookshelfFragment(R.layout.fragment_bookshelf2)
         binding.rvBookshelf.setEdgeEffectColor(primaryColor)
         binding.rvBookshelf.clipToPadding = true
         binding.rvBookshelf.applyMainBottomBarPadding()
-        binding.refreshLayout.setColorSchemeColors(accentColor)
-        binding.refreshLayout.setProgressViewOffset(true, (-28).dpToPx(), 56.dpToPx())
+        binding.refreshLayout.children
+            .firstOrNull { it !== binding.rvBookshelf }
+            ?.alpha = 0f
         binding.refreshLayout.setOnRefreshListener {
             SyncManager.syncNow { result ->
                 if (view != null) {

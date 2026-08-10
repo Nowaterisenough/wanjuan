@@ -5,6 +5,7 @@ import android.graphics.Rect
 import android.os.Bundle
 import android.view.View
 import android.view.ViewConfiguration
+import androidx.core.view.children
 import androidx.core.view.isGone
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Lifecycle
@@ -25,14 +26,12 @@ import io.wanjuan.app.data.entities.BookGroup
 import io.wanjuan.app.databinding.FragmentBooksBinding
 import io.wanjuan.app.help.book.BookTagHelper
 import io.wanjuan.app.help.config.AppConfig
-import io.wanjuan.app.lib.theme.accentColor
 import io.wanjuan.app.lib.theme.primaryColor
 import io.wanjuan.app.sync.SyncManager
 import io.wanjuan.app.ui.book.info.BookInfoActivity
 import io.wanjuan.app.ui.main.MainViewModel
 import io.wanjuan.app.utils.cnCompare
 import io.wanjuan.app.utils.applyMainBottomBarPadding
-import io.wanjuan.app.utils.dpToPx
 import io.wanjuan.app.utils.flowWithLifecycleAndDatabaseChangeFirst
 import io.wanjuan.app.utils.observeEvent
 import io.wanjuan.app.utils.setEdgeEffectColor
@@ -105,8 +104,9 @@ class BooksFragment() : BaseFragment(R.layout.fragment_books),
         binding.rvBookshelf.clipToPadding = true
         binding.rvBookshelf.applyMainBottomBarPadding()
         upFastScrollerBar()
-        binding.refreshLayout.setColorSchemeColors(accentColor)
-        binding.refreshLayout.setProgressViewOffset(true, (-28).dpToPx(), 56.dpToPx())
+        binding.refreshLayout.children
+            .firstOrNull { it !== binding.rvBookshelf }
+            ?.alpha = 0f
         binding.refreshLayout.setOnRefreshListener {
             SyncManager.syncNow { result ->
                 if (view != null) {
