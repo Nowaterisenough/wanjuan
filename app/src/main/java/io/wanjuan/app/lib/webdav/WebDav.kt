@@ -37,6 +37,9 @@ import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.util.concurrent.TimeUnit
 
+internal fun isSuccessfulWebDavDeleteStatus(code: Int): Boolean =
+    code in 200..299 || code == 404
+
 @Suppress("unused", "MemberVisibilityCanBePrivate")
 open class WebDav(
     val path: String,
@@ -409,13 +412,15 @@ open class WebDav(
      */
     suspend fun delete(): Boolean {
         val url = httpUrl ?: return false
-        //防止报错
         return kotlin.runCatching {
             webDavClient.newCallResponse {
                 url(url)
                 method("DELETE", null)
             }.use {
-                checkResult(it)
+                // DELETE is idempotent. A missing target already represents the desired state.
+                if (!isSuccessfulWebDavDeleteStatus(it.code)) {
+                    checkResult(it)
+                }
             }
         }.onFailure {
             currentCoroutineContext().ensureActive()
