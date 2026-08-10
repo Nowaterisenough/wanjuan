@@ -7,6 +7,7 @@ import io.wanjuan.app.help.coroutine.Coroutine
 import io.wanjuan.app.sync.model.SyncObjectType
 import io.wanjuan.app.sync.model.SyncResult
 import io.wanjuan.app.sync.remote.newSyncClient
+import kotlinx.coroutines.CoroutineStart
 
 object SyncManager {
 
@@ -103,8 +104,20 @@ object SyncManager {
     }
 
     fun syncNow(force: Boolean = false, onComplete: (SyncResult) -> Unit = {}) {
-        if (!force && !AppConfig.webDavObjectSync) return
-        Coroutine.async { sync() }
+        if (!force && !AppConfig.webDavObjectSync) {
+            onComplete(SyncResult())
+            return
+        }
+        Coroutine.async(start = CoroutineStart.LAZY) { sync() }
             .onSuccess { onComplete(it) }
+            .onError {
+                onComplete(
+                    SyncResult(
+                        failed = 1,
+                        errorMessage = it.localizedMessage ?: it.javaClass.simpleName
+                    )
+                )
+            }
+            .start()
     }
 }

@@ -35,7 +35,7 @@ class TestBookshelfRefreshOrder {
     }
 
     @Test
-    fun bookshelfPullRefreshDoesNotWaitForSyncBeforeNetworkUpdate() {
+    fun bookshelfPullRefreshAlwaysStopsAfterSyncCompletes() {
         val style1 = repoFile(
             "app/src/main/java/io/wanjuan/app/ui/main/bookshelf/style1/books/BooksFragment.kt"
         ).readText().pullRefreshBlock()
@@ -45,7 +45,7 @@ class TestBookshelfRefreshOrder {
 
         listOf(style1, style2).forEach { refreshBlock ->
             assertTrue(
-                refreshBlock.indexOf("binding.refreshLayout.isRefreshing = false") <
+                refreshBlock.indexOf("binding.refreshLayout.isRefreshing = false") >
                     refreshBlock.indexOf("SyncManager.syncNow { result ->")
             )
             assertTrue(refreshBlock.contains("if (!result.isSuccess)"))

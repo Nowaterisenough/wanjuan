@@ -108,8 +108,10 @@ class BooksFragment() : BaseFragment(R.layout.fragment_books),
         binding.refreshLayout.setColorSchemeColors(accentColor)
         binding.refreshLayout.setProgressViewOffset(true, (-28).dpToPx(), 56.dpToPx())
         binding.refreshLayout.setOnRefreshListener {
-            binding.refreshLayout.isRefreshing = false
             SyncManager.syncNow { result ->
+                if (view != null) {
+                    binding.refreshLayout.isRefreshing = false
+                }
                 if (!result.isSuccess) {
                     context?.toastOnUi("同步失败：${result.errorMessage ?: "未知错误"}")
                 }
