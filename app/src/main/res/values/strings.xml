@@ -58,6 +58,8 @@
     <string name="update_log">What\'s new</string>
     <string name="check_update">Check for Updates</string>
     <string name="bookshelf_empty">The bookshelf is still empty. Search for books or add them from discovery!</string>
+    <string name="bookshelf_last_refresh_never">Last refresh: Never</string>
+    <string name="bookshelf_last_refresh_time">Last refresh: %1$s</string>
     <string name="action_search">Search</string>
     <string name="action_download">Download</string>
     <string name="layout_list">List</string>

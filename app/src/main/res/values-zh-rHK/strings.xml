@@ -49,6 +49,8 @@
     <string name="update_log">更新日誌</string>
     <string name="check_update">檢查更新</string>
     <string name="bookshelf_empty">書架還空著，先去搜索書籍或從發現裏添加吧！</string>
+    <string name="bookshelf_last_refresh_never">上次重新整理：暫無</string>
+    <string name="bookshelf_last_refresh_time">上次重新整理：%1$s</string>
     <string name="action_search">搜尋</string>
     <string name="action_download">下載</string>
     <string name="layout_list">列表</string>

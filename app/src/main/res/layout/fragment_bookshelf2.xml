@@ -44,7 +44,20 @@
         app:layout_constraintEnd_toStartOf="@id/btn_bookshelf_layout_toggle"
         app:layout_constraintTop_toTopOf="@id/title_bar" />
 
-    <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+    <TextView
+        android:id="@+id/tv_last_refresh"
+        android:layout_width="0dp"
+        android:layout_height="48dp"
+        android:gravity="center"
+        android:text="@string/bookshelf_last_refresh_never"
+        android:textColor="@color/secondaryText"
+        android:textSize="12sp"
+        android:visibility="invisible"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/title_bar" />
+
+    <io.wanjuan.app.ui.widget.BookshelfSwipeRefreshLayout
         android:id="@+id/refresh_layout"
         android:layout_width="match_parent"
         android:layout_height="0dp"
@@ -61,7 +74,7 @@
             android:paddingRight="8dp"
             tools:listitem="@layout/item_bookshelf_list" />
 
-    </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+    </io.wanjuan.app.ui.widget.BookshelfSwipeRefreshLayout>
 
     <TextView
         android:id="@+id/tv_empty_msg"

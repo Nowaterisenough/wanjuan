@@ -4,7 +4,18 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+    <TextView
+        android:id="@+id/tv_last_refresh"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:layout_gravity="top"
+        android:gravity="center"
+        android:text="@string/bookshelf_last_refresh_never"
+        android:textColor="@color/secondaryText"
+        android:textSize="12sp"
+        android:visibility="invisible" />
+
+    <io.wanjuan.app.ui.widget.BookshelfSwipeRefreshLayout
         android:id="@+id/refresh_layout"
         android:layout_width="match_parent"
         android:layout_height="match_parent">
@@ -19,7 +30,7 @@
             android:paddingRight="8dp"
             tools:listitem="@layout/item_bookshelf_list" />
 
-    </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+    </io.wanjuan.app.ui.widget.BookshelfSwipeRefreshLayout>
 
     <TextView
         android:id="@+id/tv_empty_msg"
@@ -33,4 +44,3 @@
         tools:text="TextView" />
 
 </FrameLayout>
-

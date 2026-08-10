@@ -5,7 +5,6 @@ import android.graphics.Rect
 import android.os.Bundle
 import android.view.View
 import android.view.ViewConfiguration
-import androidx.core.view.children
 import androidx.core.view.isGone
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Lifecycle
@@ -17,6 +16,7 @@ import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.RecyclerView.Adapter.StateRestorationPolicy
 import io.wanjuan.app.R
 import io.wanjuan.app.base.BaseFragment
+import io.wanjuan.app.constant.AppConst
 import io.wanjuan.app.constant.AppLog
 import io.wanjuan.app.constant.EventBus
 import io.wanjuan.app.data.AppDatabase
@@ -26,6 +26,7 @@ import io.wanjuan.app.data.entities.BookGroup
 import io.wanjuan.app.databinding.FragmentBooksBinding
 import io.wanjuan.app.help.book.BookTagHelper
 import io.wanjuan.app.help.config.AppConfig
+import io.wanjuan.app.help.config.LocalConfig
 import io.wanjuan.app.lib.theme.primaryColor
 import io.wanjuan.app.sync.SyncManager
 import io.wanjuan.app.ui.book.info.BookInfoActivity
@@ -48,6 +49,7 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import java.util.Date
 import kotlin.math.max
 
 /**
@@ -104,10 +106,15 @@ class BooksFragment() : BaseFragment(R.layout.fragment_books),
         binding.rvBookshelf.clipToPadding = true
         binding.rvBookshelf.applyMainBottomBarPadding()
         upFastScrollerBar()
-        binding.refreshLayout.children
-            .firstOrNull { it !== binding.rvBookshelf }
-            ?.alpha = 0f
+        updateLastRefreshTime()
+        binding.refreshLayout.setPullContent(
+            binding.rvBookshelf,
+            binding.tvLastRefresh,
+            ::updateLastRefreshTime
+        )
         binding.refreshLayout.setOnRefreshListener {
+            LocalConfig.bookshelfLastRefreshTime = System.currentTimeMillis()
+            updateLastRefreshTime()
             SyncManager.syncNow { result ->
                 if (view != null) {
                     binding.refreshLayout.isRefreshing = false
@@ -187,6 +194,18 @@ class BooksFragment() : BaseFragment(R.layout.fragment_books),
             }
         })
         startLastUpdateTimeJob()
+    }
+
+    private fun updateLastRefreshTime() {
+        val lastRefreshTime = LocalConfig.bookshelfLastRefreshTime
+        binding.tvLastRefresh.text = if (lastRefreshTime > 0L) {
+            getString(
+                R.string.bookshelf_last_refresh_time,
+                AppConst.dateFormat.format(Date(lastRefreshTime))
+            )
+        } else {
+            getString(R.string.bookshelf_last_refresh_never)
+        }
     }
 
     private fun createBooksAdapter(layout: Int): BaseBooksAdapter<*> {
