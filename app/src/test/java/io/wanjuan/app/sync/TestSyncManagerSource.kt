@@ -13,6 +13,7 @@ class TestSyncManagerSource {
         assertTrue(source.contains("fun onAppStart"))
         assertTrue(source.contains("fun onNetworkAvailable"))
         assertTrue(source.contains("fun syncNow"))
+        assertTrue(source.contains("!AppWebDav.isConfigured"))
     }
 
     @Test

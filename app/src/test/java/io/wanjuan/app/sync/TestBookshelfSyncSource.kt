@@ -27,4 +27,11 @@ class TestBookshelfSyncSource {
         assertTrue(!source.contains("rssSourceUpdatedAt"))
         assertTrue(!source.contains("rssSources/"))
     }
+
+    @Test
+    fun progressSyncSkipsWhenWebDavCredentialsAreAbsent() {
+        val source = File("app/src/main/java/io/wanjuan/app/sync/BookshelfSyncCoordinator.kt").readText()
+        assertTrue(source.contains("if (!AppWebDav.isConfigured) return null"))
+        assertTrue(source.contains("if (!AppWebDav.isConfigured) return false"))
+    }
 }

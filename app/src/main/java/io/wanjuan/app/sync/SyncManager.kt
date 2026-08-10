@@ -104,7 +104,7 @@ object SyncManager {
     }
 
     fun syncNow(force: Boolean = false, onComplete: (SyncResult) -> Unit = {}) {
-        if (!force && !AppConfig.webDavObjectSync) {
+        if (!force && (!AppConfig.webDavObjectSync || !AppWebDav.isConfigured)) {
             onComplete(SyncResult())
             return
         }

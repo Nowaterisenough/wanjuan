@@ -4,6 +4,7 @@ import io.wanjuan.app.constant.AppLog
 import io.wanjuan.app.data.appDb
 import io.wanjuan.app.data.AppDatabase
 import io.wanjuan.app.data.entities.Book
+import io.wanjuan.app.help.AppWebDav
 import io.wanjuan.app.data.entities.BookProgress
 import io.wanjuan.app.help.config.AppConfig
 import io.wanjuan.app.sync.mapper.BookSyncMapper
@@ -145,6 +146,7 @@ class BookshelfSyncCoordinator(
     }
 
     suspend fun pullProgress(book: Book): BookProgress? {
+        if (!AppWebDav.isConfigured) return null
         val id = SyncIds.bookId(book)
         val payload = client.download<SyncBookPayload>("books/$id.json") ?: return null
         if (payload.bookSyncId != id) return null
@@ -168,6 +170,7 @@ class BookshelfSyncCoordinator(
      */
     suspend fun pushProgress(book: Book, toast: Boolean = false, force: Boolean = false): Boolean {
         if (!AppConfig.webDavObjectSync) return false
+        if (!AppWebDav.isConfigured) return false
         if (!NetworkUtils.isAvailable()) return false
         return try {
             val id = SyncIds.bookId(book)
