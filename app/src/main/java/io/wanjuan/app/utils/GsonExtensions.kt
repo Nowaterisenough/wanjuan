@@ -18,6 +18,8 @@ import io.wanjuan.app.data.entities.rule.ExploreRule
 import io.wanjuan.app.data.entities.rule.ReviewRule
 import io.wanjuan.app.data.entities.rule.SearchRule
 import io.wanjuan.app.data.entities.rule.TocRule
+import io.wanjuan.app.sync.model.SyncBookPayload
+import io.wanjuan.app.sync.model.SyncBookPayloadJsonDeserializer
 import java.io.InputStream
 import java.io.InputStreamReader
 import java.io.OutputStream
@@ -41,6 +43,7 @@ val INITIAL_GSON: Gson by lazy {
 
 val GSON: Gson by lazy {
     INITIAL_GSON.newBuilder()
+        .registerTypeAdapter(SyncBookPayload::class.java, SyncBookPayloadJsonDeserializer())
         .registerTypeAdapter(ExploreRule::class.java, ExploreRule.jsonDeserializer)
         .registerTypeAdapter(SearchRule::class.java, SearchRule.jsonDeserializer)
         .registerTypeAdapter(BookInfoRule::class.java, BookInfoRule.jsonDeserializer)
