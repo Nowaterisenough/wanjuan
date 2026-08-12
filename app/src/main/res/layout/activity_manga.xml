@@ -94,7 +94,7 @@
                 android:contentDescription="@string/previous_chapter"
                 android:focusable="true">
 
-                <com.qmdeve.liquidglass.widget.LiquidGlassView
+                <io.wanjuan.app.ui.widget.SafeLiquidGlassView
                     android:id="@+id/manga_minimap_previous_glass_view"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
@@ -134,7 +134,7 @@
                 android:contentDescription="@string/chapter_list"
                 android:focusable="true">
 
-                <com.qmdeve.liquidglass.widget.LiquidGlassView
+                <io.wanjuan.app.ui.widget.SafeLiquidGlassView
                     android:id="@+id/manga_minimap_current_glass_view"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
@@ -178,7 +178,7 @@
                 android:contentDescription="@string/next_chapter"
                 android:focusable="true">
 
-                <com.qmdeve.liquidglass.widget.LiquidGlassView
+                <io.wanjuan.app.ui.widget.SafeLiquidGlassView
                     android:id="@+id/manga_minimap_next_glass_view"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"

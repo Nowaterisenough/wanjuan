@@ -31,6 +31,7 @@ import io.wanjuan.app.ui.book.manga.entities.ReaderLoading
 import io.wanjuan.app.utils.mapIndexed
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainScope
@@ -66,8 +67,11 @@ object ReadManga : CoroutineScope by MainScope() {
     val downloadedChapters = hashSetOf<Int>()
     val downloadFailChapters = hashMapOf<Int, Int>()
     val downloadScope = CoroutineScope(SupervisorJob() + IO)
+    private val contentLoadScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     val preDownloadSemaphore = Semaphore(2)
     var rateLimiter = ConcurrentRateLimiter(null)
+    @Volatile
+    private var contentGeneration = 0L
     val mangaContents get() = buildMangaContent()
     val hasNextChapter get() = durChapterIndex < simulatedChapterSize - 1
 
@@ -146,21 +150,21 @@ object ReadManga : CoroutineScope by MainScope() {
         }
     }
 
-    private fun chapterLoadKey(bookUrl: String, index: Int): String {
-        return "$bookUrl\n$index"
+    private fun chapterLoadKey(bookUrl: String, index: Int, generation: Long): String {
+        return "$bookUrl\n$index\n$generation"
     }
 
     @Synchronized
-    private fun addLoading(chapter: BookChapter): Boolean {
-        val key = chapterLoadKey(chapter.bookUrl, chapter.index)
+    private fun addLoading(chapter: BookChapter, generation: Long): Boolean {
+        val key = chapterLoadKey(chapter.bookUrl, chapter.index, generation)
         if (loadingChapters.contains(key)) return false
         loadingChapters.add(key)
         return true
     }
 
     @Synchronized
-    fun removeLoading(chapter: BookChapter) {
-        loadingChapters.remove(chapterLoadKey(chapter.bookUrl, chapter.index))
+    private fun removeLoading(chapter: BookChapter, generation: Long) {
+        loadingChapters.remove(chapterLoadKey(chapter.bookUrl, chapter.index, generation))
     }
 
     fun isCurrentBookChapter(chapter: BookChapter): Boolean {
@@ -168,6 +172,7 @@ object ReadManga : CoroutineScope by MainScope() {
     }
 
     fun loadContent() {
+        beginContentGeneration()
         clearMangaChapter()
         loadContent(durChapterIndex)
         loadContent(durChapterIndex + 1)
@@ -188,15 +193,16 @@ object ReadManga : CoroutineScope by MainScope() {
         }
     }
 
-    private fun loadContent(index: Int) {
-        Coroutine.async(this) {
-            val book = book!!
+    private fun loadContent(index: Int, generation: Long = contentGeneration) {
+        Coroutine.async(contentLoadScope) {
+            val book = book ?: return@async
             val chapter = appDb.bookChapterDao.getChapter(book.bookUrl, index) ?: return@async
-            if (addLoading(chapter)) {
+            if (generation != contentGeneration) return@async
+            if (addLoading(chapter, generation)) {
                 BookHelp.getContent(book, chapter)?.let {
-                    contentLoadFinish(chapter, it)
+                    contentLoadFinish(chapter, it, generation = generation)
                 } ?: run {
-                    download(downloadScope, chapter)
+                    download(downloadScope, chapter, generation = generation)
                 }
             }
         }.onError {
@@ -211,10 +217,12 @@ object ReadManga : CoroutineScope by MainScope() {
         chapter: BookChapter,
         content: String?,
         errorMsg: String = "加载内容失败",
-        canceled: Boolean = false
+        canceled: Boolean = false,
+        generation: Long = contentGeneration
     ) {
-        removeLoading(chapter)
+        removeLoading(chapter, generation)
         if (canceled ||
+            generation != contentGeneration ||
             !isCurrentBookChapter(chapter) ||
             chapter.index !in durChapterIndex - 1..durChapterIndex + 1
         ) {
@@ -231,6 +239,12 @@ object ReadManga : CoroutineScope by MainScope() {
                     return
                 }
                 val mangaChapter = getManageChapter(chapter, content)
+                if (generation != contentGeneration ||
+                    !isCurrentBookChapter(chapter) ||
+                    chapter.index != durChapterIndex
+                ) {
+                    return
+                }
                 if (mangaChapter.imageCount == 0 && !chapter.isVolume) {
                     mCallback?.loadFail("正文没有图片")
                     return
@@ -244,11 +258,14 @@ object ReadManga : CoroutineScope by MainScope() {
                     return
                 }
                 val mangaChapter = getManageChapter(chapter, content)
+                if (generation != contentGeneration || !isCurrentBookChapter(chapter)) return
+                val currentOffset = chapter.index - durChapterIndex
+                if (currentOffset !in listOf(-1, 1)) return
                 if (mangaChapter.imageCount == 0 && !chapter.isVolume) {
                     return
                 }
 
-                when (offset) {
+                when (currentOffset) {
                     -1 -> prevMangaChapter = mangaChapter
                     1 -> nextMangaChapter = mangaChapter
                 }
@@ -259,32 +276,42 @@ object ReadManga : CoroutineScope by MainScope() {
     }
 
     private fun buildMangaContent(): MangaContent {
+        val generation = contentGeneration
+        val chapterIndex = durChapterIndex
+        val chapterPos = durChapterPos
+        val previous = prevMangaChapter?.takeIf { it.chapter.index == chapterIndex - 1 }
+        val current = curMangaChapter?.takeIf { it.chapter.index == chapterIndex }
+        val next = nextMangaChapter?.takeIf { it.chapter.index == chapterIndex + 1 }
         val items = arrayListOf<BaseMangaPage>()
         var pos = 0
         var curFinish = false
         var nextFinish = false
-        prevMangaChapter?.let {
+        previous?.let {
             pos += it.pages.size
             items.addAll(it.pages)
         }
-        curMangaChapter?.let {
+        current?.let {
             curFinish = true
             items.addAll(it.pages)
-            durChapterPos = if (it.imageCount > 0) {
-                durChapterPos.coerceIn(0, it.imageCount - 1)
+            val safeChapterPos = if (it.imageCount > 0) {
+                chapterPos.coerceIn(0, it.imageCount - 1)
             } else {
                 0
             }
-            pos += durChapterPos
+            pos += safeChapterPos
             if (!AppConfig.hideMangaTitle && it.imageCount > 0) {
                 pos++
             }
         }
-        nextMangaChapter?.let {
+        next?.let {
             nextFinish = true
             items.addAll(it.pages)
         }
-        return MangaContent(pos, items, curFinish, nextFinish)
+        return MangaContent(chapterIndex, generation, pos, items, curFinish, nextFinish)
+    }
+
+    fun isCurrentContent(content: MangaContent): Boolean {
+        return content.chapterIndex == durChapterIndex && content.generation == contentGeneration
     }
 
     /**
@@ -292,6 +319,7 @@ object ReadManga : CoroutineScope by MainScope() {
      */
     fun moveToNextChapter(toFirst: Boolean = false): Boolean {
         if (durChapterIndex < simulatedChapterSize - 1) {
+            beginContentGeneration()
             if (toFirst) {
                 mCallback?.showLoading()
                 durChapterPos = 0
@@ -319,6 +347,7 @@ object ReadManga : CoroutineScope by MainScope() {
 
     fun moveToPrevChapter(toFirst: Boolean = false): Boolean {
         if (durChapterIndex > 0) {
+            beginContentGeneration()
             if (toFirst) {
                 mCallback?.showLoading()
                 durChapterPos = 0
@@ -414,6 +443,7 @@ object ReadManga : CoroutineScope by MainScope() {
                 return@execute
             }
             preDownloadTask?.cancel()
+            val generation = contentGeneration
             preDownloadTask = launch(IO) {
                 //预下载
                 launch {
@@ -422,7 +452,7 @@ object ReadManga : CoroutineScope by MainScope() {
                     for (i in durChapterIndex.plus(2)..maxChapterIndex) {
                         if (downloadedChapters.contains(i)) continue
                         if ((downloadFailChapters[i] ?: 0) >= 3) continue
-                        downloadIndex(i)
+                        downloadIndex(i, generation)
                     }
                 }
                 launch {
@@ -430,7 +460,7 @@ object ReadManga : CoroutineScope by MainScope() {
                     for (i in durChapterIndex.minus(2) downTo minChapterIndex) {
                         if (downloadedChapters.contains(i)) continue
                         if ((downloadFailChapters[i] ?: 0) >= 3) continue
-                        downloadIndex(i)
+                        downloadIndex(i, generation)
                     }
                 }
             }
@@ -444,7 +474,8 @@ object ReadManga : CoroutineScope by MainScope() {
         }
     }
 
-    private suspend fun downloadIndex(index: Int) {
+    private suspend fun downloadIndex(index: Int, generation: Long) {
+        if (generation != contentGeneration) return
         if (index < 0) return
         if (index > chapterSize - 1) {
             upToc()
@@ -456,8 +487,11 @@ object ReadManga : CoroutineScope by MainScope() {
             downloadedChapters.add(chapter.index)
         } else {
             delay(1000)
-            if (isCurrentBookChapter(chapter) && addLoading(chapter)) {
-                download(downloadScope, chapter, preDownloadSemaphore)
+            if (generation == contentGeneration &&
+                isCurrentBookChapter(chapter) &&
+                addLoading(chapter, generation)
+            ) {
+                download(downloadScope, chapter, preDownloadSemaphore, generation)
             }
         }
     }
@@ -469,34 +503,40 @@ object ReadManga : CoroutineScope by MainScope() {
         scope: CoroutineScope,
         chapter: BookChapter,
         semaphore: Semaphore? = null,
+        generation: Long = contentGeneration,
     ) {
-        if (!isCurrentBookChapter(chapter)) {
-            return removeLoading(chapter)
+        if (generation != contentGeneration || !isCurrentBookChapter(chapter)) {
+            return removeLoading(chapter, generation)
         }
-        val book = book ?: return removeLoading(chapter)
+        val book = book ?: return removeLoading(chapter, generation)
         val bookSource = bookSource
         if (bookSource != null) {
             downloadNetworkContent(bookSource, scope, chapter, book, semaphore, success = {
-                if (isCurrentBookChapter(chapter)) {
+                if (generation == contentGeneration && isCurrentBookChapter(chapter)) {
                     downloadedChapters.add(chapter.index)
                     downloadFailChapters.remove(chapter.index)
-                    contentLoadFinish(chapter, it)
+                    contentLoadFinish(chapter, it, generation = generation)
                 } else {
-                    removeLoading(chapter)
+                    removeLoading(chapter, generation)
                 }
             }, error = {
-                if (isCurrentBookChapter(chapter)) {
+                if (generation == contentGeneration && isCurrentBookChapter(chapter)) {
                     downloadFailChapters[chapter.index] =
                         (downloadFailChapters[chapter.index] ?: 0) + 1
-                    contentLoadFinish(chapter, null)
+                    contentLoadFinish(chapter, null, generation = generation)
                 } else {
-                    removeLoading(chapter)
+                    removeLoading(chapter, generation)
                 }
             }, cancel = {
-                contentLoadFinish(chapter, null, canceled = true)
+                contentLoadFinish(chapter, null, canceled = true, generation = generation)
             })
         } else {
-            contentLoadFinish(chapter, null, "加载内容失败 没有书源")
+            contentLoadFinish(
+                chapter,
+                null,
+                "加载内容失败 没有书源",
+                generation = generation
+            )
         }
     }
 
@@ -640,11 +680,17 @@ object ReadManga : CoroutineScope by MainScope() {
         cancelContentLoadTasks()
     }
 
-    private fun cancelContentLoadTasks() {
+    private fun beginContentGeneration() {
+        contentGeneration++
+        cancelContentLoadTasks(invalidate = false)
+    }
+
+    private fun cancelContentLoadTasks(invalidate: Boolean = true) {
+        if (invalidate) contentGeneration++
         preDownloadTask?.cancel()
         preDownloadTask = null
         downloadScope.coroutineContext.cancelChildren()
-        coroutineContext.cancelChildren()
+        contentLoadScope.coroutineContext.cancelChildren()
         synchronized(this) {
             loadingChapters.clear()
         }

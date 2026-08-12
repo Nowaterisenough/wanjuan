@@ -355,14 +355,17 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
         lifecycleScope.launch {
             binding.mangaMenu.upBookView()
             val data = withContext(IO) { ReadManga.mangaContents }
+            if (!ReadManga.isCurrentContent(data)) return@launch
             val pos = data.pos
             val list = data.items
             val curFinish = data.curFinish
             val nextFinish = data.nextFinish
             mAdapter.submitList(list) {
+                if (!ReadManga.isCurrentContent(data)) return@submitList
                 if (loadingViewVisible && curFinish) {
+                    val currentPage = list.getOrNull(pos) ?: return@submitList
                     binding.infobar.isVisible = true
-                    upInfoBar(list[pos])
+                    upInfoBar(currentPage)
                     mLayoutManager.scrollToPositionWithOffset(pos, 0)
                     binding.flLoading.isGone = true
                     loadMoreView.visible()
