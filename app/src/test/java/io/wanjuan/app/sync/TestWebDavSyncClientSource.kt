@@ -1,5 +1,6 @@
 package io.wanjuan.app.sync
 
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -36,5 +37,16 @@ class TestWebDavSyncClientSource {
         assertTrue(appWebDavSource.contains("authorizationProvider = { mAuthorization }"))
         assertTrue(appWebDavSource.contains("finally {"))
         assertTrue(appWebDavSource.contains("authorization = mAuthorization"))
+    }
+
+    @Test
+    fun appWebDavInitializationIsLazyAndCachesFailedConfiguration() {
+        val source = File("app/src/main/java/io/wanjuan/app/help/AppWebDav.kt").readText()
+
+        assertFalse(source.contains("import kotlinx.coroutines.runBlocking"))
+        assertFalse(Regex("""init\s*\{""").containsMatchIn(source))
+        assertTrue(source.contains("initializeConfig(force = false)"))
+        assertTrue(source.contains("if (!force && failedConfig == config) return@withLock"))
+        assertTrue(source.contains("failedConfig = config"))
     }
 }

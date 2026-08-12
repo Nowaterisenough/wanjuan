@@ -18,7 +18,6 @@ import io.wanjuan.app.utils.compress.ZipUtils
 import io.wanjuan.app.utils.getPrefString
 import io.wanjuan.app.utils.removePref
 import io.wanjuan.app.utils.toastOnUi
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Mutex
@@ -33,12 +32,21 @@ object AppWebDav {
     private const val defaultWebDavUrl = "https://dav.jianguoyun.com/dav/"
     private val configMutex = Mutex()
 
+    private data class WebDavConfig(
+        val rootUrl: String,
+        val account: String,
+        val password: String
+    )
+
     @Volatile
     var authorization: Authorization? = null
         private set
 
     @Volatile
     private var configError: String? = null
+
+    @Volatile
+    private var failedConfig: WebDavConfig? = null
 
     val isOk get() = authorization != null
 
@@ -50,12 +58,6 @@ object AppWebDav {
 
     fun syncRootWebDavUrl(): String {
         return rootWebDavUrl
-    }
-
-    init {
-        runBlocking {
-            upConfig()
-        }
     }
 
     private val rootWebDavUrl: String
@@ -71,31 +73,52 @@ object AppWebDav {
             return url
         }
 
+    private fun currentConfig(): WebDavConfig? {
+        val account = appCtx.getPrefString(PreferKey.webDavAccount)
+        val password = appCtx.getPrefString(PreferKey.webDavPassword)
+        if (account.isNullOrBlank() || password.isNullOrBlank()) return null
+        return WebDavConfig(rootWebDavUrl, account, password)
+    }
+
+    /**
+     * 设置页修改配置后的强制初始化入口。普通同步通过 [requireAuthorization]
+     * 惰性初始化，并复用同一份配置最近一次的失败结果。
+     */
     suspend fun upConfig() {
+        initializeConfig(force = true)
+    }
+
+    private suspend fun initializeConfig(force: Boolean) {
         configMutex.withLock {
+            val config = currentConfig()
+            if (config == null) {
+                authorization = null
+                failedConfig = null
+                configError = "WebDAV 未配置"
+                return@withLock
+            }
+            if (!force && failedConfig == config) return@withLock
+
             configError = null
+            failedConfig = null
             kotlin.runCatching {
                 authorization = null
-                val account = appCtx.getPrefString(PreferKey.webDavAccount)
-                val password = appCtx.getPrefString(PreferKey.webDavPassword)
-                if (!account.isNullOrBlank() && !password.isNullOrBlank()) {
-                    val mAuthorization = Authorization(account, password)
-                    checkAuthorization(mAuthorization)
-                    val root = rootWebDavUrl
-                    try {
-                        WebDav(root, mAuthorization).makeAsDir()
-                        WebDavSyncClient(
-                            rootUrlProvider = { root },
-                            authorizationProvider = { mAuthorization }
-                        ).ensureDirs()
-                    } finally {
-                        // Verified credentials remain usable after a transient directory failure.
-                        // Callers waiting in requireAuthorization can then retry the operation.
-                        authorization = mAuthorization
-                    }
+                val mAuthorization = Authorization(config.account, config.password)
+                checkAuthorization(config.rootUrl, mAuthorization)
+                try {
+                    WebDav(config.rootUrl, mAuthorization).makeAsDir()
+                    WebDavSyncClient(
+                        rootUrlProvider = { config.rootUrl },
+                        authorizationProvider = { mAuthorization }
+                    ).ensureDirs()
+                } finally {
+                    // Verified credentials remain usable after a transient directory failure.
+                    // Callers waiting in requireAuthorization can then retry the operation.
+                    authorization = mAuthorization
                 }
             }.onFailure {
                 currentCoroutineContext().ensureActive()
+                failedConfig = config
                 configError = it.localizedMessage ?: it.javaClass.simpleName
                 AppLog.put("WebDAV配置初始化失败\n$configError", it)
             }
@@ -104,13 +127,13 @@ object AppWebDav {
 
     internal suspend fun requireAuthorization(): Authorization {
         authorization?.let { return it }
-        upConfig()
+        initializeConfig(force = false)
         return authorization ?: throw NoStackTraceException(configError ?: "WebDAV 未配置")
     }
 
     @Throws(WebDavException::class)
-    private suspend fun checkAuthorization(authorization: Authorization) {
-        if (!WebDav(rootWebDavUrl, authorization).check()) {
+    private suspend fun checkAuthorization(rootUrl: String, authorization: Authorization) {
+        if (!WebDav(rootUrl, authorization).check()) {
             appCtx.removePref(PreferKey.webDavPassword)
             appCtx.toastOnUi(R.string.webdav_application_authorization_error)
             throw WebDavException(appCtx.getString(R.string.webdav_application_authorization_error))
