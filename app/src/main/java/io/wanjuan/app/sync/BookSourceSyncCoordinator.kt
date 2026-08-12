@@ -63,7 +63,6 @@ class BookSourceSyncCoordinator(
     }
 
     fun applyRemoteSource(payload: SyncBookSourcePayload) {
-        var clearSourceVariables = false
         repository.applyRemote {
             appDb.runInTransaction {
                 val dao = appDb.bookSourceDao
@@ -72,9 +71,8 @@ class BookSourceSyncCoordinator(
                 val source = payload.bookSource.toBookSource().apply {
                     bookSourceUrl = payload.bookSourceUrl
                 }
+                // 登录信息按设备加密存储，远端书源更新时必须保留本机缓存。
                 dao.insert(source)
-                appDb.cacheDao.deleteSourceVariables(source.bookSourceUrl)
-                clearSourceVariables = true
                 metadataDao.insert(
                     metadata.withRemoteClock(
                         objectId = payload.sourceHash,
@@ -83,9 +81,6 @@ class BookSourceSyncCoordinator(
                     )
                 )
             }
-        }
-        if (clearSourceVariables) {
-            AppCacheManager.clearSourceVariables()
         }
     }
 

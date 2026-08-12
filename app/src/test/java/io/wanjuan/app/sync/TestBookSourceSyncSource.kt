@@ -52,4 +52,14 @@ class TestBookSourceSyncSource {
         assertFalse(source.contains("rss"))
         assertFalse(source.contains("Rss"))
     }
+
+    @Test
+    fun remoteSourceUpdatePreservesDeviceLocalLoginConfig() {
+        val applyRemoteSource = source.substringAfter("fun applyRemoteSource(")
+            .substringBefore("suspend fun pushOrder(")
+
+        assertTrue(applyRemoteSource.contains("dao.insert(source)"))
+        assertFalse(applyRemoteSource.contains("deleteSourceVariables"))
+        assertFalse(applyRemoteSource.contains("clearSourceVariables"))
+    }
 }
