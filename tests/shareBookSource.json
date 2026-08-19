@@ -43,9 +43,9 @@
       "wordCount": "wordCount"
     },
     "ruleToc": {
-      "chapterList": "class.volume@tag.ul@tag.li || class.catalog_ul@tag.li",
-      "chapterName": "a.0@ownText",
-      "chapterUrl": "a@href"
+      "chapterList": "#ndcBody a[href*='/novel/chapter?id=']||class.volume@tag.ul@tag.li||class.catalog_ul@tag.li||a[href*='/novel/chapter?id=']",
+      "chapterName": "@title||class.ndc-name@text||a.0@ownText",
+      "chapterUrl": "@href||a@href"
     },
     "searchUrl": "https://www.uaa.com/api/novel/app/novel/search?keyword={{key}}&page={{page}}&size=10",
     "weight": 0
