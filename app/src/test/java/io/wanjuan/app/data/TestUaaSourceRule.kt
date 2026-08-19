@@ -1,10 +1,15 @@
 package io.wanjuan.app.data
 
+import com.script.ScriptBindings
+import com.script.rhino.RhinoScriptEngine
 import io.wanjuan.app.data.entities.BookSource
 import io.wanjuan.app.model.analyzeRule.AnalyzeByJSoup
 import io.wanjuan.app.utils.GSON
 import io.wanjuan.app.utils.fromJsonArray
+import org.jsoup.Jsoup
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 
@@ -50,13 +55,65 @@ class TestUaaSourceRule {
         )
     }
 
+    @Test
+    fun chapterRequestUsesWebView() {
+        assertTrue(
+            "UAA chapter requests should reuse the verified WebView session",
+            uaaSource().getTocRule().chapterUrl.orEmpty().contains("\"webView\":true")
+        )
+    }
+
+    @Test
+    fun contentRuleParsesCurrentReaderMarkupAndRemovesCommentControls() {
+        val html = """
+            <div id="readerContent">
+              <section class="reader-chapseg">
+                <h1 class="reader-chap">第1章 测试章节</h1>
+                <div class="reader-body">
+                  <p data-pi="0">第一段<button class="pc-bub"><svg><path /></svg></button></p>
+                  <p data-pi="1">第二段</p>
+                </div>
+              </section>
+            </div>
+        """.trimIndent()
+
+        val output = evaluateContentRule(uaaSource().getContentRule().content.orEmpty(), html)
+        val body = Jsoup.parseBodyFragment(output).body()
+
+        assertEquals(listOf("第一段", "第二段"), body.select("p").map { it.text() })
+        assertFalse(output.contains("pc-bub"))
+        assertTrue(body.select("button, svg").isEmpty())
+    }
+
+    @Test
+    fun contentRuleKeepsLegacyMarkupCompatible() {
+        val html = """
+            <div class="chapter_box">
+              <div class="article"><p>旧版正文</p></div>
+            </div>
+        """.trimIndent()
+
+        val output = evaluateContentRule(uaaSource().getContentRule().content.orEmpty(), html)
+
+        assertEquals("旧版正文", Jsoup.parseBodyFragment(output).text())
+    }
+
     private fun parseChapters(html: String): List<Pair<String, String>> {
         val rule = uaaSource().getTocRule()
+        val chapterUrlElementRule = rule.chapterUrl.orEmpty().substringBefore("##")
         return AnalyzeByJSoup(html).getElements(rule.chapterList.orEmpty()).map { element ->
             val item = AnalyzeByJSoup(element)
             item.getString(rule.chapterName.orEmpty()).orEmpty() to
-                item.getString(rule.chapterUrl.orEmpty()).orEmpty()
+                item.getString(chapterUrlElementRule).orEmpty()
         }
+    }
+
+    private fun evaluateContentRule(rule: String, html: String): String {
+        val script = rule.removePrefix("<js>").removeSuffix("</js>")
+        val bindings = ScriptBindings().apply {
+            this["result"] = html
+        }
+        return RhinoScriptEngine.eval(script, bindings).toString()
     }
 
     private fun uaaSource(): BookSource {

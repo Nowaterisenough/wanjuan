@@ -26,7 +26,7 @@
       "name": "class.info_box@tag.h1@text"
     },
     "ruleContent": {
-      "content": ".line@html##.*</?div.*"
+      "content": "<js>\nvar doc = org.jsoup.Jsoup.parse(String(result == null ? \"\" : result));\nvar node = doc.select(\"#readerContent .reader-body, .chapter_box .article, .line\").first();\nvar output = \"\";\nif (node != null) {\n    node.select(\"button.pc-bub, script, style\").remove();\n    output = String(node.html());\n}\noutput;\n</js>"
     },
     "ruleExplore": {
       "bookUrl": "https://www.uaa.com/novel/intro?id={{$.id}}"
@@ -45,7 +45,7 @@
     "ruleToc": {
       "chapterList": "#ndcBody a[href*='/novel/chapter?id=']||class.volume@tag.ul@tag.li||class.catalog_ul@tag.li||a[href*='/novel/chapter?id=']",
       "chapterName": "@title||class.ndc-name@text||a.0@ownText",
-      "chapterUrl": "@href||a@href"
+      "chapterUrl": "@href||a@href##$##,{\"webView\":true}"
     },
     "searchUrl": "https://www.uaa.com/api/novel/app/novel/search?keyword={{key}}&page={{page}}&size=10",
     "weight": 0
