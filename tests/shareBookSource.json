@@ -4899,6 +4899,61 @@
     "weight": 0
   },
   {
+    "bookSourceComment": "91PinSe 视频源。列表、搜索和详情使用服务端 HTML；播放时实时 POST 详情页对应的 playback API 获取短时签名 HLS 地址。",
+    "bookSourceGroup": "R18视频",
+    "bookSourceName": "91PinSe",
+    "bookSourceType": 4,
+    "bookSourceUrl": "https://91pinse.com/",
+    "customButton": false,
+    "customOrder": 93,
+    "enabled": true,
+    "enabledCookieJar": true,
+    "enabledExplore": true,
+    "eventListener": false,
+    "exploreUrl": "[\n  {\"title\":\"最新视频\",\"url\":\"\",\"style\":{\"layout_flexGrow\":1,\"layout_flexBasisPercent\":1}},\n  {\"title\":\"最近更新\",\"url\":\"v/?sort=last&page={{page}}\",\"style\":{\"layout_flexGrow\":1,\"layout_flexBasisPercent\":0.3}},\n  {\"title\":\"播放最多\",\"url\":\"v/?sort=view&page={{page}}\",\"style\":{\"layout_flexGrow\":1,\"layout_flexBasisPercent\":0.3}},\n  {\"title\":\"最多点赞\",\"url\":\"v/?sort=like&page={{page}}\",\"style\":{\"layout_flexGrow\":1,\"layout_flexBasisPercent\":0.3}},\n  {\"title\":\"今天更新\",\"url\":\"v/?time=today&page={{page}}\",\"style\":{\"layout_flexGrow\":1,\"layout_flexBasisPercent\":0.3}},\n  {\"title\":\"本周更新\",\"url\":\"v/?time=week&page={{page}}\",\"style\":{\"layout_flexGrow\":1,\"layout_flexBasisPercent\":0.3}},\n  {\"title\":\"热门视频\",\"url\":\"\",\"style\":{\"layout_flexGrow\":1,\"layout_flexBasisPercent\":1}},\n  {\"title\":\"热门视频\",\"url\":\"v/hot/?page={{page}}\",\"style\":{\"layout_flexGrow\":1,\"layout_flexBasisPercent\":0.3}},\n  {\"title\":\"短于5分钟\",\"url\":\"v/?dur=short&page={{page}}\",\"style\":{\"layout_flexGrow\":1,\"layout_flexBasisPercent\":0.3}},\n  {\"title\":\"5至20分钟\",\"url\":\"v/?dur=medium&page={{page}}\",\"style\":{\"layout_flexGrow\":1,\"layout_flexBasisPercent\":0.3}},\n  {\"title\":\"长于20分钟\",\"url\":\"v/?dur=long&page={{page}}\",\"style\":{\"layout_flexGrow\":1,\"layout_flexBasisPercent\":0.3}},\n  {\"title\":\"高清视频\",\"url\":\"v/?hd=1&page={{page}}\",\"style\":{\"layout_flexGrow\":1,\"layout_flexBasisPercent\":0.3}},\n  {\"title\":\"热门榜单\",\"url\":\"\",\"style\":{\"layout_flexGrow\":1,\"layout_flexBasisPercent\":1}},\n  {\"title\":\"当前热门\",\"url\":\"rank/current-hot?page={{page}}\",\"style\":{\"layout_flexGrow\":1,\"layout_flexBasisPercent\":0.3}},\n  {\"title\":\"月度趋势\",\"url\":\"rank/month-hot?page={{page}}\",\"style\":{\"layout_flexGrow\":1,\"layout_flexBasisPercent\":0.3}},\n  {\"title\":\"月度收藏\",\"url\":\"rank/month-favorite?page={{page}}\",\"style\":{\"layout_flexGrow\":1,\"layout_flexBasisPercent\":0.3}},\n  {\"title\":\"精选视频\",\"url\":\"rank/recently-featured?page={{page}}\",\"style\":{\"layout_flexGrow\":1,\"layout_flexBasisPercent\":0.3}}\n]",
+    "header": "{\"User-Agent\":\"Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Mobile Safari/537.36\",\"Accept-Language\":\"zh-CN,zh;q=0.9,en;q=0.8\"}",
+    "lastUpdateTime": 1787196000000,
+    "respondTime": 1000,
+    "ruleBookInfo": {
+      "author": "meta[name=author]@content||.watch-author .font-semibold@text",
+      "coverUrl": "meta[property=og:image]@content||video#player@poster",
+      "intro": ".watch-description@text||meta[name=description]@content",
+      "kind": "meta[property=og:video:duration]@content",
+      "lastChapter": "@js:'在线播放'",
+      "name": ".watch-title@text||meta[property=og:title]@content"
+    },
+    "ruleContent": {
+      "content": "@js:\nlet pageUrl = String(baseUrl || '').replace(/#.*$/, '').replace(/,\\{[\\s\\S]*\\}$/, '');\nlet match = pageUrl.match(/\\/v(?:hd)?\\/(\\d+)/i) || String(result).match(/var\\s+vid\\s*=\\s*[\"'](\\d+)/i);\nif (!match) {\n    '未获取到视频编号';\n} else {\n    let videoId = match[1];\n    let site = String(source.getKey() || 'https://91pinse.com/').replace(/\\/$/, '');\n    let apiUrl = site + '/api/videos/' + videoId + '/playback';\n    let options = {\n        method: 'POST',\n        body: '',\n        headers: {\n            'Accept': 'application/json',\n            'Origin': site,\n            'Referer': pageUrl,\n            'X-Requested-With': 'XMLHttpRequest'\n        }\n    };\n    let media = '';\n    try {\n        let payload = JSON.parse(java.ajax(apiUrl + ',' + JSON.stringify(options)));\n        media = String(payload.url || payload.fallback_url || '').replace(/&amp;/g, '&').trim();\n        if (media.startsWith('//')) media = 'https:' + media;\n        else if (media.startsWith('/')) media = site + media;\n    } catch (error) {\n        java.log('91PinSe playback API error: ' + error);\n    }\n    media || '未获取到视频地址';\n}",
+      "nextContentUrl": ""
+    },
+    "ruleExplore": {
+      "author": ".video-card-author@text",
+      "bookList": ".video-grid .video-card",
+      "bookUrl": ".video-card-title@href||a[aria-label]@href",
+      "coverUrl": ".video-thumb img@src",
+      "kind": ".video-duration@text",
+      "lastChapter": ".video-card-meta span:last-child@text",
+      "name": ".video-card-title@text||.video-thumb img@alt"
+    },
+    "ruleSearch": {
+      "author": ".video-card-author@text",
+      "bookList": ".video-grid .video-card",
+      "bookUrl": ".video-card-title@href||a[aria-label]@href",
+      "checkKeyWord": "熟女",
+      "coverUrl": ".video-thumb img@src",
+      "kind": ".video-duration@text",
+      "lastChapter": ".video-card-meta span:last-child@text",
+      "name": ".video-card-title@text||.video-thumb img@alt"
+    },
+    "ruleToc": {
+      "chapterList": "@js:[{title:'在线播放',url:baseUrl}]",
+      "chapterName": "title",
+      "chapterUrl": "url"
+    },
+    "searchUrl": "v/search?keyword={{key}}&page={{page}}",
+    "weight": 0
+  },
+  {
     "bookSourceComment": "24.12.4",
     "bookSourceGroup": "正版",
     "bookSourceName": "QQ阅读男频",
