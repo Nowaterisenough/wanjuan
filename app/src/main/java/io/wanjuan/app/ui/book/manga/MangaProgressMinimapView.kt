@@ -57,6 +57,7 @@ class MangaProgressMinimapView @JvmOverloads constructor(
     private val thumbnailLoadingIndexes = mutableSetOf<Int>()
     private val thumbnailCacheRecoveryKeys = mutableMapOf<Int, MangaThumbnailPageKey>()
     private var clearingThumbnailTargets = false
+    private var thumbnailLoadingEnabled = true
     private var dragRatio: Float? = null
     private var pinnedProgressRatio: Float? = null
     private var dragThumbTouchOffset = 0f
@@ -103,6 +104,24 @@ class MangaProgressMinimapView @JvmOverloads constructor(
 
     fun shouldPreservePanelPosition(): Boolean {
         return isDragging || pinnedProgressRatio != null
+    }
+
+    fun resumeThumbnailLoading() {
+        if (thumbnailLoadingEnabled) {
+            return
+        }
+        thumbnailLoadingEnabled = true
+        maybeLoadThumbnails()
+    }
+
+    fun pauseThumbnailLoading() {
+        if (!thumbnailLoadingEnabled) {
+            return
+        }
+        // Glide clears active targets again from its ON_STOP observer. Remove ours first so an
+        // onLoadCleared callback cannot immediately enqueue another request while it is stopping.
+        thumbnailLoadingEnabled = false
+        clearThumbnailTargets()
     }
 
     fun updatePages(
@@ -458,7 +477,12 @@ class MangaProgressMinimapView @JvmOverloads constructor(
     }
 
     private fun maybeLoadThumbnails() {
-        if (!isAttachedToWindow || !isShown || imageUrls.isEmpty()) {
+        if (!thumbnailLoadingEnabled ||
+            !isAttachedToWindow ||
+            windowVisibility != VISIBLE ||
+            !isShown ||
+            imageUrls.isEmpty()
+        ) {
             return
         }
         loadCurrentThumbnailIfNeeded()
@@ -630,8 +654,12 @@ class MangaProgressMinimapView @JvmOverloads constructor(
                 thumbnailDrawables.remove(index)
                 thumbnailLoadingIndexes.remove(index)
                 invalidate()
-                if (!clearingThumbnailTargets) {
-                    maybeLoadThumbnails()
+                if (!clearingThumbnailTargets && thumbnailLoadingEnabled) {
+                    // Glide may invoke onLoadCleared synchronously while pausing its lifecycle.
+                    // Never start a replacement request from the same callback stack.
+                    post {
+                        maybeLoadThumbnails()
+                    }
                 }
             }
         }

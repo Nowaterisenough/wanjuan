@@ -1597,6 +1597,37 @@ class TestReadMenuLayout {
     }
 
     @Test
+    fun mangaProgressMinimapStopsThumbnailRequestsBeforeActivityStop() {
+        val mangaActivity = repoFile(
+            "app/src/main/java/io/wanjuan/app/ui/book/manga/ReadMangaActivity.kt"
+        ).readText()
+        val minimapView = repoFile(
+            "app/src/main/java/io/wanjuan/app/ui/book/manga/MangaProgressMinimapView.kt"
+        ).readText()
+        val onResumeBody = mangaActivity.substringAfter("override fun onResume()")
+            .substringBefore("override fun onPause()")
+        val onPauseBody = mangaActivity.substringAfter("override fun onPause()")
+            .substringBefore("override fun loadFail")
+        val maybeLoadBody = minimapView.substringAfter("private fun maybeLoadThumbnails()")
+            .substringBefore("private fun loadCurrentThumbnailIfNeeded()")
+        val onLoadClearedBody = minimapView.substringAfter(
+            "override fun onLoadCleared(placeholder: Drawable?)"
+        ).substringBefore("thumbnailTargets[index] = target")
+
+        assertTrue(onResumeBody.contains("binding.mangaProgressMinimap.resumeThumbnailLoading()"))
+        assertTrue(onPauseBody.contains("binding.mangaProgressMinimap.pauseThumbnailLoading()"))
+        assertTrue(
+            onPauseBody.indexOf("binding.mangaProgressMinimap.pauseThumbnailLoading()") <
+                onPauseBody.indexOf("super.onPause()")
+        )
+        assertTrue(minimapView.contains("private var thumbnailLoadingEnabled = true"))
+        assertTrue(minimapView.contains("thumbnailLoadingEnabled = false\n        clearThumbnailTargets()"))
+        assertTrue(maybeLoadBody.contains("!thumbnailLoadingEnabled"))
+        assertTrue(maybeLoadBody.contains("windowVisibility != VISIBLE"))
+        assertTrue(onLoadClearedBody.contains("post {\n                        maybeLoadThumbnails()"))
+    }
+
+    @Test
     fun expandedReaderPanelHidesChapterProgressMinimapUntilDismissed() {
         val readMenu = repoFile("app/src/main/java/io/wanjuan/app/ui/book/read/ReadMenu.kt").readText()
         val readActivity = repoFile("app/src/main/java/io/wanjuan/app/ui/book/read/ReadBookActivity.kt").readText()
