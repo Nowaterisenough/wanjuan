@@ -115,10 +115,10 @@ class BooksFragment() : BaseFragment(R.layout.fragment_books),
         binding.refreshLayout.setOnRefreshListener {
             LocalConfig.bookshelfLastRefreshTime = System.currentTimeMillis()
             updateLastRefreshTime()
+            // Full WebDAV object sync may take a long time or already be running. Catalog refresh
+            // is independent, so do not keep SwipeRefreshLayout locked until remote sync finishes.
+            binding.refreshLayout.isRefreshing = false
             SyncManager.syncNow { result ->
-                if (view != null) {
-                    binding.refreshLayout.isRefreshing = false
-                }
                 if (!result.isSuccess) {
                     context?.toastOnUi("同步失败：${result.errorMessage ?: "未知错误"}")
                 }

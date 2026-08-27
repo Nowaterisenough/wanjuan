@@ -7,9 +7,14 @@ import io.wanjuan.app.help.coroutine.Coroutine
 import io.wanjuan.app.sync.model.SyncObjectType
 import io.wanjuan.app.sync.model.SyncResult
 import io.wanjuan.app.sync.remote.newSyncClient
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 
 object SyncManager {
+
+    private val syncScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private val client by lazy { AppWebDav.newSyncClient() }
     private val repository by lazy {
@@ -91,6 +96,10 @@ object SyncManager {
         )
     }
 
+    private val singleFlightSync by lazy {
+        SingleFlightSync(syncScope, ::sync)
+    }
+
     suspend fun sync(): SyncResult = orchestrator.sync()
 
     fun onAppStart() {
@@ -108,7 +117,8 @@ object SyncManager {
             onComplete(SyncResult())
             return
         }
-        Coroutine.async(start = CoroutineStart.LAZY) { sync() }
+        val task = singleFlightSync.start()
+        Coroutine.async(start = CoroutineStart.LAZY) { task.await() }
             .onSuccess { onComplete(it) }
             .onError {
                 onComplete(
