@@ -325,16 +325,20 @@ open class WebDav(
      * 检查用户名密码是否有效
      */
     suspend fun check(): Boolean {
-        return kotlin.runCatching {
-            webDavClient.newCallResponse {
-                url(url)
-                addHeader("Depth", "0")
-                val requestBody = EXISTS.toRequestBody("application/xml".toMediaType())
-                method("PROPFIND", requestBody)
-            }.use { it.code != 401 }
-        }.onFailure {
-            currentCoroutineContext().ensureActive()
-        }.getOrDefault(true)
+        val url = httpUrl ?: throw WebDavException("WebDav认证检查失败\nurl为空")
+        return replayableRequest {
+            url(url)
+            addHeader("Depth", "0")
+            val requestBody = EXISTS.toRequestBody("application/xml".toMediaType())
+            method("PROPFIND", requestBody)
+        }.use {
+            if (it.code == 401) {
+                false
+            } else {
+                checkResult(it)
+                true
+            }
+        }
     }
 
     /**
