@@ -18,11 +18,14 @@ import io.wanjuan.app.utils.toRequestBody
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.ConnectionPool
+import okhttp3.Request
 import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
@@ -37,6 +40,7 @@ import java.net.MalformedURLException
 import java.net.URL
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
+import java.util.concurrent.TimeUnit
 
 internal fun isSuccessfulWebDavDeleteStatus(code: Int): Boolean =
     code in 200..299 || code == 404
@@ -51,6 +55,25 @@ internal fun webDavResourceStatus(code: Int): WebDavResourceStatus = when {
     code in 200..299 -> WebDavResourceStatus.EXISTS
     code == 404 -> WebDavResourceStatus.MISSING
     else -> WebDavResourceStatus.ERROR
+}
+
+internal suspend fun <T> retryWebDavIoRequest(
+    maxRetries: Int = 1,
+    onRetry: suspend (IOException) -> Unit = {},
+    request: suspend () -> T
+): T {
+    require(maxRetries >= 0) { "maxRetries must not be negative" }
+    var retries = 0
+    while (true) {
+        try {
+            return request()
+        } catch (error: IOException) {
+            currentCoroutineContext().ensureActive()
+            if (retries >= maxRetries) throw error
+            retries += 1
+            onRetry(error)
+        }
+    }
 }
 
 @Suppress("unused", "MemberVisibilityCanBePrivate")
@@ -94,6 +117,12 @@ open class WebDav(
             </propfind>"""
 
         private const val DEFAULT_CONTENT_TYPE = "application/octet-stream"
+        private const val RETRY_DELAY_MILLIS = 150L
+        private val webDavConnectionPool = ConnectionPool(
+            maxIdleConnections = 5,
+            keepAliveDuration = 60,
+            timeUnit = TimeUnit.SECONDS
+        )
     }
 
 
@@ -118,6 +147,7 @@ open class WebDav(
             chain.proceed(request)
         }
         okHttpClient.newBuilder().run {
+            connectionPool(webDavConnectionPool)
             interceptors().add(0, authInterceptor)
             addNetworkInterceptor(authInterceptor)
             build()
@@ -131,6 +161,17 @@ open class WebDav(
                 it
             }
         }
+
+    private suspend fun replayableRequest(builder: Request.Builder.() -> Unit): Response {
+        return retryWebDavIoRequest(
+            onRetry = {
+                webDavConnectionPool.evictAll()
+                delay(RETRY_DELAY_MILLIS)
+            }
+        ) {
+            webDavClient.newCallResponse(builder = builder)
+        }
+    }
 
     /**
      * 获取当前url文件信息
@@ -174,7 +215,7 @@ open class WebDav(
             String.format(DIR, requestProps.toString() + "\n")
         }
         val url = httpUrl ?: return null
-        return webDavClient.newCallResponse {
+        return replayableRequest {
             url(url)
             addHeader("Depth", depth.toString())
             // 添加RequestBody对象，可以只返回的属性。如果设为null，则会返回全部属性
@@ -259,16 +300,11 @@ open class WebDav(
     @Throws(WebDavException::class)
     suspend fun exists(): Boolean {
         val url = httpUrl ?: throw WebDavException("WebDav检查目录失败\nurl为空")
-        return try {
-            requestResourceExists(url)
-        } catch (e: IOException) {
-            currentCoroutineContext().ensureActive()
-            requestResourceExists(url)
-        }
+        return requestResourceExists(url)
     }
 
     private suspend fun requestResourceExists(url: String): Boolean {
-        return webDavClient.newCallResponse {
+        return replayableRequest {
             url(url)
             addHeader("Depth", "0")
             val requestBody = EXISTS.toRequestBody("application/xml".toMediaType())
@@ -310,11 +346,18 @@ open class WebDav(
         val url = httpUrl ?: throw WebDavException("WebDav初始化目录失败\nurl为空")
         try {
             if (!exists()) {
-                webDavClient.newCallResponse {
-                    url(url)
-                    method("MKCOL", null)
-                }.use {
-                    checkResult(it)
+                try {
+                    webDavClient.newCallResponse {
+                        url(url)
+                        method("MKCOL", null)
+                    }.use {
+                        checkResult(it)
+                    }
+                } catch (error: IOException) {
+                    currentCoroutineContext().ensureActive()
+                    // MKCOL may have completed before the response connection was interrupted.
+                    // Verify the resulting state instead of blindly creating the directory again.
+                    if (!exists()) throw error
                 }
             }
             return true
@@ -374,7 +417,7 @@ open class WebDav(
                 // 务必注意RequestBody不要嵌套，不然上传时内容可能会被追加多余的文件信息
                 val fileBody = file.asRequestBody(contentType.toMediaType())
                 val url = httpUrl ?: throw WebDavException("url不能为空")
-                webDavClient.newCallResponse {
+                replayableRequest {
                     url(url)
                     put(fileBody)
                 }.use {
@@ -395,7 +438,7 @@ open class WebDav(
             withContext(IO) {
                 val fileBody = byteArray.toRequestBody(contentType.toMediaType())
                 val url = httpUrl ?: throw NoStackTraceException("url不能为空")
-                webDavClient.newCallResponse {
+                replayableRequest {
                     url(url)
                     put(fileBody)
                 }.use {
@@ -416,7 +459,7 @@ open class WebDav(
             withContext(IO) {
                 val fileBody = uri.toRequestBody(contentType.toMediaType())
                 val url = httpUrl ?: throw NoStackTraceException("url不能为空")
-                webDavClient.newCallResponse {
+                replayableRequest {
                     url(url)
                     put(fileBody)
                 }.use {
@@ -433,7 +476,7 @@ open class WebDav(
     @Throws(WebDavException::class)
     suspend fun downloadInputStream(): InputStream {
         val url = httpUrl ?: throw WebDavException("WebDav下载出错\nurl为空")
-        val byteStream = webDavClient.newCallResponse {
+        val byteStream = replayableRequest {
             url(url)
         }.apply {
             checkResult(this)
@@ -447,7 +490,7 @@ open class WebDav(
     suspend fun delete(): Boolean {
         val url = httpUrl ?: return false
         return kotlin.runCatching {
-            webDavClient.newCallResponse {
+            replayableRequest {
                 url(url)
                 method("DELETE", null)
             }.use {
