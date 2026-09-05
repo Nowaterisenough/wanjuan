@@ -1,5 +1,7 @@
 package io.wanjuan.app.help.source
 
+import org.jsoup.Jsoup
+
 object CloudflareVerification {
 
     fun isCloudflareTitle(title: String?): Boolean {
@@ -8,20 +10,18 @@ object CloudflareVerification {
 
     fun isChallengeBody(body: String?): Boolean {
         if (body.isNullOrBlank()) return false
-        return body.contains("_cf_chl_opt", ignoreCase = true) ||
-            body.contains("cf_chl", ignoreCase = true) ||
-            body.contains("cf-chl", ignoreCase = true) ||
-            body.contains("challenge-platform", ignoreCase = true) ||
-            body.contains("Just a moment", ignoreCase = true) ||
-            body.contains("Checking your browser", ignoreCase = true) ||
-            body.contains("cf_clearance", ignoreCase = true) ||
-            body.contains("cf-ray", ignoreCase = true) ||
-            body.contains("Attention Required", ignoreCase = true) ||
-            body.contains("cf-turnstile", ignoreCase = true) ||
-            body.contains("challenges.cloudflare.com", ignoreCase = true) ||
-            body.contains("cdn-cgi/challenge-platform", ignoreCase = true) ||
-            body.contains("turnstile", ignoreCase = true) ||
-            body.contains("Verify you are human", ignoreCase = true) ||
-            body.contains("Verifying you are human", ignoreCase = true)
+        if (body.contains("_cf_chl_opt", ignoreCase = true)) return true
+        // Cloudflare also injects challenge-platform scripts into ordinary content pages.
+        val document = Jsoup.parse(body)
+        val title = document.title()
+        return challengeTitles.any { title.startsWith(it, ignoreCase = true) } ||
+            document.selectFirst(
+                "#challenge-form, #cf-challenge-running, #cf-challenge-stage, #cf-error-details"
+            ) != null
     }
+
+    private val challengeTitles = listOf(
+        "Just a moment", "Checking your browser", "Attention Required",
+        "Verify you are human", "Verifying you are human"
+    )
 }

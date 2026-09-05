@@ -16,6 +16,41 @@ import java.io.File
 class TestUaaSourceRule {
 
     @Test
+    fun passiveCloudflareScriptDoesNotOpenVerification() {
+        assertEquals(0, verificationCalls("""
+            <title>Chapter 1</title><p>Text</p>
+            <script src="/cdn-cgi/challenge-platform/scripts/jsd/main.js"></script>
+        """, 200))
+    }
+
+    @Test
+    fun challengePageAndChallengeHeaderOpenVerification() {
+        assertEquals(1, verificationCalls("<title>Just a moment...</title>", 403))
+        assertEquals(1, verificationCalls("<p>Verification required</p>", 403, "challenge"))
+        assertEquals(1, verificationCalls("<form id='challenge-form'></form>", 200))
+    }
+
+    private fun verificationCalls(html: String, status: Int, header: String = ""): Int {
+        val bindings = ScriptBindings().apply {
+            this["responseHtml"] = html
+            this["responseStatus"] = status
+            this["challengeHeader"] = header
+        }
+        return RhinoScriptEngine.eval("""
+            var calls = 0;
+            var result = {
+                body: function() { return responseHtml; },
+                code: function() { return responseStatus; },
+                url: function() { return 'https://www.uaa.com'; },
+                headers: function() { return {get:function() { return challengeHeader; }}; }
+            };
+            var java = {startBrowserAwait:function() { calls++; return result; }};
+            ${uaaSource().loginCheckJs}
+            calls;
+        """.trimIndent(), bindings).toString().toDouble().toInt()
+    }
+
+    @Test
     fun tocRuleParsesCurrentDetailMarkup() {
         val html = """
             <div id="ndcBody" data-render-source="server">
