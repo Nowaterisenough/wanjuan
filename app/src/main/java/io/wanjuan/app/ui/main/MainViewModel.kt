@@ -8,7 +8,6 @@ import androidx.recyclerview.widget.RecyclerView.RecycledViewPool
 import io.wanjuan.app.base.BaseViewModel
 import io.wanjuan.app.constant.AppConst
 import io.wanjuan.app.constant.AppLog
-import io.wanjuan.app.constant.BookType
 import io.wanjuan.app.constant.EventBus
 import io.wanjuan.app.data.appDb
 import io.wanjuan.app.data.entities.Book
@@ -16,11 +15,9 @@ import io.wanjuan.app.data.entities.BookSource
 import io.wanjuan.app.help.AppWebDav
 import io.wanjuan.app.help.DefaultData
 import io.wanjuan.app.help.book.BookHelp
-import io.wanjuan.app.help.book.addType
+import io.wanjuan.app.help.book.BookCatalogUpdate
 import io.wanjuan.app.help.book.isLocal
 import io.wanjuan.app.help.book.isUpError
-import io.wanjuan.app.help.book.removeType
-import io.wanjuan.app.help.book.sync
 import io.wanjuan.app.help.config.AppConfig
 import io.wanjuan.app.model.CacheBook
 import io.wanjuan.app.model.ReadBook
@@ -207,19 +204,16 @@ class MainViewModel(application: Application) : BaseViewModel(application) {
         }
     }
 
-    private suspend fun updateToc(bookUrl: String) {
-        val book = appDb.bookDao.getBook(bookUrl) ?: run {
+    private suspend fun updateToc(bookUrl: String): Boolean {
+        var book = appDb.bookDao.getBook(bookUrl) ?: run {
             pullProgressAfterTocBooks.remove(bookUrl)
-            return
+            return false
         }
         val source = appDb.bookSourceDao.getBookSource(book.origin)
         if (source == null) {
             pullProgressAfterTocBooks.remove(bookUrl)
-            if (!book.isUpError) {
-                book.addType(BookType.updateError)
-                appDb.bookDao.update(book)
-            }
-            return
+            BookCatalogUpdate.markFailed(appDb, bookUrl)
+            return false
         }
         if (source.eventListener) {
             // 使用 putIfAbsent 确保只添加一次
@@ -228,6 +222,7 @@ class MainViewModel(application: Application) : BaseViewModel(application) {
                 SourceCallBack.callBackSource(viewModelScope, SourceCallBack.START_SHELF_REFRESH, source)
             }
         }
+        var success = false
         kotlin.runCatching {
             val oldBook = book.copy()
             if (book.tocUrl.isBlank()) {
@@ -236,32 +231,25 @@ class MainViewModel(application: Application) : BaseViewModel(application) {
                 WebBook.runPreUpdateJs(source, book)
             }
             val toc = WebBook.getChapterListAwait(source, book).getOrThrow()
-            book.sync(oldBook)
-            book.removeType(BookType.updateError)
-            if (book.bookUrl == bookUrl) {
-                appDb.bookDao.update(book)
-            } else {
-                appDb.bookDao.replace(oldBook, book)
+            book = BookCatalogUpdate.save(appDb, oldBook, book, toc) ?: return false
+            if (book.bookUrl != bookUrl) {
                 BookHelp.updateCacheFolder(oldBook, book)
             }
-            appDb.bookChapterDao.delByBook(bookUrl)
-            appDb.bookChapterDao.insert(*toc.toTypedArray())
             ReadBook.onChapterListUpdated(book)
             ReadManga.onChapterListUpdated(book)
             if (pullProgressAfterTocBooks.remove(bookUrl)) {
                 pullRemoteProgressAfterToc(book)
             }
             addDownload(source, book)
+            success = true
         }.onFailure {
             pullProgressAfterTocBooks.remove(bookUrl)
             currentCoroutineContext().ensureActive()
             AppLog.put("${book.name} 更新目录失败\n${it.localizedMessage}", it)
             //这里可能因为时间太长书籍信息已经更改,所以重新获取
-            appDb.bookDao.getBook(book.bookUrl)?.let { book ->
-                book.addType(BookType.updateError)
-                appDb.bookDao.update(book)
-            }
+            BookCatalogUpdate.markFailed(appDb, book.bookUrl)
         }
+        return success
     }
 
     private suspend fun pullRemoteProgressAfterToc(book: Book) {

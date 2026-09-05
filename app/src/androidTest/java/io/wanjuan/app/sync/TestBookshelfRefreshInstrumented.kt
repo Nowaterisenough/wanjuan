@@ -7,6 +7,7 @@ import io.wanjuan.app.data.AppDatabase
 import io.wanjuan.app.data.entities.Book
 import io.wanjuan.app.data.entities.BookGroup
 import io.wanjuan.app.data.entities.BookProgress
+import io.wanjuan.app.help.book.BookCatalogUpdate
 import io.wanjuan.app.lib.webdav.Authorization
 import io.wanjuan.app.sync.merge.BookSyncMerge
 import io.wanjuan.app.sync.model.SyncBookPayload
@@ -131,6 +132,17 @@ class TestBookshelfRefreshInstrumented {
         assertEquals(400L, result.syncTime)
         assertEquals(8L, result.group)
         assertEquals("new", result.customTag)
+    }
+
+    @Test
+    fun deletedBookIsNotResurrectedByCatalogRequest() {
+        val a = replica("a")
+        val before = book()
+        a.db.bookDao.insert(before)
+        a.db.bookDao.delete(before)
+
+        assertNull(BookCatalogUpdate.save(a.db, before, before.copy(totalChapterNum = 150), emptyList()))
+        assertEquals(0, a.db.bookDao.allBookCount)
     }
 
     @Test
