@@ -9,6 +9,7 @@ import io.wanjuan.app.sync.model.SyncRssSourcePayload
 import io.wanjuan.app.sync.model.SyncRuleSubPayload
 import io.wanjuan.app.sync.model.SyncTombstonePayload
 import io.wanjuan.app.sync.model.SyncVersion
+import io.wanjuan.app.sync.merge.BookSyncMerge
 import io.wanjuan.app.sync.remote.SyncRemoteFile
 import io.wanjuan.app.utils.GSON
 import io.wanjuan.app.utils.fromJsonObject
@@ -62,26 +63,7 @@ fun productionSyncPullHandlers(
                 SyncApplyOutcome.Updated
             }
         ),
-        entityHandler<SyncBookPayload>(
-            directory = "books",
-            objectType = SyncObjectType.Book,
-            objectId = { it.bookSyncId },
-            version = {
-                listOf(
-                    SyncVersion(it.shelfUpdatedAt, it.updatedByDeviceId),
-                    SyncVersion(it.catalogUpdatedAt, it.updatedByDeviceId),
-                    SyncVersion(
-                        it.effectiveProgressUpdatedAt(),
-                        it.effectiveProgressUpdatedByDeviceId()
-                    )
-                ).maxOrNull()!!
-            },
-            contentHash = SyncPayloadHash::book,
-            apply = {
-                bookshelfCoordinator.applyRemoteBook(it)
-                SyncApplyOutcome.Updated
-            }
-        ),
+        bookSyncPullHandler(bookshelfCoordinator),
         SyncOrderPullHandler(
             groupCoordinator,
             bookshelfCoordinator,
@@ -120,14 +102,28 @@ fun productionSyncPullHandlers(
     return objects + tombstones
 }
 
+fun bookSyncPullHandler(bookshelfCoordinator: BookshelfSyncCoordinator): SyncPullHandler =
+    entityHandler<SyncBookPayload>(
+        directory = "books",
+        objectType = SyncObjectType.Book,
+        objectId = { it.bookSyncId },
+        version = BookSyncMerge::version,
+        contentHash = SyncPayloadHash::book,
+        mergesComponents = true,
+        apply = bookshelfCoordinator::applyRemoteBook
+    )
+
 private inline fun <reified T> entityHandler(
     directory: String,
     objectType: String,
     crossinline objectId: (T) -> String,
     crossinline version: (T) -> SyncVersion,
     crossinline contentHash: (T) -> String,
+    mergesComponents: Boolean = false,
     crossinline apply: (T) -> SyncApplyOutcome
 ): SyncPullHandler = object : SyncPullHandler {
+    override val mergesComponents = mergesComponents
+    override val usesModifiedTimeMarker = !mergesComponents
     override val directories: List<String> = listOf(directory)
 
     override fun identity(file: SyncRemoteFile): SyncIdentity? =
@@ -240,7 +236,8 @@ private fun SyncRemoteFile.jsonId(): String? =
 internal fun SyncBookPayload.effectiveProgressUpdatedAt(): Long =
     progressUpdatedAt.takeIf { it > 0L }
         ?: book.syncTime.takeIf { it > 0L }
-        ?: book.durChapterTime
+        ?: book.durChapterTime.takeIf { schemaVersion < 2 || book.durChapterIndex > 0 || book.durChapterPos > 0 }
+        ?: 0L
 
 internal fun SyncBookPayload.effectiveProgressUpdatedByDeviceId(): String =
     progressUpdatedByDeviceId?.takeIf { it.isNotBlank() }

@@ -8,7 +8,8 @@ import io.wanjuan.app.help.AppWebDav
 import io.wanjuan.app.data.entities.BookProgress
 import io.wanjuan.app.help.config.AppConfig
 import io.wanjuan.app.sync.mapper.BookSyncMapper
-import io.wanjuan.app.sync.local.SyncMetadata
+import io.wanjuan.app.sync.mapper.progressSyncTime
+import io.wanjuan.app.sync.merge.BookSyncMerge
 import io.wanjuan.app.sync.merge.SyncMerge
 import io.wanjuan.app.sync.model.SyncBook
 import io.wanjuan.app.sync.model.SyncBookPayload
@@ -16,6 +17,7 @@ import io.wanjuan.app.sync.model.SyncObjectType
 import io.wanjuan.app.sync.model.SyncOrderPayload
 import io.wanjuan.app.sync.model.SyncTombstonePayload
 import io.wanjuan.app.sync.remote.WebDavSyncClient
+import io.wanjuan.app.sync.remote.mergeBook
 import io.wanjuan.app.utils.NetworkUtils
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -89,10 +91,7 @@ class BookshelfSyncCoordinator(
     private val objectApplier: BookshelfObjectApplier = BookshelfObjectApplier(),
     private val db: AppDatabase = appDb
 ) {
-    private companion object {
-        const val BookShelfClockType = "bookShelf"
-        const val BookCatalogClockType = "bookCatalog"
-    }
+    private val bookState = BookSyncState(db, clock, deviceIdProvider, groupCoordinator)
 
     fun enqueueBookDelete(book: Book) {
         val id = SyncIds.bookId(book)
@@ -112,15 +111,7 @@ class BookshelfSyncCoordinator(
     }
 
     fun enqueueBook(book: Book) {
-        val payload = BookSyncMapper.toBookPayload(
-            book = book,
-            deviceId = deviceIdProvider(),
-            shelfUpdatedAt = clock.now(),
-            catalogUpdatedAt = clock.now(),
-            groupSyncIds = groupCoordinator.localMaskToRemoteGroupIds(book.group)
-        )
-        recordLocalBookClocks(payload)
-        repository.markDirty(SyncObjectType.Book, payload.bookSyncId, payload, "upsert")
+        db.runInTransaction { repository.queueBook(bookState.capture(book)) }
     }
 
     fun enqueueBookshelfOrder(books: List<Book>) {
@@ -148,8 +139,8 @@ class BookshelfSyncCoordinator(
     }
 
     suspend fun pushBookPayload(payload: SyncBookPayload) {
-        recordLocalBookClocks(payload)
-        client.upload("books/${payload.bookSyncId}.json", payload)
+        val merged = client.mergeBook(payload)
+        db.runInTransaction { bookState.record(merged) }
         runCatching { client.delete("tombstones/books/${payload.bookSyncId}.json") }
     }
 
@@ -183,36 +174,35 @@ class BookshelfSyncCoordinator(
         return try {
             val id = SyncIds.bookId(book)
             val localUpdatedAt = book.localProgressUpdatedAt()
-                .takeIf { it > 0L }
-                ?: book.durChapterTime
-            val remote = client.download<SyncBookPayload>("books/$id.json")
-            if (!force && remote != null && SyncMerge.remoteProgressWins(
-                    localUpdatedAt,
-                    remote.effectiveProgressUpdatedAt()
-                )
-            ) {
-                return false
-            }
-            val deviceId = deviceIdProvider()
-            val payload = if (remote == null) {
-                BookSyncMapper.toBookPayload(
-                    book = book,
-                    deviceId = deviceId,
-                    shelfUpdatedAt = clock.now(),
-                    catalogUpdatedAt = clock.now(),
-                    progressUpdatedAt = localUpdatedAt,
-                    groupSyncIds = groupCoordinator.localMaskToRemoteGroupIds(book.group)
-                )
-            } else {
-                remote.copy(
-                    book = remote.book.withProgressFrom(book, localUpdatedAt),
-                    progressUpdatedAt = localUpdatedAt,
-                    progressUpdatedByDeviceId = deviceId
-                )
-            }
-            client.upload("books/$id.json", payload)
+            val uploaded = client.updateBook(id) { remote ->
+                if (!force && remote != null && SyncMerge.remoteProgressWins(
+                        localUpdatedAt,
+                        remote.effectiveProgressUpdatedAt()
+                    )
+                ) {
+                    return@updateBook null
+                }
+                val deviceId = deviceIdProvider()
+                val payload = if (remote == null) {
+                    BookSyncMapper.toBookPayload(
+                        book = book,
+                        deviceId = deviceId,
+                        shelfUpdatedAt = clock.now(),
+                        catalogUpdatedAt = clock.now(),
+                        progressUpdatedAt = localUpdatedAt,
+                        groupSyncIds = groupCoordinator.localMaskToRemoteGroupIds(book.group)
+                    )
+                } else {
+                    remote.copy(
+                        book = remote.book.withProgressFrom(book, localUpdatedAt),
+                        progressUpdatedAt = localUpdatedAt,
+                        progressUpdatedByDeviceId = deviceId
+                    )
+                }
+                payload
+            } ?: return false
             runCatching { client.delete("tombstones/books/$id.json") }
-            book.syncTime = localUpdatedAt
+            book.syncTime = uploaded.effectiveProgressUpdatedAt()
             true
         } catch (e: Exception) {
             currentCoroutineContext().ensureActive()
@@ -223,27 +213,61 @@ class BookshelfSyncCoordinator(
 
     fun applyProgress(book: Book, progress: BookProgress) {
         SyncScope.remoteApply {
-            book.durChapterIndex = progress.durChapterIndex
-            book.durChapterPos = progress.durChapterPos
-            book.durChapterTitle = progress.durChapterTitle
-            book.durChapterTime = progress.durChapterTime
-            book.syncTime = progress.durChapterTime
-            db.bookDao.update(book)
+            db.runInTransaction {
+                val current = db.bookDao.getBook(book.bookUrl) ?: return@runInTransaction
+                if (progress.durChapterTime <= current.localProgressUpdatedAt() ||
+                    progress.durChapterIndex !in 0..current.lastChapterIndex
+                ) return@runInTransaction
+                current.durChapterIndex = progress.durChapterIndex
+                current.durChapterPos = progress.durChapterPos
+                current.durChapterTitle = progress.durChapterTitle
+                current.durChapterTime = progress.durChapterTime
+                current.syncTime = progress.durChapterTime
+                db.bookDao.update(current)
+            }
         }
     }
 
-    fun applyRemoteBook(payload: SyncBookPayload) {
+    fun applyRemoteBook(payload: SyncBookPayload): SyncApplyOutcome {
+        var outcome = SyncApplyOutcome.Updated
         repository.applyRemote {
             db.runInTransaction {
                 val dao = db.bookDao
                 val local = dao.getBook(payload.book.bookUrl)
-                val remote = payload.book.toBook(payload.localGroupMask(groupCoordinator))
+                val localMask = payload.localGroupMask(groupCoordinator)
+                val remote = payload.copy(
+                    schemaVersion = 2,
+                    book = payload.book.copy(
+                        groupSyncIds = groupCoordinator.localMaskToRemoteGroupIds(localMask)
+                    )
+                )
+                val merged = if (local == null) remote else {
+                    BookSyncMerge.merge(bookState.capture(local, newLocalBook = false), remote)
+                }
+                val book = merged.book.toBook(merged.localGroupMask(groupCoordinator))
                 if (local == null) {
-                    dao.insert(remote)
+                    dao.insert(book)
+                    outcome = SyncApplyOutcome.Inserted
                 } else {
-                    dao.update(remote)
+                    dao.update(book)
+                }
+                bookState.record(merged)
+                if (SyncPayloadHash.book(merged) != SyncPayloadHash.book(remote)) {
+                    repository.queueBook(merged)
+                    outcome = SyncApplyOutcome.Merged
                 }
             }
+        }
+        return outcome
+    }
+
+    fun applyUploadedBook(payload: SyncBookPayload) {
+        db.runInTransaction {
+            // An upload acknowledgement must not resurrect a book deleted while the PUT ran.
+            if (db.bookDao.getBook(payload.book.bookUrl) == null ||
+                db.syncOutboxDao.latestForObject(SyncObjectType.Book, payload.bookSyncId)?.operation == "delete"
+            ) return@runInTransaction
+            applyRemoteBook(payload)
         }
     }
 
@@ -277,64 +301,6 @@ class BookshelfSyncCoordinator(
         client.upload("tombstones/books/$id.json", payload)
     }
 
-    private fun SyncMetadata?.withRemoteClock(
-        objectType: String,
-        objectId: String,
-        remoteUpdatedAt: Long,
-        updatedByDeviceId: String
-    ): SyncMetadata {
-        return this?.copy(
-            remoteUpdatedAt = maxOf(this.remoteUpdatedAt, remoteUpdatedAt),
-            updatedByDeviceId = updatedByDeviceId
-        ) ?: SyncMetadata(
-            objectType = objectType,
-            objectId = objectId,
-            remoteUpdatedAt = remoteUpdatedAt,
-            updatedByDeviceId = updatedByDeviceId
-        )
-    }
-
-    private fun recordLocalBookClocks(payload: SyncBookPayload) {
-        db.runInTransaction {
-            val metadataDao = db.syncMetadataDao
-            val shelfMetadata = metadataDao.get(BookShelfClockType, payload.bookSyncId)
-            val catalogMetadata = metadataDao.get(BookCatalogClockType, payload.bookSyncId)
-            metadataDao.insert(
-                shelfMetadata.withLocalClock(
-                    objectType = BookShelfClockType,
-                    objectId = payload.bookSyncId,
-                    localUpdatedAt = payload.shelfUpdatedAt,
-                    updatedByDeviceId = payload.updatedByDeviceId
-                )
-            )
-            metadataDao.insert(
-                catalogMetadata.withLocalClock(
-                    objectType = BookCatalogClockType,
-                    objectId = payload.bookSyncId,
-                    localUpdatedAt = payload.catalogUpdatedAt,
-                    updatedByDeviceId = payload.updatedByDeviceId
-                )
-            )
-        }
-    }
-
-    private fun SyncMetadata?.withLocalClock(
-        objectType: String,
-        objectId: String,
-        localUpdatedAt: Long,
-        updatedByDeviceId: String
-    ): SyncMetadata {
-        return this?.copy(
-            localUpdatedAt = maxOf(this.localUpdatedAt, localUpdatedAt),
-            updatedByDeviceId = updatedByDeviceId
-        ) ?: SyncMetadata(
-            objectType = objectType,
-            objectId = objectId,
-            localUpdatedAt = localUpdatedAt,
-            updatedByDeviceId = updatedByDeviceId
-        )
-    }
-
     private fun SyncBookPayload.localGroupMask(
         coordinator: BookGroupSyncCoordinator
     ): Long = if (schemaVersion >= 2) {
@@ -343,7 +309,7 @@ class BookshelfSyncCoordinator(
         coordinator.remoteLegacyMaskToLocalMask(book.group)
     }
 
-    private fun Book.localProgressUpdatedAt(): Long = syncTime
+    private fun Book.localProgressUpdatedAt(): Long = progressSyncTime()
 
     private fun SyncBook.withProgressFrom(book: Book, progressUpdatedAt: Long): SyncBook = copy(
         durChapterTitle = book.durChapterTitle,

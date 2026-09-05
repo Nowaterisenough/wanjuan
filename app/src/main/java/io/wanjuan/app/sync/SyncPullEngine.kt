@@ -33,6 +33,7 @@ data class SyncRemoteCandidate(
 enum class SyncApplyOutcome {
     Inserted,
     Updated,
+    Merged,
     Deleted,
     Skipped
 }
@@ -41,6 +42,8 @@ interface SyncPullHandler {
     val directories: List<String>
     val usesModifiedTimeMarker: Boolean
         get() = true
+    val mergesComponents: Boolean
+        get() = false
 
     fun identity(file: SyncRemoteFile): SyncIdentity?
 
@@ -50,6 +53,7 @@ interface SyncPullHandler {
 }
 
 interface SyncPullStore {
+    fun runInTransaction(block: () -> Unit) = block()
     fun metadata(identity: SyncIdentity): SyncMetadata?
 
     fun recordRemote(candidate: SyncRemoteCandidate, applied: Boolean)
@@ -104,39 +108,47 @@ class SyncPullEngine(
                 "Remote identity changed while parsing ${file.path}"
             }
 
-            val current = pullStore.metadata(identity)
-            val alreadyApplied = current?.lastSyncedHash == candidate.contentHash && when {
-                candidate.objectVersion != null ->
-                    current.currentObjectVersion() == candidate.objectVersion
-                candidate.deleteVersion != null ->
-                    current.localDeleteVersion() == candidate.deleteVersion
-                else -> false
-            }
-            if (alreadyApplied) {
-                result.skipped += 1
-                pullStore.recordRemote(candidate, applied = false)
-                return
-            }
-            val winner = SyncConflictResolver.choose(
-                localObject = current.currentObjectVersion(),
-                remoteObject = candidate.objectVersion,
-                localDelete = current.localDeleteVersion(),
-                remoteDelete = candidate.deleteVersion
-            )
-            val remoteWins = winner == SyncWinner.RemoteObject ||
-                winner == SyncWinner.RemoteDelete
-            if (remoteWins) {
-                when (handler.applyRemote(candidate)) {
-                    SyncApplyOutcome.Inserted -> result.inserted += 1
-                    SyncApplyOutcome.Updated -> result.updated += 1
-                    SyncApplyOutcome.Deleted -> result.deleted += 1
-                    SyncApplyOutcome.Skipped -> result.skipped += 1
+            pullStore.runInTransaction {
+                val current = pullStore.metadata(identity)
+                val alreadyApplied = current?.lastSyncedHash == candidate.contentHash && when {
+                    candidate.objectVersion != null ->
+                        current.currentObjectVersion() == candidate.objectVersion
+                    candidate.deleteVersion != null ->
+                        current.localDeleteVersion() == candidate.deleteVersion
+                    else -> false
                 }
-                pullStore.discardOutbox(identity)
-            } else {
-                result.skipped += 1
+                if (alreadyApplied) {
+                    result.skipped += 1
+                    pullStore.recordRemote(candidate, applied = false)
+                    return@runInTransaction
+                }
+                val winner = SyncConflictResolver.choose(
+                    localObject = current.currentObjectVersion(),
+                    remoteObject = candidate.objectVersion,
+                    localDelete = current.localDeleteVersion(),
+                    remoteDelete = candidate.deleteVersion
+                )
+                val remoteWins = winner == SyncWinner.RemoteObject ||
+                    winner == SyncWinner.RemoteDelete ||
+                    (handler.mergesComponents && winner == SyncWinner.LocalObject && candidate.objectVersion != null)
+                var fullyApplied = remoteWins
+                if (remoteWins) {
+                    when (handler.applyRemote(candidate)) {
+                        SyncApplyOutcome.Inserted -> result.inserted += 1
+                        SyncApplyOutcome.Updated -> result.updated += 1
+                        SyncApplyOutcome.Merged -> {
+                            result.updated += 1
+                            fullyApplied = false
+                        }
+                        SyncApplyOutcome.Deleted -> result.deleted += 1
+                        SyncApplyOutcome.Skipped -> result.skipped += 1
+                    }
+                    if (fullyApplied) pullStore.discardOutbox(identity)
+                } else {
+                    result.skipped += 1
+                }
+                pullStore.recordRemote(candidate, fullyApplied)
             }
-            pullStore.recordRemote(candidate, remoteWins)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -164,6 +176,7 @@ class SyncPullEngine(
 class RoomSyncPullStore(
     private val db: AppDatabase
 ) : SyncPullStore {
+    override fun runInTransaction(block: () -> Unit) = db.runInTransaction(block)
 
     override fun metadata(identity: SyncIdentity): SyncMetadata? =
         db.syncMetadataDao.get(identity.objectType, identity.objectId)

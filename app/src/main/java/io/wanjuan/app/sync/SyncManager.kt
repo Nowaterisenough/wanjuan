@@ -17,17 +17,18 @@ object SyncManager {
     private val syncScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private val client by lazy { AppWebDav.newSyncClient() }
-    private val repository by lazy {
+    private val repository: SyncRepository by lazy {
         SyncRepository(
             db = appDb,
             client = client,
             clock = SystemSyncClock,
+            onBookUploaded = { bookshelf.applyUploadedBook(it) },
             deviceIdProvider = SyncDeviceStore::deviceId
         )
     }
     private val groupCoordinator by lazy { BookGroupSyncCoordinator() }
 
-    val bookshelf by lazy {
+    val bookshelf: BookshelfSyncCoordinator by lazy {
         BookshelfSyncCoordinator(
             client,
             repository,

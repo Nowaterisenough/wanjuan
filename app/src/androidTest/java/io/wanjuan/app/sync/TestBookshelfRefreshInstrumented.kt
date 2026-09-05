@@ -8,6 +8,7 @@ import io.wanjuan.app.data.entities.Book
 import io.wanjuan.app.data.entities.BookGroup
 import io.wanjuan.app.data.entities.BookProgress
 import io.wanjuan.app.lib.webdav.Authorization
+import io.wanjuan.app.sync.merge.BookSyncMerge
 import io.wanjuan.app.sync.model.SyncBookPayload
 import io.wanjuan.app.sync.model.SyncObjectType
 import io.wanjuan.app.sync.model.SyncResult
@@ -29,6 +30,53 @@ class TestBookshelfRefreshInstrumented {
 
     @After
     fun tearDown() = replicas.forEach { it.db.close() }
+
+    @Test
+    fun snapshotRetriesKeepComponentVersionsAndQueueIdentity() {
+        val a = replica("a")
+        a.db.bookDao.insert(book())
+        a.capture()
+        val first = a.pendingBook()
+        val firstId = a.db.syncOutboxDao.pending().single().id
+        a.time = 900L
+
+        a.capture()
+
+        val retried = a.pendingBook()
+        assertEquals(first.shelfUpdatedAt, retried.shelfUpdatedAt)
+        assertEquals(first.catalogUpdatedAt, retried.catalogUpdatedAt)
+        assertEquals(first.progressUpdatedAt, retried.progressUpdatedAt)
+        assertEquals(firstId, a.db.syncOutboxDao.pending().single().id)
+    }
+
+    @Test
+    fun fullRoomPipelineMergesNewCatalogWithNewRemoteProgress() = runBlocking {
+        val a = replica("a")
+        val b = replica("b")
+        a.db.bookDao.insert(book())
+        assertTrue(a.sync().isSuccess)
+        assertTrue(b.sync().isSuccess)
+
+        a.time = 300L
+        a.db.bookDao.update(a.db.bookDao.all.single().copy(durChapterIndex = 99, syncTime = 300, durChapterTime = 300))
+        assertTrue(a.sync().isSuccess)
+        b.time = 400L
+        b.db.bookDao.update(b.db.bookDao.all.single().copy(totalChapterNum = 160, lastCheckTime = 400))
+
+        assertTrue(b.sync().isSuccess)
+        assertTrue(a.sync().isSuccess)
+
+        for (replica in listOf(a, b)) {
+            val result = replica.db.bookDao.all.single()
+            assertEquals(99, result.durChapterIndex)
+            assertEquals(300L, result.syncTime)
+            assertEquals(160, result.totalChapterNum)
+            assertEquals(0, replica.db.syncOutboxDao.count())
+        }
+        val uploaded = GSON.fromJsonObject<SyncBookPayload>(remote.objects.values.single()).getOrThrow()
+        assertEquals(99, uploaded.book.durChapterIndex)
+        assertEquals(160, uploaded.book.totalChapterNum)
+    }
 
     @Test
     fun drainUploadsMoreThanFiftyObjectsInOneRun() = runBlocking {
@@ -68,6 +116,69 @@ class TestBookshelfRefreshInstrumented {
         assertTrue(retried.toResult().isSuccess)
     }
 
+    @Test
+    fun progressResponseCannotRollbackReadingOrOverwriteNewGroup() {
+        val a = replica("a")
+        val stale = book().copy(syncTime = 100)
+        a.db.bookDao.insert(stale.copy(group = 8, customTag = "new", syncTime = 300, durChapterIndex = 60))
+
+        a.books.applyProgress(stale, BookProgress("Book", "Author", 20, 0, 200, "old"))
+        assertEquals(60, a.db.bookDao.all.single().durChapterIndex)
+        a.books.applyProgress(stale, BookProgress("Book", "Author", 70, 0, 400, "new"))
+
+        val result = a.db.bookDao.all.single()
+        assertEquals(70, result.durChapterIndex)
+        assertEquals(400L, result.syncTime)
+        assertEquals(8L, result.group)
+        assertEquals("new", result.customTag)
+    }
+
+    @Test
+    fun uploadAcknowledgementDoesNotResurrectADeletedBook() = runBlocking {
+        val a = replica("a")
+        val book = book()
+        a.db.bookDao.insert(book)
+        a.capture()
+        remote.beforeUpload = {
+            remote.beforeUpload = null
+            a.db.bookDao.delete(book)
+            a.time = 500
+            a.books.enqueueBookDelete(book)
+        }
+
+        val result = SyncResult.Mutable()
+        a.repository.flushOutbox(remote, result)
+
+        assertEquals(0, a.db.bookDao.allBookCount)
+        assertEquals("delete", a.db.syncOutboxDao.pending().single().operation)
+        assertEquals(1, result.pending)
+    }
+
+    @Test
+    fun uploadCompletionKeepsChangesMadeDuringUploadPending() = runBlocking {
+        val a = replica("a")
+        a.db.bookGroupDao.insert(BookGroup(1, "New group", syncId = "group-new"))
+        a.db.bookDao.insert(book())
+        a.capture()
+        remote.beforeUpload = {
+            remote.beforeUpload = null
+            a.time = 400
+            a.db.bookDao.update(a.db.bookDao.all.single().copy(group = 1))
+        }
+
+        val result = SyncResult.Mutable()
+        a.repository.flushOutbox(remote, result)
+
+        assertEquals(1L, a.db.bookDao.all.single().group)
+        assertEquals(1, result.pending)
+        assertTrue(a.db.syncMetadataDao.get(SyncObjectType.Book, SyncIds.bookId(book()))!!.dirty)
+        val final = SyncResult.Mutable()
+        a.repository.flushOutbox(remote, final)
+        assertTrue(final.toResult().isSuccess)
+        val uploaded = GSON.fromJsonObject<SyncBookPayload>(remote.objects.values.single()).getOrThrow()
+        assertEquals(listOf("group-new"), uploaded.book.groupSyncIds)
+    }
+
     private fun replica(id: String): Replica = Replica(id).also { replicas += it }
 
     private fun book(url: String = "book") = Book(
@@ -85,7 +196,7 @@ class TestBookshelfRefreshInstrumented {
         val client = WebDavSyncClient({ "http://127.0.0.1/" }, { Authorization("test", "test") })
         val groups = BookGroupSyncCoordinator(RoomBookGroupSyncStore(db))
         val repository: SyncRepository = SyncRepository(
-            db, client, clock, deviceIdProvider = { id }
+            db, client, clock, onBookUploaded = { books.applyUploadedBook(it) }, deviceIdProvider = { id }
         )
         val books: BookshelfSyncCoordinator by lazy {
             BookshelfSyncCoordinator(client, repository, clock, { id }, groups,
@@ -97,6 +208,11 @@ class TestBookshelfRefreshInstrumented {
         )
         fun capture() = reconciler.capture()
         fun pendingBook() = GSON.fromJsonObject<SyncBookPayload>(db.syncOutboxDao.pending().single().payloadJson).getOrThrow()
+        suspend fun sync() = SyncOrchestrator(
+            remote, SyncCaptureAction { capture() },
+            SyncPullAction { SyncPullEngine(remote, RoomSyncPullStore(db), listOf(bookSyncPullHandler(books))).pullAll(it) },
+            SyncFlushAction { repository.flushOutbox(remote, it) }
+        ).sync()
     }
 
     private class MemoryRemote : SyncRemoteStore {

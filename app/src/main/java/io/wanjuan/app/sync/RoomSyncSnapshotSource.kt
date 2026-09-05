@@ -6,6 +6,7 @@ import io.wanjuan.app.sync.mapper.BookSourceSyncMapper
 import io.wanjuan.app.sync.mapper.BookSyncMapper
 import io.wanjuan.app.sync.mapper.RssSourceSyncMapper
 import io.wanjuan.app.sync.mapper.RuleSubSyncMapper
+import io.wanjuan.app.sync.merge.BookSyncMerge
 import io.wanjuan.app.sync.model.SyncObjectType
 import io.wanjuan.app.sync.model.SyncOrderPayload
 import io.wanjuan.app.sync.model.SyncSnapshot
@@ -18,6 +19,7 @@ class RoomSyncSnapshotSource(
     private val deviceIdProvider: () -> String,
     private val groupCoordinator: BookGroupSyncCoordinator
 ) : SyncLocalSnapshotSource {
+    private val bookState = BookSyncState(db, clock, deviceIdProvider, groupCoordinator)
 
     override fun currentSnapshots(): List<SyncSnapshot> {
         groupCoordinator.ensureStableIds()
@@ -45,15 +47,8 @@ class RoomSyncSnapshotSource(
                 add(snapshot(SyncObjectType.RuleSub, payload.ruleSubHash, payload, SyncPayloadHash.ruleSub(payload), version))
             }
             books.forEach { book ->
-                val payload = BookSyncMapper.toBookPayload(
-                    book = book,
-                    deviceId = version.deviceId,
-                    shelfUpdatedAt = version.timestamp,
-                    catalogUpdatedAt = version.timestamp,
-                    progressUpdatedAt = book.syncTime.takeIf { it > 0L } ?: book.durChapterTime,
-                    groupSyncIds = groupCoordinator.localMaskToRemoteGroupIds(book.group)
-                )
-                add(snapshot(SyncObjectType.Book, payload.bookSyncId, payload, SyncPayloadHash.book(payload), version))
+                val payload = bookState.capture(book, repairAcknowledgedSnapshot = true)
+                add(snapshot(SyncObjectType.Book, payload.bookSyncId, payload, SyncPayloadHash.book(payload), BookSyncMerge.version(payload)))
             }
             add(orderSnapshot(
                 SyncObjectType.BookGroupOrder,

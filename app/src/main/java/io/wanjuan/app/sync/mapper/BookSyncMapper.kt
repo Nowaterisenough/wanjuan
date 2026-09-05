@@ -12,7 +12,7 @@ object BookSyncMapper {
         deviceId: String,
         shelfUpdatedAt: Long,
         catalogUpdatedAt: Long,
-        progressUpdatedAt: Long = book.syncTime.takeIf { it > 0L } ?: book.durChapterTime,
+        progressUpdatedAt: Long = book.progressSyncTime(),
         groupSyncIds: List<String>
     ): SyncBookPayload {
         return SyncBookPayload(
@@ -25,3 +25,7 @@ object BookSyncMapper {
         )
     }
 }
+
+fun Book.progressSyncTime(): Long = syncTime.takeIf { it > 0L }
+    ?: durChapterTime.takeIf { durChapterIndex > 0 || durChapterPos > 0 }
+    ?: 0L

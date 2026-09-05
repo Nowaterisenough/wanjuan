@@ -8,7 +8,8 @@ class TestBookshelfSyncSource {
 
     @Test
     fun bookshelfSyncIncludesBadgeFields() {
-        val source = File("app/src/main/java/io/wanjuan/app/sync/BookshelfSyncCoordinator.kt").readText()
+        val source = File("app/src/main/java/io/wanjuan/app/sync/BookshelfSyncCoordinator.kt").readText() +
+                File("app/src/main/java/io/wanjuan/app/sync/BookSyncState.kt").readText()
         assertTrue(source.contains("totalChapterNum"))
         assertTrue(source.contains("lastCheckCount"))
         assertTrue(source.contains("latestChapterTitle"))

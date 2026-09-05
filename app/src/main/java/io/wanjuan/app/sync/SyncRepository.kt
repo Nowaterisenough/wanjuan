@@ -15,6 +15,8 @@ import io.wanjuan.app.sync.model.SyncRuleSubPayload
 import io.wanjuan.app.sync.model.SyncTombstonePayload
 import io.wanjuan.app.sync.remote.SyncRemoteStore
 import io.wanjuan.app.sync.remote.WebDavSyncClient
+import io.wanjuan.app.sync.remote.mergeBook
+import io.wanjuan.app.sync.merge.BookSyncMerge
 import io.wanjuan.app.utils.GSON
 import io.wanjuan.app.utils.fromJsonObject
 import kotlinx.coroutines.CancellationException
@@ -25,8 +27,38 @@ class SyncRepository(
     private val db: AppDatabase,
     private val client: WebDavSyncClient,
     private val clock: SyncClock,
+    private val onBookUploaded: (SyncBookPayload) -> Unit = {},
     private val deviceIdProvider: () -> String
 ) {
+
+    fun queueBook(payload: SyncBookPayload) {
+        val version = BookSyncMerge.version(payload)
+        db.runInTransaction {
+            val previous = db.syncMetadataDao.get(SyncObjectType.Book, payload.bookSyncId)
+                ?: SyncMetadata(SyncObjectType.Book, payload.bookSyncId)
+            db.syncMetadataDao.insert(previous.copy(
+                localUpdatedAt = version.timestamp,
+                localUpdatedByDeviceId = version.deviceId,
+                dirty = true,
+                deletedAt = null,
+                deletedByDeviceId = null
+            ))
+            val json = GSON.toJson(payload)
+            val queued = db.syncOutboxDao.latestForObject(SyncObjectType.Book, payload.bookSyncId)
+            if (queued?.payloadJson != json || queued.operation != "upsert") {
+                db.syncOutboxDao.deleteForObject(SyncObjectType.Book, payload.bookSyncId)
+                db.syncOutboxDao.insert(SyncOutbox(
+                    objectType = SyncObjectType.Book,
+                    objectId = payload.bookSyncId,
+                    operation = "upsert",
+                    payloadJson = json,
+                    createdAt = version.timestamp,
+                    versionTimestamp = version.timestamp,
+                    versionDeviceId = version.deviceId
+                ))
+            }
+        }
+    }
 
     fun markDirty(objectType: String, objectId: String, payload: Any, operation: String) {
         if (SyncScope.isApplyingRemote) return
@@ -82,7 +114,12 @@ class SyncRepository(
             currentCoroutineContext().ensureActive()
             try {
                 val json = item.payloadJsonForUpload(deviceIdProvider)
-                remoteStore.uploadJson(item.remotePath(), json)
+                val mergedBook = if (item.objectType == SyncObjectType.Book && item.operation != "delete") {
+                    remoteStore.mergeBook(GSON.fromJsonObject<SyncBookPayload>(json).getOrThrow())
+                } else {
+                    remoteStore.uploadJson(item.remotePath(), json)
+                    null
+                }
                 if (item.operation != "delete" && remoteStore is WebDavSyncClient) {
                     item.remoteTombstonePath()?.let { path ->
                         runCatching { remoteStore.delete(path) }
@@ -94,8 +131,13 @@ class SyncRepository(
                     if (isLatest) db.syncMetadataDao.markClean(
                         item.objectType,
                         item.objectId,
-                        if (item.operation == "delete") null else item.contentHash()
+                        when {
+                            item.operation == "delete" -> null
+                            mergedBook != null -> SyncPayloadHash.book(mergedBook)
+                            else -> item.contentHash()
+                        }
                     )
+                    if (mergedBook != null) onBookUploaded(mergedBook)
                 }
                 result.uploaded += 1
             } catch (e: CancellationException) {

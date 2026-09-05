@@ -182,6 +182,8 @@ class TestSyncReplica(
     }
 
     private inner class StateStore : SyncReconcileStore, SyncPullStore {
+        override fun runInTransaction(block: () -> Unit) = block()
+
         override fun metadata(objectType: String, objectId: String): SyncMetadata? =
             metadata[Key(objectType, objectId)]
 

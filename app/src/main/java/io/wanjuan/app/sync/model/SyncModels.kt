@@ -2,6 +2,7 @@ package io.wanjuan.app.sync.model
 
 import com.google.gson.annotations.SerializedName
 import io.wanjuan.app.data.entities.Book
+import io.wanjuan.app.sync.mapper.progressSyncTime
 import io.wanjuan.app.data.entities.BookSource
 import io.wanjuan.app.data.entities.RuleSub
 import io.wanjuan.app.data.entities.rule.BookInfoRule
@@ -40,14 +41,18 @@ data class SyncBookPayload(
     @SerializedName(value = "g", alternate = ["progressUpdatedByDeviceId"])
     val progressUpdatedByDeviceId: String? = updatedByDeviceId,
     @SerializedName(value = "h", alternate = ["schemaVersion"])
-    val schemaVersion: Int = 2
+    val schemaVersion: Int = 2,
+    @SerializedName(value = "i", alternate = ["shelfUpdatedByDeviceId"])
+    val shelfUpdatedByDeviceId: String? = null,
+    @SerializedName(value = "j", alternate = ["catalogUpdatedByDeviceId"])
+    val catalogUpdatedByDeviceId: String? = null
 ) {
     constructor(
         bookSyncId: String,
         book: Book,
         shelfUpdatedAt: Long,
         catalogUpdatedAt: Long,
-        progressUpdatedAt: Long = book.syncTime.takeIf { it > 0L } ?: book.durChapterTime,
+        progressUpdatedAt: Long = book.progressSyncTime(),
         updatedByDeviceId: String,
         progressUpdatedByDeviceId: String? = updatedByDeviceId,
         schemaVersion: Int = 2,

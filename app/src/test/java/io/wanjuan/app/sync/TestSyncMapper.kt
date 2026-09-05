@@ -12,6 +12,14 @@ import org.junit.Test
 class TestSyncMapper {
 
     @Test
+    fun newlyAddedUnreadBookDoesNotClaimANewReadingProgress() {
+        val book = Book(bookUrl = "u", origin = "o", durChapterTime = 900L, syncTime = 0L)
+        val payload = BookSyncMapper.toBookPayload(book, "device", 900L, 900L, groupSyncIds = emptyList())
+        assertEquals(0L, payload.progressUpdatedAt)
+        assertEquals(0L, payload.effectiveProgressUpdatedAt())
+    }
+
+    @Test
     fun bookProgressUsesDurChapterTimeAsUpdatedAt() {
         val book = Book(name = "N", author = "A", bookUrl = "u", origin = "o").apply {
             durChapterIndex = 3

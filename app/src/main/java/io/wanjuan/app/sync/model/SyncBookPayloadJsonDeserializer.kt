@@ -52,7 +52,9 @@ class SyncBookPayloadJsonDeserializer : JsonDeserializer<SyncBookPayload> {
             progressUpdatedAt = progressUpdatedAt,
             updatedByDeviceId = updatedByDeviceId,
             progressUpdatedByDeviceId = progressUpdatedByDeviceId,
-            schemaVersion = schemaVersion
+            schemaVersion = schemaVersion,
+            shelfUpdatedByDeviceId = obj.element("shelfUpdatedByDeviceId", "i").stringOrNull(),
+            catalogUpdatedByDeviceId = obj.element("catalogUpdatedByDeviceId", "j").stringOrNull()
         )
     }
 }
