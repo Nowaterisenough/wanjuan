@@ -110,8 +110,9 @@ android {
                 manifestPlaceholders.put("app_name", "@string/app_name")
             }
 
-            minifyEnabled true
-            shrinkResources = true
+            // Instrumentation uses entry points and shared classes removed by R8.
+            minifyEnabled !project.hasProperty("releaseInstrumentation")
+            shrinkResources = !project.hasProperty("releaseInstrumentation")
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro', 'cronet-proguard-rules.pro'
         }
         debug {
@@ -151,6 +152,7 @@ android {
         androidTest.assets.srcDirs += files("$projectDir/schemas".toString())
         androidTest.assets.srcDirs += files("$rootDir/tests".toString())
     }
+    testBuildType "release"
     testOptions {
         unitTests.all {
             workingDir = rootProject.projectDir
