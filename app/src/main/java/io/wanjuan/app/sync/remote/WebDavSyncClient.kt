@@ -8,6 +8,7 @@ import io.wanjuan.app.lib.webdav.ObjectNotFoundException
 import io.wanjuan.app.lib.webdav.WebDav
 import io.wanjuan.app.lib.webdav.WebDavException
 import io.wanjuan.app.utils.GSON
+import io.wanjuan.app.sync.model.SyncBookPayload
 import io.wanjuan.app.utils.fromJsonObject
 import java.nio.charset.StandardCharsets
 import java.io.File
@@ -165,6 +166,27 @@ class WebDavSyncClient(
         val authorization = requireAuthorization()
         WebDav(resolve(relativePath), authorization)
             .upload(json.toByteArray(StandardCharsets.UTF_8), JSON)
+    }
+
+    private val bookUpdateMutex = Mutex()
+
+    override suspend fun updateBook(
+        id: String,
+        transform: (SyncBookPayload?) -> SyncBookPayload?
+    ): SyncBookPayload? = bookUpdateMutex.withLock {
+        val resource = WebDav(resolve("books/$id.json"), requireAuthorization())
+        repeat(3) {
+            val previous = resource.downloadVersioned()
+            val remote = previous?.let {
+                GSON.fromJsonObject<SyncBookPayload>(it.bytes.toString(StandardCharsets.UTF_8)).getOrThrow()
+            }
+            require(remote == null || remote.bookSyncId == id) { "Remote book ID mismatch" }
+            val updated = transform(remote) ?: return@withLock null
+            if (resource.uploadIfUnchanged(GSON.toJson(updated).toByteArray(StandardCharsets.UTF_8), previous)) {
+                return@withLock updated
+            }
+        }
+        throw NoStackTraceException("书籍同步冲突，请稍后重试")
     }
 
     suspend fun delete(relativePath: String): Boolean {

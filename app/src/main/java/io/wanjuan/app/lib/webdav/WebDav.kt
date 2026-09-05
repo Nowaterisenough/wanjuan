@@ -405,6 +405,37 @@ open class WebDav(
         }
     }
 
+    data class VersionedContent(val bytes: ByteArray, val etag: String?, val lastModified: String?)
+
+    suspend fun downloadVersioned(): VersionedContent? = withContext(IO) {
+        replayableRequest {
+            url(httpUrl ?: throw WebDavException("url不能为空"))
+            get()
+        }.use { response ->
+            if (response.code == 404) return@withContext null
+            checkResult(response)
+            VersionedContent(
+                requireNotNull(response.body).bytes(), response.header("ETag"), response.header("Last-Modified")
+            )
+        }
+    }
+
+    suspend fun uploadIfUnchanged(bytes: ByteArray, previous: VersionedContent?): Boolean = withContext(IO) {
+        replayableRequest {
+            url(httpUrl ?: throw WebDavException("url不能为空"))
+            put(bytes.toRequestBody("application/json".toMediaType()))
+            when {
+                previous == null -> header("If-None-Match", "*")
+                previous.etag != null -> header("If-Match", previous.etag)
+                previous.lastModified != null -> header("If-Unmodified-Since", previous.lastModified)
+            }
+        }.use { response ->
+            if (response.code == 412 || response.code == 409) return@withContext false
+            checkResult(response)
+            true
+        }
+    }
+
     /**
      * 上传文件
      */
