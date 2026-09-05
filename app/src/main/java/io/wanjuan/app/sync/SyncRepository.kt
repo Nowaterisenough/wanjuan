@@ -48,6 +48,7 @@ class SyncRepository(
                 localUpdatedByDeviceId = deviceId
             )
             db.syncMetadataDao.insert(metadata)
+            db.syncOutboxDao.deleteForObject(objectType, objectId)
             db.syncOutboxDao.insert(
                 SyncOutbox(
                     objectType = objectType,
@@ -63,8 +64,7 @@ class SyncRepository(
     }
 
     suspend fun flushOutbox(upload: suspend (SyncOutbox) -> Unit) {
-        val items = db.syncOutboxDao.pending(50)
-        for (item in items) {
+        drainOutbox { item ->
             currentCoroutineContext().ensureActive()
             try {
                 upload(item)
@@ -78,8 +78,7 @@ class SyncRepository(
     }
 
     suspend fun flushOutbox(remoteStore: SyncRemoteStore, result: SyncResult.Mutable) {
-        val items = db.syncOutboxDao.pending(50)
-        for (item in items) {
+        drainOutbox { item ->
             currentCoroutineContext().ensureActive()
             try {
                 val json = item.payloadJsonForUpload(deviceIdProvider)
@@ -90,8 +89,9 @@ class SyncRepository(
                     }
                 }
                 db.runInTransaction {
+                    val isLatest = db.syncOutboxDao.latestForObject(item.objectType, item.objectId)?.id == item.id
                     db.syncOutboxDao.delete(item.id)
-                    db.syncMetadataDao.markClean(
+                    if (isLatest) db.syncMetadataDao.markClean(
                         item.objectType,
                         item.objectId,
                         if (item.operation == "delete") null else item.contentHash()
@@ -104,6 +104,26 @@ class SyncRepository(
                 currentCoroutineContext().ensureActive()
                 db.syncOutboxDao.markFailed(item.id, e.localizedMessage ?: e.javaClass.simpleName)
                 result.fail(e.localizedMessage ?: e.javaClass.simpleName)
+            }
+        }
+        result.pending = db.syncOutboxDao.count()
+    }
+
+    private suspend fun drainOutbox(action: suspend (SyncOutbox) -> Unit) {
+        // A fixed watermark processes every existing item once, including after a failed batch.
+        val throughId = db.syncOutboxDao.lastId()
+        var afterId = 0L
+        while (true) {
+            val batch = db.syncOutboxDao.pendingAfter(afterId, throughId)
+            if (batch.isEmpty()) break
+            for (item in batch) {
+                currentCoroutineContext().ensureActive()
+                if (db.syncOutboxDao.latestForObject(item.objectType, item.objectId)?.id == item.id) {
+                    action(item)
+                } else {
+                    db.syncOutboxDao.delete(item.id)
+                }
+                afterId = item.id
             }
         }
     }

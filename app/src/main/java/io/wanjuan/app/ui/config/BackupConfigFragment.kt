@@ -249,7 +249,7 @@ class BackupConfigFragment : PreferenceFragment(),
                                 "新增 ${result.inserted}，更新 ${result.updated}，删除 ${result.deleted}"
                         )
                     } else {
-                        appCtx.toastOnUi("同步失败：${result.errorMessage ?: "未知错误"}")
+                        appCtx.toastOnUi("同步未完成：${result.errorMessage ?: "剩余 ${result.pending} 项待上传"}")
                     }
                 }
             }

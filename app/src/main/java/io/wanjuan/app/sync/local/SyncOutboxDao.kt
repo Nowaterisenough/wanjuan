@@ -10,6 +10,15 @@ interface SyncOutboxDao {
     @Query("select * from sync_outbox order by createdAt asc, id asc limit :limit")
     fun pending(limit: Int = 50): List<SyncOutbox>
 
+    @Query("select coalesce(max(id), 0) from sync_outbox")
+    fun lastId(): Long
+
+    @Query("select count(*) from sync_outbox")
+    fun count(): Int
+
+    @Query("select * from sync_outbox where id > :afterId and id <= :throughId order by id limit :limit")
+    fun pendingAfter(afterId: Long, throughId: Long, limit: Int = 50): List<SyncOutbox>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     fun insert(item: SyncOutbox): Long
 

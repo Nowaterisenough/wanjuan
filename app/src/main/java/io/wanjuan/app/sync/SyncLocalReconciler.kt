@@ -147,6 +147,8 @@ class RoomSyncReconcileStore(
     }
 
     override fun replaceOutbox(item: SyncOutbox) {
+        val previous = db.syncOutboxDao.latestForObject(item.objectType, item.objectId)
+        if (previous?.operation == item.operation && previous.payloadJson == item.payloadJson) return
         db.syncOutboxDao.deleteForObject(item.objectType, item.objectId)
         db.syncOutboxDao.insert(item)
     }

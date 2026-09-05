@@ -8,10 +8,11 @@ data class SyncResult(
     val deleted: Int = 0,
     val skipped: Int = 0,
     val failed: Int = 0,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val pending: Int = 0
 ) {
     val isSuccess: Boolean
-        get() = failed == 0
+        get() = failed == 0 && pending == 0
 
     class Mutable {
         var uploaded: Int = 0
@@ -22,6 +23,7 @@ data class SyncResult(
         var skipped: Int = 0
         var failed: Int = 0
         var errorMessage: String? = null
+        var pending: Int = 0
 
         fun fail(message: String) {
             failed += 1
@@ -38,7 +40,8 @@ data class SyncResult(
             deleted = deleted,
             skipped = skipped,
             failed = failed,
-            errorMessage = errorMessage
+            errorMessage = errorMessage,
+            pending = pending
         )
     }
 }
