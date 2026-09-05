@@ -13,7 +13,7 @@ object BookSyncMapper {
         shelfUpdatedAt: Long,
         catalogUpdatedAt: Long,
         progressUpdatedAt: Long = book.syncTime.takeIf { it > 0L } ?: book.durChapterTime,
-        groupSyncIds: List<String> = emptyList()
+        groupSyncIds: List<String>
     ): SyncBookPayload {
         return SyncBookPayload(
             bookSyncId = SyncIds.bookId(book),

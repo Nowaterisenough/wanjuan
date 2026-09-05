@@ -86,7 +86,8 @@ class BookshelfSyncCoordinator(
     private val clock: SyncClock,
     private val deviceIdProvider: () -> String,
     private val groupCoordinator: BookGroupSyncCoordinator = BookGroupSyncCoordinator(),
-    private val objectApplier: BookshelfObjectApplier = BookshelfObjectApplier()
+    private val objectApplier: BookshelfObjectApplier = BookshelfObjectApplier(),
+    private val db: AppDatabase = appDb
 ) {
     private companion object {
         const val BookShelfClockType = "bookShelf"
@@ -111,7 +112,13 @@ class BookshelfSyncCoordinator(
     }
 
     fun enqueueBook(book: Book) {
-        val payload = BookSyncMapper.toBookPayload(book, deviceIdProvider(), clock.now(), clock.now())
+        val payload = BookSyncMapper.toBookPayload(
+            book = book,
+            deviceId = deviceIdProvider(),
+            shelfUpdatedAt = clock.now(),
+            catalogUpdatedAt = clock.now(),
+            groupSyncIds = groupCoordinator.localMaskToRemoteGroupIds(book.group)
+        )
         recordLocalBookClocks(payload)
         repository.markDirty(SyncObjectType.Book, payload.bookSyncId, payload, "upsert")
     }
@@ -134,7 +141,8 @@ class BookshelfSyncCoordinator(
             book = book,
             deviceId = deviceIdProvider(),
             shelfUpdatedAt = shelfUpdatedAt,
-            catalogUpdatedAt = catalogUpdatedAt
+            catalogUpdatedAt = catalogUpdatedAt,
+            groupSyncIds = groupCoordinator.localMaskToRemoteGroupIds(book.group)
         )
         pushBookPayload(payload)
     }
@@ -192,7 +200,8 @@ class BookshelfSyncCoordinator(
                     deviceId = deviceId,
                     shelfUpdatedAt = clock.now(),
                     catalogUpdatedAt = clock.now(),
-                    progressUpdatedAt = localUpdatedAt
+                    progressUpdatedAt = localUpdatedAt,
+                    groupSyncIds = groupCoordinator.localMaskToRemoteGroupIds(book.group)
                 )
             } else {
                 remote.copy(
@@ -219,14 +228,14 @@ class BookshelfSyncCoordinator(
             book.durChapterTitle = progress.durChapterTitle
             book.durChapterTime = progress.durChapterTime
             book.syncTime = progress.durChapterTime
-            appDb.bookDao.update(book)
+            db.bookDao.update(book)
         }
     }
 
     fun applyRemoteBook(payload: SyncBookPayload) {
         repository.applyRemote {
-            appDb.runInTransaction {
-                val dao = appDb.bookDao
+            db.runInTransaction {
+                val dao = db.bookDao
                 val local = dao.getBook(payload.book.bookUrl)
                 val remote = payload.book.toBook(payload.localGroupMask(groupCoordinator))
                 if (local == null) {
@@ -286,8 +295,8 @@ class BookshelfSyncCoordinator(
     }
 
     private fun recordLocalBookClocks(payload: SyncBookPayload) {
-        appDb.runInTransaction {
-            val metadataDao = appDb.syncMetadataDao
+        db.runInTransaction {
+            val metadataDao = db.syncMetadataDao
             val shelfMetadata = metadataDao.get(BookShelfClockType, payload.bookSyncId)
             val catalogMetadata = metadataDao.get(BookCatalogClockType, payload.bookSyncId)
             metadataDao.insert(

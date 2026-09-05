@@ -19,7 +19,7 @@ class TestSyncMapper {
             durChapterTitle = "C"
             durChapterTime = 123456L
         }
-        val payload = BookSyncMapper.toBookPayload(book, "device", 10L, 20L)
+        val payload = BookSyncMapper.toBookPayload(book, "device", 10L, 20L, groupSyncIds = emptyList())
         assertEquals(123456L, payload.progressUpdatedAt)
         assertEquals(3, payload.book.durChapterIndex)
         assertEquals(99, payload.book.durChapterPos)
@@ -32,14 +32,16 @@ class TestSyncMapper {
             durChapterTime = 123456L
             syncTime = 234567L
         }
-        val payload = BookSyncMapper.toBookPayload(book, "device", 10L, 20L)
+        val payload = BookSyncMapper.toBookPayload(book, "device", 10L, 20L, groupSyncIds = emptyList())
         assertEquals(234567L, payload.progressUpdatedAt)
     }
 
     @Test
     fun bookPayloadUsesStableBookIdOnly() {
         val book = Book(name = "N", author = "A", bookUrl = "u", origin = "o")
-        val payload = BookSyncMapper.toBookPayload(book, "device", shelfUpdatedAt = 10L, catalogUpdatedAt = 20L)
+        val payload = BookSyncMapper.toBookPayload(
+            book, "device", shelfUpdatedAt = 10L, catalogUpdatedAt = 20L, groupSyncIds = emptyList()
+        )
         assertEquals(SyncIds.bookId(book), payload.bookSyncId)
         assertEquals(10L, payload.shelfUpdatedAt)
         assertEquals(20L, payload.catalogUpdatedAt)
