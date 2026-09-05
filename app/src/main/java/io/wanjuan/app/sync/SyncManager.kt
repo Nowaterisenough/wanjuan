@@ -103,6 +103,17 @@ object SyncManager {
 
     suspend fun sync(): SyncResult = orchestrator.sync()
 
+    val isEnabled: Boolean
+        get() = AppConfig.webDavObjectSync && AppWebDav.isConfigured
+
+    suspend fun syncAwait(): SyncResult = if (isEnabled) {
+        singleFlightSync.start(rerunIfActive = true).await()
+    } else SyncResult()
+
+    suspend fun flushPending(): SyncResult = if (isEnabled) {
+        orchestrator.flushPending()
+    } else SyncResult()
+
     fun onAppStart() {
         if (!AppConfig.webDavObjectSync) return
         syncNow()
@@ -118,7 +129,7 @@ object SyncManager {
             onComplete(SyncResult())
             return
         }
-        val task = singleFlightSync.start()
+        val task = singleFlightSync.start(rerunIfActive = true)
         Coroutine.async(start = CoroutineStart.LAZY) { task.await() }
             .onSuccess { onComplete(it) }
             .onError {

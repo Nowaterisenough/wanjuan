@@ -78,6 +78,12 @@ by appCtx.getSharedPreferences("local", Context.MODE_PRIVATE) {
             edit { putLong(bookshelfLastRefreshTimeKey, value) }
         }
 
+    var bookshelfLastSuccessTime: Long
+        get() = getLong("bookshelfLastSuccessTime", 0L)
+        set(value) {
+            edit { putLong("bookshelfLastSuccessTime", value) }
+        }
+
     val isFirstOpenApp: Boolean
         get() {
             val value = getBoolean("firstOpen", true)

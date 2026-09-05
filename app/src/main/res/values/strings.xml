@@ -1985,4 +1985,14 @@ Selected text or question:
     <string name="paragraph_rule_script">Paragraph processing JS</string>
     <string name="paragraph_rule_vars">Rule variables</string>
     <string name="paragraph_rule_vars_json">Variables JSON</string>
+    <string name="bookshelf_sync_pulling">Syncing cloud bookshelf...</string>
+    <string name="bookshelf_sync_catalog">Updating chapters: %1$d/%2$d</string>
+    <string name="bookshelf_sync_uploading">Uploading bookshelf changes...</string>
+    <string name="bookshelf_sync_pending">%1$d changes awaiting upload</string>
+    <string name="bookshelf_sync_failed">Sync incomplete: %1$s</string>
+    <string name="bookshelf_sync_catalog_failed">%1$d books failed to update; pull to retry</string>
+    <string name="bookshelf_sync_complete">Bookshelf refresh complete</string>
+    <string name="bookshelf_last_success_time">Last successful refresh: %1$s</string>
+    <string name="bookshelf_last_success_never">No successful refresh yet</string>
+    <string name="bookshelf_last_attempt_time">Last attempt: %1$s</string>
 </resources>

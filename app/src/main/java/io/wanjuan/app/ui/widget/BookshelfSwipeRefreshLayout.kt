@@ -27,6 +27,7 @@ class BookshelfSwipeRefreshLayout @JvmOverloads constructor(
     private val indicatorClip = Rect()
     private var contentView: View? = null
     private var indicatorView: View? = null
+    private var statusView: View? = null
     private var downY = 0f
     private var pullStarted = false
     private var releaseAnimator: ValueAnimator? = null
@@ -35,10 +36,12 @@ class BookshelfSwipeRefreshLayout @JvmOverloads constructor(
     fun setPullContent(
         content: View,
         indicator: View,
-        onPullStart: () -> Unit
+        onPullStart: () -> Unit,
+        status: View? = null
     ) {
         contentView = content
         indicatorView = indicator
+        statusView = status
         this.onPullStart = onPullStart
         indicator.visibility = View.INVISIBLE
         children.filter { it !== content }.forEach { it.alpha = 0f }
@@ -104,6 +107,7 @@ class BookshelfSwipeRefreshLayout @JvmOverloads constructor(
 
     private fun setPullOffset(offset: Float) {
         contentView?.translationY = offset
+        statusView?.translationY = offset
         indicatorView?.let { indicator ->
             if (offset <= 0f) {
                 indicator.visibility = View.INVISIBLE

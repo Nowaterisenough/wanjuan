@@ -8,49 +8,20 @@ import java.io.File
 class TestBookshelfRefreshOrder {
 
     @Test
-    fun bookshelfPullRefreshTriggersSync() {
-        val style1 = repoFile(
-            "app/src/main/java/io/wanjuan/app/ui/main/bookshelf/style1/books/BooksFragment.kt"
-        ).readText()
-        val style2 = repoFile(
+    fun bothLayoutsUseSharedRefreshPipelineAndObserveItsResult() {
+        val paths = listOf(
+            "app/src/main/java/io/wanjuan/app/ui/main/bookshelf/style1/books/BooksFragment.kt",
             "app/src/main/java/io/wanjuan/app/ui/main/bookshelf/style2/BookshelfFragment2.kt"
-        ).readText()
-
-        assertTrue(
-            "Style 1 pull refresh should trigger remote sync.",
-            style1.pullRefreshBlock().contains("SyncManager.syncNow { result ->")
         )
-        assertTrue(
-            "Style 1 pull refresh should pull WebDAV progress after catalog update.",
-            style1.pullRefreshBlock().contains("pullProgressAfterUpdate = true")
-        )
-        assertTrue(
-            "Style 2 pull refresh should trigger remote sync.",
-            style2.pullRefreshBlock().contains("SyncManager.syncNow { result ->")
-        )
-        assertTrue(
-            "Style 2 pull refresh should pull WebDAV progress after catalog update.",
-            style2.pullRefreshBlock().contains("pullProgressAfterUpdate = true")
-        )
-    }
-
-    @Test
-    fun bookshelfPullRefreshReleasesBeforeSyncCompletes() {
-        val style1 = repoFile(
-            "app/src/main/java/io/wanjuan/app/ui/main/bookshelf/style1/books/BooksFragment.kt"
-        ).readText().pullRefreshBlock()
-        val style2 = repoFile(
-            "app/src/main/java/io/wanjuan/app/ui/main/bookshelf/style2/BookshelfFragment2.kt"
-        ).readText().pullRefreshBlock()
-
-        listOf(style1, style2).forEach { refreshBlock ->
-            assertTrue(
-                refreshBlock.indexOf("binding.refreshLayout.isRefreshing = false") <
-                    refreshBlock.indexOf("SyncManager.syncNow { result ->")
-            )
-            assertTrue(refreshBlock.contains("if (!result.isSuccess)"))
-            assertFalse(refreshBlock.contains("if (result.isSuccess)"))
-            assertTrue(refreshBlock.contains("}\n            activityViewModel.upToc("))
+        paths.forEach { path ->
+            val source = repoFile(path).readText()
+            val refresh = source.pullRefreshBlock()
+            assertTrue(refresh.contains("activityViewModel.refreshBookshelf("))
+            assertTrue(refresh.contains("bookshelfRefreshStatus.observe(viewLifecycleOwner)"))
+            assertTrue(refresh.indexOf("binding.refreshLayout.isRefreshing = false") <
+                refresh.indexOf("activityViewModel.refreshBookshelf("))
+            assertFalse(refresh.contains("SyncManager.syncNow"))
+            assertFalse(source.contains("enableRefresh && itemCount > 0"))
         }
     }
 
@@ -66,7 +37,7 @@ class TestBookshelfRefreshOrder {
                     "refresh queue matches the order currently shown on the bookshelf.",
             refreshBlock.contains("currentUpdateBooks()") &&
                     refreshBlock.contains("onlyUpdateRead") &&
-                    refreshBlock.contains("pullProgressAfterUpdate = true")
+                    refreshBlock.contains("updateCatalog = enableRefresh")
         )
         assertTrue(
             "Style 2 should derive refresh books from adapter items and filter out group tiles.",
@@ -92,26 +63,6 @@ class TestBookshelfRefreshOrder {
                         "R.id.menu_update_toc -> activityViewModel.upToc(" +
                                 "currentUpdateBooks(), onlyUpdateRead)"
                     )
-        )
-    }
-
-    @Test
-    fun bookshelfPullRefreshAppliesProgressAfterTocRefresh() {
-        val main = repoFile("app/src/main/java/io/wanjuan/app/ui/main/MainViewModel.kt").readText()
-        val updateTocBlock = main.substringAfter("private suspend fun updateToc")
-            .substringBefore("fun postUpBooksLiveData")
-        val successBlock = updateTocBlock.substringAfter("appDb.bookChapterDao.insert")
-            .substringBefore("addDownload(source, book)")
-
-        assertTrue(main.contains("pullProgressAfterTocBooks"))
-        assertTrue(main.contains("pullRemoteProgressAfterToc(book)"))
-        assertTrue(successBlock.contains("ReadBook.onChapterListUpdated(book)"))
-        assertTrue(successBlock.contains("ReadManga.onChapterListUpdated(book)"))
-        assertTrue(successBlock.contains("pullRemoteProgressAfterToc(book)"))
-        assertTrue(
-            "Remote progress should only be applied when the refreshed catalog contains it.",
-            main.contains("progress.durChapterIndex in 0..book.lastChapterIndex") &&
-                    main.contains("SyncManager.bookshelf.applyProgress(book, progress)")
         )
     }
 

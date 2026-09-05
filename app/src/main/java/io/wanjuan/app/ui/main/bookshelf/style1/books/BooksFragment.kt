@@ -94,7 +94,7 @@ class BooksFragment() : BaseFragment(R.layout.fragment_books),
             bookSort = it.getInt("bookSort", 0)
             enableRefresh = it.getBoolean("enableRefresh", true)
             onlyUpdateRead = it.getBoolean("onlyUpdateRead", false)
-            binding.refreshLayout.isEnabled = enableRefresh
+            binding.refreshLayout.isEnabled = enableRefresh || SyncManager.isEnabled
         }
         initRecyclerView()
         upRecyclerData()
@@ -110,24 +110,22 @@ class BooksFragment() : BaseFragment(R.layout.fragment_books),
         binding.refreshLayout.setPullContent(
             binding.rvBookshelf,
             binding.tvLastRefresh,
-            ::updateLastRefreshTime
+            ::updateLastRefreshTime,
+            binding.tvSyncStatus
         )
         binding.refreshLayout.setOnRefreshListener {
-            LocalConfig.bookshelfLastRefreshTime = System.currentTimeMillis()
-            updateLastRefreshTime()
-            // Full WebDAV object sync may take a long time or already be running. Catalog refresh
-            // is independent, so do not keep SwipeRefreshLayout locked until remote sync finishes.
             binding.refreshLayout.isRefreshing = false
-            SyncManager.syncNow { result ->
-                if (!result.isSuccess) {
-                    context?.toastOnUi("同步失败：${result.errorMessage ?: "未知错误"}")
-                }
-            }
-            activityViewModel.upToc(
-                booksAdapter.getItems(),
-                onlyUpdateRead,
-                pullProgressAfterUpdate = true
+            activityViewModel.refreshBookshelf(
+                groupId, booksAdapter.getItems(), onlyUpdateRead, bookTagFilter, enableRefresh
             )
+        }
+        activityViewModel.bookshelfRefreshStatus.observe(viewLifecycleOwner) { state ->
+            binding.tvSyncStatus.text = state.message
+            binding.tvSyncStatus.isGone = state.message.isBlank()
+            binding.rvBookshelf.apply {
+                setPadding(paddingLeft, if (state.message.isBlank()) 0 else (32 * resources.displayMetrics.density).toInt(), paddingRight, paddingBottom)
+            }
+            updateLastRefreshTime()
         }
         updateLayoutManager()
         booksAdapter.stateRestorationPolicy = StateRestorationPolicy.PREVENT_WHEN_EMPTY
@@ -197,14 +195,20 @@ class BooksFragment() : BaseFragment(R.layout.fragment_books),
     }
 
     private fun updateLastRefreshTime() {
-        val lastRefreshTime = LocalConfig.bookshelfLastRefreshTime
+        val lastRefreshTime = LocalConfig.bookshelfLastSuccessTime
         binding.tvLastRefresh.text = if (lastRefreshTime > 0L) {
             getString(
-                R.string.bookshelf_last_refresh_time,
+                R.string.bookshelf_last_success_time,
                 AppConst.dateFormat.format(Date(lastRefreshTime))
             )
         } else {
-            getString(R.string.bookshelf_last_refresh_never)
+            getString(R.string.bookshelf_last_success_never)
+        }
+        val attempted = LocalConfig.bookshelfLastRefreshTime
+        if (attempted > lastRefreshTime) {
+            binding.tvLastRefresh.append("\n" + getString(
+                R.string.bookshelf_last_attempt_time, AppConst.dateFormat.format(Date(attempted))
+            ))
         }
     }
 
@@ -292,7 +296,7 @@ class BooksFragment() : BaseFragment(R.layout.fragment_books),
 
     fun setEnableRefresh(enable: Boolean) {
         enableRefresh = enable
-        binding.refreshLayout.isEnabled = enable
+        binding.refreshLayout.isEnabled = enable || SyncManager.isEnabled
     }
 
     fun setBookTagFilter(tag: String) {
@@ -348,7 +352,7 @@ class BooksFragment() : BaseFragment(R.layout.fragment_books),
                 itemCount = list.size
                 updateTotalRows()
                 binding.tvEmptyMsg.isGone = itemCount > 0
-                binding.refreshLayout.isEnabled = enableRefresh && itemCount > 0
+                binding.refreshLayout.isEnabled = enableRefresh || SyncManager.isEnabled
                 booksAdapter.setItems(list)
                 delay(100)
             }

@@ -33,6 +33,19 @@
     </io.wanjuan.app.ui.widget.BookshelfSwipeRefreshLayout>
 
     <TextView
+        android:id="@+id/tv_sync_status"
+        android:layout_width="match_parent"
+        android:layout_height="32dp"
+        android:gravity="center"
+        android:paddingHorizontal="16dp"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="@color/secondaryText"
+        android:textSize="12sp"
+        android:accessibilityLiveRegion="polite"
+        android:visibility="gone" />
+
+    <TextView
         android:id="@+id/tv_empty_msg"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"

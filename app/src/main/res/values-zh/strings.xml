@@ -1879,4 +1879,14 @@
     <string name="paragraph_rule_script">&#27573;&#33853;&#22788;&#29702; JS</string>
     <string name="paragraph_rule_vars">&#35268;&#21017;&#21464;&#37327;</string>
     <string name="paragraph_rule_vars_json">&#21464;&#37327; JSON</string>
+    <string name="bookshelf_sync_pulling">正在同步云端书架…</string>
+    <string name="bookshelf_sync_catalog">正在更新目录：%1$d/%2$d</string>
+    <string name="bookshelf_sync_uploading">正在上传书架变化…</string>
+    <string name="bookshelf_sync_pending">剩余 %1$d 项待上传</string>
+    <string name="bookshelf_sync_failed">同步未完成：%1$s</string>
+    <string name="bookshelf_sync_catalog_failed">%1$d 本书更新失败，下拉重试</string>
+    <string name="bookshelf_sync_complete">书架刷新完成</string>
+    <string name="bookshelf_last_success_time">上次刷新成功：%1$s</string>
+    <string name="bookshelf_last_success_never">尚未完成过刷新</string>
+    <string name="bookshelf_last_attempt_time">上次尝试：%1$s</string>
 </resources>

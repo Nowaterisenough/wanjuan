@@ -10,6 +10,28 @@ import org.junit.Test
 class TestSingleFlightSync {
 
     @Test
+    fun overlappingRefreshesRequestExactlyOneTrailingExecution() = runBlocking {
+        val entered = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        var executions = 0
+        val sync = SingleFlightSync(this) {
+            executions++
+            if (executions == 1) {
+                entered.complete(Unit)
+                release.await()
+            }
+            executions
+        }
+        val first = sync.start()
+        entered.await()
+        repeat(20) { assertSame(first, sync.start(rerunIfActive = true)) }
+        release.complete(Unit)
+
+        assertEquals(2, first.await())
+        assertEquals(2, executions)
+    }
+
+    @Test
     fun overlappingCallsShareOneExecution() = runBlocking {
         val entered = CompletableDeferred<Unit>()
         val release = CompletableDeferred<Unit>()

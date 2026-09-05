@@ -14,6 +14,20 @@ import org.junit.Test
 class TestSyncManagerBehavior {
 
     @Test
+    fun catalogCompletionCapturesAndUploadsWithoutRepeatingRemoteScan() = runBlocking {
+        val calls = mutableListOf<String>()
+        val orchestrator = SyncOrchestrator(
+            remoteStore = RecordingRemote(calls),
+            captureAction = SyncCaptureAction { calls += "capture" },
+            pullAction = SyncPullAction { calls += "pull" },
+            flushAction = SyncFlushAction { calls += "flush" }
+        )
+
+        assertTrue(orchestrator.flushPending().isSuccess)
+        assertEquals(listOf("ensure", "capture", "flush"), calls)
+    }
+
+    @Test
     fun syncRunsEnsureCapturePullThenFlush() = runBlocking {
         val calls = mutableListOf<String>()
         val orchestrator = SyncOrchestrator(

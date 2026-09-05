@@ -28,12 +28,16 @@ class SyncOrchestrator(
 ) {
     private val mutex = Mutex()
 
-    suspend fun sync(): SyncResult = mutex.withLock {
+    suspend fun sync(): SyncResult = runSync(pullRemote = true)
+
+    suspend fun flushPending(): SyncResult = runSync(pullRemote = false)
+
+    private suspend fun runSync(pullRemote: Boolean): SyncResult = mutex.withLock {
         val result = SyncResult.Mutable()
         try {
             remoteStore.ensureDirs()
             captureAction.capture(result)
-            pullAction.pull(result)
+            if (pullRemote) pullAction.pull(result)
             flushAction.flush(result)
         } catch (e: CancellationException) {
             throw e
