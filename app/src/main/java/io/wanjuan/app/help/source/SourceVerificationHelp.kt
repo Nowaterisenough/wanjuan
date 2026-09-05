@@ -6,6 +6,7 @@ import io.wanjuan.app.exception.NoStackTraceException
 import io.wanjuan.app.help.CacheManager
 import io.wanjuan.app.help.IntentData
 import io.wanjuan.app.help.http.BackstageWebView
+import io.wanjuan.app.help.http.CookieStore
 import io.wanjuan.app.ui.association.VerificationCodeActivity
 import io.wanjuan.app.ui.browser.WebViewActivity
 import io.wanjuan.app.utils.isMainThread
@@ -140,6 +141,20 @@ object SourceVerificationHelp {
     ): Pair<String, String>? {
         return kotlin.runCatching {
             AppLog.putDebug("${source.getTag()} Cloudflare: 后台尝试自动验证...")
+            if (CloudflareBackgroundVerification.supportsSource(source.getKey())) {
+                val verifier = CloudflareBackgroundVerification(
+                    url = url,
+                    headers = source.getHeaderMap(true),
+                    storedCookie = CookieStore.getCookie(url)
+                )
+                try {
+                    val result = runBlocking { verifier.verify() }
+                    AppLog.putDebug("${source.getTag()} Cloudflare: 后台验证通过，继续请求")
+                    return@runCatching result
+                } finally {
+                    verifier.cookie?.let { CookieStore.setCookie(url, it) }
+                }
+            }
             val response = runBlocking {
                 BackstageWebView(
                     url = url,
