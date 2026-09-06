@@ -68,6 +68,7 @@ class MainViewModel(application: Application) : BaseViewModel(application) {
     private val pullProgressAfterTocBooks = ConcurrentHashMap.newKeySet<String>()
     private val catalogCompletions = hashMapOf<String, CompletableDeferred<Boolean>>()
     val bookshelfRefreshStatus = MutableLiveData(BookshelfRefreshStatus())
+    private var dismissRefreshStatusJob: Job? = null
     private var bookshelfRefreshAction: suspend () -> Unit = {}
     private val bookshelfRefreshFlight = SingleFlightSync(viewModelScope) { bookshelfRefreshAction() }
     private val eventListenerSource = ConcurrentHashMap<BookSource, Boolean>()
@@ -184,6 +185,7 @@ class MainViewModel(application: Application) : BaseViewModel(application) {
         updateCatalog: Boolean
     ) {
         LocalConfig.bookshelfLastRefreshTime = System.currentTimeMillis()
+        showBookshelfRefreshStatus(BookshelfRefreshStatus(true))
         withContext(Dispatchers.IO) {
             try {
                 val positions = displayedBooks.mapIndexed { index, book -> book.bookUrl to index }.toMap()
@@ -206,7 +208,7 @@ class MainViewModel(application: Application) : BaseViewModel(application) {
                         progress.syncing -> context.getString(R.string.bookshelf_sync_pulling)
                         else -> context.getString(R.string.bookshelf_sync_catalog, progress.catalogCompleted, progress.catalogTotal)
                     }
-                    bookshelfRefreshStatus.postValue(BookshelfRefreshStatus(true, message))
+                    showBookshelfRefreshStatus(BookshelfRefreshStatus(true, message))
                 }
                 val syncFailure = when {
                     !result.upload.isSuccess -> result.upload
@@ -223,15 +225,33 @@ class MainViewModel(application: Application) : BaseViewModel(application) {
                         context.getString(R.string.bookshelf_sync_complete)
                     }
                 }
-                bookshelfRefreshStatus.postValue(BookshelfRefreshStatus(false, message))
+                showBookshelfRefreshStatus(
+                    BookshelfRefreshStatus(false, message),
+                    dismissAfterMillis = if (result.isSuccess) 2_000L else 5_000L
+                )
             } catch (e: CancellationException) {
                 bookshelfRefreshStatus.postValue(BookshelfRefreshStatus())
                 throw e
             } catch (e: Exception) {
                 AppLog.put("书架刷新失败", e)
-                bookshelfRefreshStatus.postValue(BookshelfRefreshStatus(
-                    false, context.getString(R.string.bookshelf_sync_failed, e.localizedMessage.orEmpty())
-                ))
+                showBookshelfRefreshStatus(
+                    BookshelfRefreshStatus(false, context.getString(R.string.bookshelf_sync_failed, e.localizedMessage.orEmpty())),
+                    dismissAfterMillis = 5_000L
+                )
+            }
+        }
+    }
+
+    private suspend fun showBookshelfRefreshStatus(
+        status: BookshelfRefreshStatus,
+        dismissAfterMillis: Long = 2_000L
+    ) = withContext(Dispatchers.Main.immediate) {
+        dismissRefreshStatusJob?.cancel()
+        bookshelfRefreshStatus.value = status
+        if (!status.running && status.message.isNotBlank()) {
+            dismissRefreshStatusJob = viewModelScope.launch {
+                delay(dismissAfterMillis)
+                bookshelfRefreshStatus.value = BookshelfRefreshStatus()
             }
         }
     }
