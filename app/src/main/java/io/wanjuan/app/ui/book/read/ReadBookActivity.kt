@@ -24,7 +24,6 @@ import androidx.core.view.isVisible
 import androidx.core.view.size
 import androidx.core.view.updateLayoutParams
 import androidx.lifecycle.lifecycleScope
-import com.qmdeve.liquidglass.widget.LiquidGlassView
 import com.jaredrummler.android.colorpicker.ColorPickerDialogListener
 import io.wanjuan.app.BuildConfig
 import io.wanjuan.app.R
@@ -278,7 +277,6 @@ class ReadBookActivity : BaseReadBookActivity(),
             updateChapterProgressMinimap()
         }
     }
-    private val boundChapterMinimapGlassViewIds = hashSetOf<Int>()
     private var pendingChapterProgressMinimapLayoutSync = false
 
     // 恢复全文搜索前进度对话框的交互结果
@@ -1195,84 +1193,34 @@ class ReadBookActivity : BaseReadBookActivity(),
         }
     }
 
-    private fun setupChapterMinimapControlGlass() {
-        val glassViews = listOf(
-            binding.chapterProgressMinimapGlassView,
-            binding.chapterMinimapPreviousGlassView,
-            binding.chapterMinimapNextGlassView
-        )
-        if (!ViewCompat.isLaidOut(binding.readContentContainer) || glassViews.any { !ViewCompat.isLaidOut(it) }) {
-            binding.chapterProgressMinimapPanel.post {
-                if (binding.chapterProgressMinimapPanel.isVisible) {
-                    setupChapterMinimapControlGlass()
-                }
-            }
-            return
+    private fun setupChapterMinimapAppearance() = binding.run {
+        val colors = io.wanjuan.app.ui.book.read.config.ReaderSheetStyle.resolve(this@ReadBookActivity)
+        chapterProgressMinimap.refreshPalette()
+        listOf(btnChapterMinimapPrevious, btnChapterMinimapNext).forEach { button ->
+            button.clipToOutline = false
+            button.background = io.wanjuan.app.ui.book.read.config.ReaderSheetStyle.blockDrawable(
+                colors.surface, colors.stroke, 10f
+            )
+            button.elevation = 2f.dpToPx()
         }
-        val glassLevel = ReaderBottomGlassStyle.glassLevel()
-        val cornerRadius = 28f.dpToPx()
-        setupChapterMinimapTrackGlassView(
-            glassView = binding.chapterProgressMinimapGlassView,
-            glassLevel = glassLevel
-        )
-        setupChapterMinimapControlGlassView(
-            button = binding.btnChapterMinimapPrevious,
-            glassView = binding.chapterMinimapPreviousGlassView,
-            shellOverlay = binding.chapterMinimapPreviousShellOverlay,
-            glassLevel = glassLevel,
-            cornerRadius = cornerRadius
-        )
-        setupChapterMinimapControlGlassView(
-            button = binding.btnChapterMinimapNext,
-            glassView = binding.chapterMinimapNextGlassView,
-            shellOverlay = binding.chapterMinimapNextShellOverlay,
-            glassLevel = glassLevel,
-            cornerRadius = cornerRadius
-        )
-    }
-
-    private fun setupChapterMinimapTrackGlassView(
-        glassView: LiquidGlassView,
-        glassLevel: Float
-    ) {
-        val shouldBind = !boundChapterMinimapGlassViewIds.contains(glassView.id)
-        if (ReaderBottomGlassStyle.configureLiquidGlass(
-            liquidGlassView = glassView,
-            target = binding.readContentContainer,
-            cornerRadius = 0f,
-            bindTarget = shouldBind,
-            glassLevel = glassLevel
-        )) {
-            boundChapterMinimapGlassViewIds.add(glassView.id)
-        }
-    }
-
-    private fun setupChapterMinimapControlGlassView(
-        button: View,
-        glassView: LiquidGlassView,
-        shellOverlay: View,
-        glassLevel: Float,
-        cornerRadius: Float
-    ) {
-        button.clipToOutline = false
-        button.background = ReaderBottomGlassStyle.fallbackShell(this, glassLevel, cornerRadius)
-        shellOverlay.background = ReaderBottomGlassStyle.shell(this, glassLevel, cornerRadius)
-        val shouldBind = !boundChapterMinimapGlassViewIds.contains(glassView.id)
-        if (ReaderBottomGlassStyle.configureLiquidGlass(
-            liquidGlassView = glassView,
-            target = binding.readContentContainer,
-            cornerRadius = cornerRadius,
-            bindTarget = shouldBind,
-            glassLevel = glassLevel
-        )) {
-            boundChapterMinimapGlassViewIds.add(glassView.id)
-        }
+        tvChapterMinimapPrevious.setTextColor(colors.textColor)
+        tvChapterMinimapNext.setTextColor(colors.textColor)
+        tvChapterMinimapPosition.setTextColor(colors.secondaryTextColor)
+        val pages = ReadBook.curTextChapter?.pageSize ?: 0
+        tvChapterMinimapPosition.text = "${ReadBook.durPageIndex + 1} / $pages"
+        btnChapterMinimapPrevious.isEnabled = ReadBook.durChapterIndex > 0
+        btnChapterMinimapNext.isEnabled = ReadBook.durChapterIndex < ReadBook.chapterSize - 1
+        btnChapterMinimapPrevious.alpha = if (btnChapterMinimapPrevious.isEnabled) 1f else .45f
+        btnChapterMinimapNext.alpha = if (btnChapterMinimapNext.isEnabled) 1f else .45f
     }
 
     private fun updateChapterProgressMinimap(show: Boolean = binding.readMenu.isVisible) {
         val textChapter = ReadBook.curTextChapter
         val pageCount = textChapter?.pageSize ?: 0
-        val shouldShow = show && !binding.readMenu.isExpandedPanelVisible
+        val shouldShow = show
+        val compact = binding.readMenu.isExpandedPanelVisible
+        binding.btnChapterMinimapPrevious.gone(compact)
+        binding.btnChapterMinimapNext.gone(compact)
         if (show && textChapter != null) {
             binding.chapterProgressMinimap.updateChapter(
                 textChapter.getContent(),
@@ -1296,7 +1244,7 @@ class ReadBookActivity : BaseReadBookActivity(),
             return
         }
         val preservePanelPosition = binding.chapterProgressMinimap.shouldPreservePanelPosition()
-        setupChapterMinimapControlGlass()
+        setupChapterMinimapAppearance()
         if (!preservePanelPosition && !constrainChapterProgressMinimapPanel()) {
             binding.chapterProgressMinimapPanel.gone()
         }
@@ -1353,15 +1301,14 @@ class ReadBookActivity : BaseReadBookActivity(),
         val availableHeight = (bottomLimit - topLimit).coerceAtLeast(0)
         val controlsTopMargin = (binding.chapterProgressMinimapControls.layoutParams as? ViewGroup.MarginLayoutParams)
             ?.topMargin ?: 0
-        val controlsHeight = binding.chapterProgressMinimapControls.height
-            .takeIf { it > 0 }
-            ?: 70.dpToPx()
+        val controlsHeight = if (binding.readMenu.isExpandedPanelVisible) 24.dpToPx() else 116.dpToPx()
         val maxMinimapHeight = availableHeight - controlsTopMargin - controlsHeight
         val minimumMinimapHeight = 96.dpToPx()
         if (maxMinimapHeight < minimumMinimapHeight) {
             return false
         }
-        val minimapHeight = 300.dpToPx().coerceAtMost(maxMinimapHeight)
+        val desiredHeight = if (binding.readMenu.isExpandedPanelVisible) 160.dpToPx() else 220.dpToPx()
+        val minimapHeight = desiredHeight.coerceAtMost(maxMinimapHeight)
         val panelHeight = minimapHeight + controlsTopMargin + controlsHeight
         binding.chapterProgressMinimapHost.updateLayoutParams<ViewGroup.LayoutParams> {
             height = minimapHeight
@@ -2110,11 +2057,8 @@ class ReadBookActivity : BaseReadBookActivity(),
     }
 
     override fun onReadMenuExpandedPanelVisibilityChanged(isVisible: Boolean) {
-        if (isVisible) {
-            binding.chapterProgressMinimapPanel.gone()
-        } else {
-            updateChapterProgressMinimap(show = binding.readMenu.isVisible)
-        }
+        binding.chapterProgressMinimap.clearPinnedProgressRatio()
+        updateChapterProgressMinimap(show = binding.readMenu.isVisible)
     }
 
     override fun onLayoutPageCompleted(index: Int, page: TextPage) {

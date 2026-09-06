@@ -1628,26 +1628,13 @@ class TestReadMenuLayout {
     }
 
     @Test
-    fun expandedReaderPanelHidesChapterProgressMinimapUntilDismissed() {
-        val readMenu = repoFile("app/src/main/java/io/wanjuan/app/ui/book/read/ReadMenu.kt").readText()
+    fun expandedReaderPanelKeepsMinimapWithinAvailableSpace() {
         val readActivity = repoFile("app/src/main/java/io/wanjuan/app/ui/book/read/ReadBookActivity.kt").readText()
-
-        assertTrue(readMenu.contains("val isExpandedPanelVisible: Boolean"))
-        assertTrue(readMenu.contains("callBack.onReadMenuExpandedPanelVisibilityChanged(true)"))
-        assertTrue(readMenu.contains("callBack.onReadMenuExpandedPanelVisibilityChanged(false)"))
-        assertTrue(readMenu.contains("fun onReadMenuExpandedPanelVisibilityChanged(isVisible: Boolean)"))
-        assertTrue(readActivity.contains("override fun onReadMenuExpandedPanelVisibilityChanged(isVisible: Boolean)"))
-        assertTrue(readActivity.contains("val shouldShow = show && !binding.readMenu.isExpandedPanelVisible"))
+        assertFalse(readActivity.contains("val shouldShow = show && !binding.readMenu.isExpandedPanelVisible"))
         assertTrue(readActivity.contains("binding.chapterProgressMinimapPanel.gone(!shouldShow || pageCount <= 1)"))
-        assertTrue(
-            readActivity.contains(
-                "if (isVisible) {\n" +
-                        "            binding.chapterProgressMinimapPanel.gone()\n" +
-                        "        } else {\n" +
-                        "            updateChapterProgressMinimap(show = binding.readMenu.isVisible)\n" +
-                        "        }"
-            )
-        )
+        assertTrue(readActivity.contains("binding.btnChapterMinimapPrevious.gone(compact)"))
+        assertTrue(readActivity.contains("binding.btnChapterMinimapNext.gone(compact)"))
+        assertTrue(readActivity.contains("desiredHeight.coerceAtMost(maxMinimapHeight)"))
     }
 
     @Test
@@ -1805,7 +1792,6 @@ class TestReadMenuLayout {
             readMenuLayout() to "layout_margin_adjust_glass_view"
         )
         val safeProgressMinimapGlassViews = listOf(
-            readActivityLayout() to "chapter_progress_minimap_glass_view",
             mangaActivityLayout() to "manga_progress_minimap_glass_view"
         )
 
@@ -1815,6 +1801,10 @@ class TestReadMenuLayout {
                 layout.elementById(id).tagName
             )
         }
+        assertEquals("io.wanjuan.app.ui.book.read.ChapterProgressMinimapView",
+            readActivityLayout().elementById("chapter_progress_minimap").tagName)
+        assertFalse(repoFile("app/src/main/res/layout/activity_book_read.xml").readText()
+            .contains("chapter_progress_minimap_glass_view"))
         safeProgressMinimapGlassViews.forEach { (layout, id) ->
             assertEquals(
                 "io.wanjuan.app.ui.widget.SafeLiquidGlassView",

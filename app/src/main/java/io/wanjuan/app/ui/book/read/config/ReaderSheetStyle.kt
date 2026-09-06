@@ -2,15 +2,10 @@ package io.wanjuan.app.ui.book.read.config
 
 import android.content.Context
 import android.graphics.drawable.GradientDrawable
-import io.wanjuan.app.R
-import io.wanjuan.app.lib.theme.accentColor
 import io.wanjuan.app.lib.theme.bottomBackground
-import io.wanjuan.app.lib.theme.getPrimaryTextColor
-import io.wanjuan.app.lib.theme.primaryColor
+import io.wanjuan.app.help.config.AppConfig
 import io.wanjuan.app.lib.theme.UiCorner
-import io.wanjuan.app.utils.ColorUtils
 import io.wanjuan.app.utils.dpToPx
-import io.wanjuan.app.utils.getCompatColor
 
 object ReaderSheetStyle {
 
@@ -26,40 +21,20 @@ object ReaderSheetStyle {
     )
 
     fun resolve(context: Context, baseColor: Int = context.bottomBackground): Palette {
-        val base = baseColor
-        val isLight = ColorUtils.isColorLight(base)
-        val textColor = context.getPrimaryTextColor(isLight)
-        val accentColor = context.accentColor
-        val primaryColor = context.primaryColor
-        val cardColor = context.getCompatColor(R.color.background_card)
-        val surfaceBase = ColorUtils.blendColors(base, cardColor, if (isLight) 0.86f else 0.64f)
-        val surface = ColorUtils.blendColors(
-            surfaceBase,
-            primaryColor,
-            if (isLight) 0.08f else 0.16f
-        )
-        val panel = ColorUtils.blendColors(
-            surface,
-            accentColor,
-            if (isLight) 0.06f else 0.12f
-        )
-        val panelStrong = ColorUtils.blendColors(
-            surface,
-            primaryColor,
-            if (isLight) 0.14f else 0.22f
-        )
-        val strokeBase = ColorUtils.blendColors(primaryColor, textColor, 0.3f)
-        val stroke = ColorUtils.adjustAlpha(strokeBase, if (isLight) 0.2f else 0.28f)
-        val secondaryTextColor = ColorUtils.withAlpha(textColor, if (isLight) 0.72f else 0.78f)
+        val dark = AppConfig.isNightTheme
+        if (AppConfig.isEInkMode) {
+            return Palette(-1, -1, 0xffeeeeee.toInt(), 0xff666666.toInt(),
+                0xff000000.toInt(), 0xff333333.toInt(), 0xff000000.toInt(), 0xff000000.toInt())
+        }
         return Palette(
-            surface = surface,
-            panel = panel,
-            panelStrong = panelStrong,
-            stroke = stroke,
-            textColor = textColor,
-            secondaryTextColor = secondaryTextColor,
-            primaryColor = primaryColor,
-            accentColor = accentColor
+            surface = if (dark) 0xff282f35.toInt() else 0xfff8faf8.toInt(),
+            panel = if (dark) 0xff333c43.toInt() else 0xffedf1ee.toInt(),
+            panelStrong = if (dark) 0xff263e60.toInt() else 0xffe5efff.toInt(),
+            stroke = if (dark) 0xff414a50.toInt() else 0xffdce1dd.toInt(),
+            textColor = if (dark) 0xffe0e5e5.toInt() else 0xff303934.toInt(),
+            secondaryTextColor = if (dark) 0xffa0abb0.toInt() else 0xff77817e.toInt(),
+            primaryColor = 0xff006eff.toInt(),
+            accentColor = 0xff006eff.toInt()
         )
     }
 
