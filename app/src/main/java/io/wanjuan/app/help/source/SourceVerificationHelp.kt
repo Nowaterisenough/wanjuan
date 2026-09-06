@@ -141,7 +141,7 @@ object SourceVerificationHelp {
     ): Pair<String, String>? {
         return kotlin.runCatching {
             AppLog.putDebug("${source.getTag()} Cloudflare: 后台尝试自动验证...")
-            if (CloudflareBackgroundVerification.supportsSource(source.getKey())) {
+            if (CloudflareVerification.allowedOrigins(url).isNotEmpty()) {
                 val verifier = CloudflareBackgroundVerification(
                     url = url,
                     headers = source.getHeaderMap(true),

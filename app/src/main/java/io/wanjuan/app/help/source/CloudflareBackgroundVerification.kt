@@ -29,7 +29,6 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import org.json.JSONObject
-import java.net.URI
 import kotlin.coroutines.resume
 
 /** A single hidden verification attempt; the caller owns the foreground fallback. */
@@ -71,10 +70,7 @@ class CloudflareBackgroundVerification(
             withTimeout(timeoutMillis) {
                 configure(webView)
                 if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
-                    val origin = URI(url).let { "${it.scheme}://${it.rawAuthority}" }
-                    val origins = if (supportsSource(url)) {
-                        setOf(origin, "https://www.uaa.com", "https://uaa.com")
-                    } else setOf(origin)
+                    val origins = CloudflareVerification.allowedOrigins(url)
                     shadowTracker = WebViewCompat.addDocumentStartJavaScript(webView, SHADOW_TRACKER, origins)
                 }
                 restoreMissingCookies()
@@ -106,7 +102,7 @@ class CloudflareBackgroundVerification(
                         val target = page.optJSONObject("target")
                         if (target != null && sameTarget(previousTarget, target)) {
                             attemptedClick = true
-                            AppLog.putDebug("UAA Cloudflare: 后台尝试点击验证控件")
+                            AppLog.putDebug("Cloudflare: 后台尝试点击验证控件")
                             tap(webView, target, page.optDouble("viewportWidth"))
                         }
                         previousTarget = target
@@ -222,10 +218,7 @@ class CloudflareBackgroundVerification(
 
         override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
             if (!request.isForMainFrame) return false
-            val destination = request.url
-            val allowed = destination.scheme in listOf("http", "https") &&
-                (destination.host == URI(url).host ||
-                    (supportsSource(url) && supportsSource(destination.toString())))
+            val allowed = CloudflareVerification.allowsRedirect(url, request.url.toString())
             if (!allowed) error = "后台验证跳转到了其他站点"
             return !allowed
         }
@@ -249,10 +242,6 @@ class CloudflareBackgroundVerification(
     }
 
     companion object {
-        fun supportsSource(sourceKey: String): Boolean = runCatching {
-            URI(sourceKey).host?.lowercase() in setOf("uaa.com", "www.uaa.com")
-        }.getOrDefault(false)
-
         // Retain roots as they are created without changing the widget's closed-shadow mode.
         private val SHADOW_TRACKER = """
             (function() {

@@ -118,7 +118,7 @@ class TestCloudflareBackgroundVerification {
 
     @Test
     fun failedBackgroundClickOpensForegroundVerificationAfterTimeout() = runBlocking {
-        val source = BookSource(bookSourceUrl = "https://www.uaa.com", bookSourceName = "UAA fixture")
+        val source = BookSource(bookSourceUrl = "local-fixture-source", bookSourceName = "Verification fixture")
         val attempt = async(Dispatchers.IO) {
             SourceVerificationHelp.getVerificationResult(
                 source, server.url("/challenge"), "Cloudflare", useBrowser = true
