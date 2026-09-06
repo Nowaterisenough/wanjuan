@@ -2,6 +2,8 @@ package io.wanjuan.app.ui.book.read
 
 import android.content.Context
 import android.graphics.Color
+import androidx.annotation.Keep
+import com.google.gson.JsonParser
 import io.wanjuan.app.R
 import io.wanjuan.app.constant.PageAnim
 import io.wanjuan.app.help.config.AppConfig
@@ -14,6 +16,7 @@ import io.wanjuan.app.utils.getPrefString
 import io.wanjuan.app.utils.putPrefString
 import kotlin.math.abs
 
+@Keep
 data class ReadMenuThemeSuite(
     val name: String,
     val backgroundColor: Int,
@@ -289,11 +292,29 @@ object ReadMenuThemeSuiteStore {
         if (raw.isBlank()) {
             return emptyList()
         }
-        return GSON.fromJsonArray<ReadMenuThemeSuite>(raw)
-            .getOrElse { emptyList() }
+        return decode(raw)
+    }
+
+    internal fun decode(raw: String): List<ReadMenuThemeSuite> {
+        val records = runCatching { JsonParser.parseString(raw).asJsonArray }.getOrNull() ?: return emptyList()
+        return records.mapNotNull { record ->
+            runCatching {
+                val obj = record.asJsonObject
+                require(obj["name"]?.asString?.isNotBlank() == true)
+                require(obj["bgValue"]?.asString?.isNotBlank() == true)
+                GSON.fromJson(obj, ReadMenuThemeSuite::class.java).also {
+                    require(it.textSize in 5..70 && it.textWeight in 0..100 && it.bgType in 0..2)
+                }
+            }.getOrNull()
+        }
     }
 
     fun save(context: Context, suite: ReadMenuThemeSuite) {
+        // Retain the previous payload when upgrading from an incompatible serialized format.
+        val previous = context.getPrefString(PREF_KEY).orEmpty()
+        if (previous.isNotBlank() && context.getPrefString("${PREF_KEY}Backup").isNullOrBlank()) {
+            context.putPrefString("${PREF_KEY}Backup", previous)
+        }
         val suites = load(context)
         val updatedSuites = if (suites.any { it.createdAt == suite.createdAt }) {
             suites.map {
