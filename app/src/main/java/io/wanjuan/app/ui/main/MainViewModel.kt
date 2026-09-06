@@ -29,11 +29,11 @@ import io.wanjuan.app.model.webBook.WebBook
 import io.wanjuan.app.service.CacheBookService
 import io.wanjuan.app.sync.SyncManager
 import io.wanjuan.app.sync.SingleFlightSync
+import io.wanjuan.app.ui.main.bookshelf.BookshelfRefreshTask
 import io.wanjuan.app.utils.onEachParallel
 import io.wanjuan.app.utils.postEvent
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CancellationException
@@ -53,7 +53,6 @@ import kotlinx.coroutines.launch
 import java.util.LinkedList
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
-import java.util.concurrent.atomic.AtomicInteger
 import kotlin.collections.forEach
 import kotlin.math.min
 import io.wanjuan.app.model.RuleUpdate
@@ -186,34 +185,35 @@ class MainViewModel(application: Application) : BaseViewModel(application) {
     ) {
         LocalConfig.bookshelfLastRefreshTime = System.currentTimeMillis()
         withContext(Dispatchers.IO) {
-            var catalogFailures = 0
-            var syncFailure: String? = null
             try {
-                bookshelfRefreshStatus.postValue(BookshelfRefreshStatus(true, context.getString(R.string.bookshelf_sync_pulling)))
-                val pull = SyncManager.syncAwait()
-                if (pull.failed > 0) syncFailure = pull.errorMessage ?: context.getString(R.string.bookshelf_sync_pending, pull.pending)
                 val positions = displayedBooks.mapIndexed { index, book -> book.bookUrl to index }.toMap()
-                val books = appDb.bookDao.flowByGroup(groupId).first()
-                    .filter { !it.isLocal && it.canUpdate && (tag.isBlank() || BookTagHelper.has(it.customTag, tag)) }
-                    .sortedBy { positions[it.bookUrl] ?: Int.MAX_VALUE }
-                val completions = if (updateCatalog) addToWaitUp(books, onlyUpdateRead, false, true) else emptyList()
-                bookshelfRefreshStatus.postValue(BookshelfRefreshStatus(
-                    true, context.getString(R.string.bookshelf_sync_catalog, 0, completions.size)
-                ))
-                val completed = AtomicInteger()
-                for (completion in completions) {
-                    completion.invokeOnCompletion {
-                        bookshelfRefreshStatus.postValue(BookshelfRefreshStatus(
-                            true, context.getString(R.string.bookshelf_sync_catalog, completed.incrementAndGet(), completions.size)
-                        ))
+                val result = BookshelfRefreshTask(
+                    loadBooks = {
+                        if (updateCatalog) appDb.bookDao.flowByGroup(groupId).first()
+                            .filter { !it.isLocal && it.canUpdate && (tag.isBlank() || BookTagHelper.has(it.customTag, tag)) }
+                            .sortedBy { positions[it.bookUrl] ?: Int.MAX_VALUE }
+                        else emptyList()
+                    },
+                    bookKey = Book::bookUrl,
+                    queueCatalogs = { addToWaitUp(it, onlyUpdateRead, false, true) },
+                    syncCloud = SyncManager::syncAwait,
+                    flushChanges = SyncManager::flushPending
+                ).run { progress ->
+                    val message = when {
+                        progress.uploading -> context.getString(R.string.bookshelf_sync_uploading)
+                        progress.syncing && progress.catalogCompleted < progress.catalogTotal ->
+                            context.getString(R.string.bookshelf_sync_parallel, progress.catalogCompleted, progress.catalogTotal)
+                        progress.syncing -> context.getString(R.string.bookshelf_sync_pulling)
+                        else -> context.getString(R.string.bookshelf_sync_catalog, progress.catalogCompleted, progress.catalogTotal)
                     }
+                    bookshelfRefreshStatus.postValue(BookshelfRefreshStatus(true, message))
                 }
-                catalogFailures = completions.awaitAll().count { !it }
-                bookshelfRefreshStatus.postValue(BookshelfRefreshStatus(true, context.getString(R.string.bookshelf_sync_uploading)))
-                var flush = SyncManager.flushPending()
-                // Include writes that arrived while the first upload batch was in flight.
-                if (flush.failed == 0 && flush.pending > 0) flush = SyncManager.flushPending()
-                if (!flush.isSuccess) syncFailure = flush.errorMessage ?: context.getString(R.string.bookshelf_sync_pending, flush.pending)
+                val syncFailure = when {
+                    !result.upload.isSuccess -> result.upload
+                    result.cloud.failed > 0 -> result.cloud
+                    else -> null
+                }?.let { it.errorMessage ?: context.getString(R.string.bookshelf_sync_pending, it.pending) }
+                val catalogFailures = result.catalogFailures
                 val message = when {
                     syncFailure != null -> context.getString(R.string.bookshelf_sync_failed, syncFailure) +
                         if (catalogFailures > 0) " · " + context.getString(R.string.bookshelf_sync_catalog_failed, catalogFailures) else ""

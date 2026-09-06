@@ -1881,6 +1881,7 @@
     <string name="paragraph_rule_vars_json">&#21464;&#37327; JSON</string>
     <string name="bookshelf_sync_pulling">正在同步云端书架…</string>
     <string name="bookshelf_sync_catalog">正在更新目录：%1$d/%2$d</string>
+    <string name="bookshelf_sync_parallel">同步云端 · 更新目录 %1$d/%2$d</string>
     <string name="bookshelf_sync_uploading">正在上传书架变化…</string>
     <string name="bookshelf_sync_pending">剩余 %1$d 项待上传</string>
     <string name="bookshelf_sync_failed">同步未完成：%1$s</string>
