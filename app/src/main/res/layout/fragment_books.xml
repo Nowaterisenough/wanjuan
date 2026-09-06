@@ -15,35 +15,43 @@
         android:textSize="12sp"
         android:visibility="invisible" />
 
-    <io.wanjuan.app.ui.widget.BookshelfSwipeRefreshLayout
-        android:id="@+id/refresh_layout"
+    <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent">
+        android:layout_height="match_parent"
+        android:orientation="vertical">
 
-        <io.wanjuan.app.ui.widget.recycler.scroller.FastScrollRecyclerView
-            android:id="@+id/rv_bookshelf"
+        <TextView
+            android:id="@+id/tv_sync_status"
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:paddingTop="0dp"
-            android:paddingBottom="0dp"
-            android:paddingLeft="8dp"
-            android:paddingRight="8dp"
-            tools:listitem="@layout/item_bookshelf_list" />
+            android:layout_height="32dp"
+            android:gravity="center"
+            android:paddingHorizontal="16dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="@color/secondaryText"
+            android:textSize="12sp"
+            android:accessibilityLiveRegion="polite"
+            android:visibility="gone" />
 
-    </io.wanjuan.app.ui.widget.BookshelfSwipeRefreshLayout>
+        <io.wanjuan.app.ui.widget.BookshelfSwipeRefreshLayout
+            android:id="@+id/refresh_layout"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1">
 
-    <TextView
-        android:id="@+id/tv_sync_status"
-        android:layout_width="match_parent"
-        android:layout_height="32dp"
-        android:gravity="center"
-        android:paddingHorizontal="16dp"
-        android:ellipsize="end"
-        android:maxLines="1"
-        android:textColor="@color/secondaryText"
-        android:textSize="12sp"
-        android:accessibilityLiveRegion="polite"
-        android:visibility="gone" />
+            <io.wanjuan.app.ui.widget.recycler.scroller.FastScrollRecyclerView
+                android:id="@+id/rv_bookshelf"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:paddingTop="0dp"
+                android:paddingBottom="0dp"
+                android:paddingLeft="8dp"
+                android:paddingRight="8dp"
+                tools:listitem="@layout/item_bookshelf_list" />
+
+        </io.wanjuan.app.ui.widget.BookshelfSwipeRefreshLayout>
+
+    </LinearLayout>
 
     <TextView
         android:id="@+id/tv_empty_msg"

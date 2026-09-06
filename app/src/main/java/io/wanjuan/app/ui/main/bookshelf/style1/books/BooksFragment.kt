@@ -122,9 +122,6 @@ class BooksFragment() : BaseFragment(R.layout.fragment_books),
         activityViewModel.bookshelfRefreshStatus.observe(viewLifecycleOwner) { state ->
             binding.tvSyncStatus.text = state.message
             binding.tvSyncStatus.isGone = state.message.isBlank()
-            binding.rvBookshelf.apply {
-                setPadding(paddingLeft, if (state.message.isBlank()) 0 else (32 * resources.displayMetrics.density).toInt(), paddingRight, paddingBottom)
-            }
             updateLastRefreshTime()
         }
         updateLayoutManager()

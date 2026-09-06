@@ -52,11 +52,12 @@ class BookshelfSwipeRefreshLayout @JvmOverloads constructor(
             MotionEvent.ACTION_DOWN -> {
                 releaseAnimator?.cancel()
                 setPullOffset(0f)
-                downY = event.y
+                // The status row can move this layout while the finger stays on screen.
+                downY = event.rawY
                 pullStarted = false
             }
 
-            MotionEvent.ACTION_MOVE -> updatePullOffset(event.y)
+            MotionEvent.ACTION_MOVE -> updatePullOffset(event.rawY)
 
             MotionEvent.ACTION_UP,
             MotionEvent.ACTION_CANCEL -> {
