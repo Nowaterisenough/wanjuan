@@ -1968,7 +1968,7 @@ class TestReadMenuLayout {
         assertTrue(readMenu.contains("ReadTipConfig.headerMode = preset.headerMode"))
         assertTrue(readMenu.contains("ReadTipConfig.footerMode = preset.footerMode"))
         assertTrue(readMenu.contains("ReadBookConfig.pageAnim = preset.pageAnim"))
-        assertTrue(readMenu.contains("AppConfig.pageAnimationSpeed = preset.pageAnimationSpeed"))
+        assertTrue(readMenu.contains("ReadBookConfig.animationSpeed = preset.pageAnimationSpeed"))
         assertTrue(readMenu.contains("ReadBookConfig.bgBrightness = preset.bgBrightness"))
     }
 
@@ -2196,7 +2196,7 @@ class TestReadMenuLayout {
         }
 
         assertTrue(suiteStore.contains("ReadBookConfig.textFont = textFont.orEmpty()"))
-        assertTrue(suiteStore.contains("AppConfig.systemTypefaces = systemTypeface"))
+        assertTrue(suiteStore.contains("ReadBookConfig.systemTypeface = systemTypeface"))
         assertTrue(suiteStore.contains("ReadTipConfig.headerMode = headerMode"))
         assertTrue(suiteStore.contains("ReadTipConfig.footerMode = footerMode"))
         assertTrue(readMenu.contains("private fun setSystemFont(systemTypeface: Int)"))
@@ -2290,7 +2290,7 @@ class TestReadMenuLayout {
         val readBook = repoFile("app/src/main/java/io/wanjuan/app/model/ReadBook.kt").readText()
 
         assertTrue(readBook.contains("append(ReadBookConfig.textFont)"))
-        assertTrue(readBook.contains("append(AppConfig.systemTypefaces)"))
+        assertTrue(readBook.contains("append(ReadBookConfig.systemTypeface)"))
         assertTrue(readBook.contains("append(ReadBookConfig.textWeight)"))
         assertTrue(readBook.contains("append(paint.letterSpacing)"))
         assertTrue(readBook.contains("append(titlePaint.letterSpacing)"))

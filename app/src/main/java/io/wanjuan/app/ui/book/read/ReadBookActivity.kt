@@ -268,6 +268,7 @@ class ReadBookActivity : BaseReadBookActivity(),
     private val nextPageDebounce by lazy { Debounce { keyPage(PageDirection.NEXT) } }
     private val prevPageDebounce by lazy { Debounce { keyPage(PageDirection.PREV) } }
     private var bookChanged = false
+    private var renderedAppearanceKey: Pair<String, String?>? = null
     private var pageChanged = false
     private val handler by lazy { buildMainHandler() }
     private val screenOffRunnable by lazy { Runnable { keepScreenOn(false) } }
@@ -1090,6 +1091,15 @@ class ReadBookActivity : BaseReadBookActivity(),
 
     override fun upMenuView() {
         handler.post {
+            val appearanceKey = ReadBook.book?.let { it.bookUrl to it.readConfig?.readerAppearance }
+            if (appearanceKey != renderedAppearanceKey) {
+                renderedAppearanceKey = appearanceKey
+                // The view can be inflated before the active book's appearance is loaded.
+                binding.readView.upBg()
+                binding.readView.upStyle()
+                binding.readView.upBgAlpha()
+                upNavigationBarColor()
+            }
             upMenu()
             binding.readMenu.upBookView()
         }

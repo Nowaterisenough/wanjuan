@@ -13,6 +13,7 @@ import io.wanjuan.app.base.BaseDialogFragment
 import io.wanjuan.app.constant.AppLog
 import io.wanjuan.app.constant.PreferKey
 import io.wanjuan.app.databinding.DialogFontSelectBinding
+import io.wanjuan.app.help.config.ReadBookConfig
 import io.wanjuan.app.help.config.AppConfig
 import io.wanjuan.app.lib.dialogs.SelectItem
 import io.wanjuan.app.lib.dialogs.alert
@@ -109,7 +110,7 @@ class FontSelectDialog : BaseDialogFragment(R.layout.dialog_font_select),
                     items(
                         requireContext.resources.getStringArray(R.array.system_typefaces).toList()
                     ) { _, i ->
-                        AppConfig.systemTypefaces = i
+                        ReadBookConfig.systemTypeface = i
                         onDefaultFontChange()
                         dismissAllowingStateLoss()
                     }

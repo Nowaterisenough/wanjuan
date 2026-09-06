@@ -645,7 +645,7 @@ object ReadBook : CoroutineScope by MainScope() {
                 .append(ChapterProvider.visibleHeight)
             append('|').append(paint.textSize).append('|').append(paint.color)
             append('|').append(ReadBookConfig.textFont)
-            append('|').append(AppConfig.systemTypefaces)
+            append('|').append(ReadBookConfig.systemTypeface)
             append('|').append(ReadBookConfig.textWeight)
             append('|').append(ReadBookConfig.textBold)
             append('|').append(paint.letterSpacing)

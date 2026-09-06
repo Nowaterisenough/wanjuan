@@ -13,6 +13,8 @@ import io.wanjuan.app.constant.PageAnim
 import io.wanjuan.app.constant.PreferKey
 import io.wanjuan.app.help.DefaultData
 import io.wanjuan.app.help.coroutine.Coroutine
+import io.wanjuan.app.data.entities.Book
+import io.wanjuan.app.model.ReadBook
 import io.wanjuan.app.utils.BitmapUtils
 import io.wanjuan.app.utils.FileUtils
 import io.wanjuan.app.utils.GSON
@@ -48,9 +50,82 @@ object ReadBookConfig {
     val shareConfigFilePath = FileUtils.getPath(appCtx.filesDir, shareConfigFileName)
     val configList: ArrayList<Config> = arrayListOf()
     lateinit var shareConfig: Config
-    var durConfig
-        get() = getConfig(styleSelect)
+    private var appearanceBook: Book? = null
+    private var appearanceJson: String? = null
+    private var appearanceConfig: Config? = null
+
+    val bookConfig: Config?
+        get() {
+            val book = ReadBook.book.takeUnless { isComic }
+            val json = book?.readConfig?.readerAppearance
+            if (appearanceBook !== book || appearanceJson != json) {
+                appearanceBook = book
+                appearanceJson = json
+                appearanceConfig = json?.let {
+                    GSON.fromJsonObject<Config>(it).getOrNull()
+                }
+            }
+            return appearanceConfig
+        }
+
+    val hasBookAppearance: Boolean get() = bookConfig != null
+
+    var systemTypeface: Int
+        get() = bookConfig?.systemTypefaceOverride ?: AppConfig.systemTypefaces
         set(value) {
+            val local = bookConfig
+            if (local == null) AppConfig.systemTypefaces = value else local.systemTypefaceOverride = value
+        }
+
+    var animationSpeed: Int
+        get() = (bookConfig?.animationSpeedOverride ?: AppConfig.pageAnimationSpeed).coerceIn(0, 2000)
+        set(value) {
+            val local = bookConfig
+            if (local == null) AppConfig.pageAnimationSpeed = value else local.animationSpeedOverride = value.coerceIn(0, 2000)
+        }
+
+    fun useBookAppearance() {
+        val book = ReadBook.book ?: return
+        if (hasBookAppearance || isComic) return
+        val local = config.withAppearanceFrom(durConfig).apply {
+            systemTypefaceOverride = AppConfig.systemTypefaces
+            animationSpeedOverride = AppConfig.pageAnimationSpeed
+            setCurPageAnim(book.getPageAnim())
+        }
+        book.config.readerAppearance = GSON.toJson(local)
+        book.setPageAnim(null)
+        ReadBook.saveRead()
+    }
+
+    fun useDefaultAppearance(promoteCurrent: Boolean = false) {
+        val book = ReadBook.book ?: return
+        if (promoteCurrent) {
+            val local = bookConfig?.copy() ?: return
+            configList[validStyleIndex()] = local
+            val typeface = local.systemTypefaceOverride
+            val animationSpeed = local.animationSpeedOverride
+            book.config.readerAppearance = null
+            typeface?.let { AppConfig.systemTypefaces = it }
+            animationSpeed?.let { AppConfig.pageAnimationSpeed = it }
+            local.systemTypefaceOverride = null
+            local.animationSpeedOverride = null
+            if (shareLayout) shareConfig = local.copy()
+        } else {
+            book.config.readerAppearance = null
+        }
+        book.setPageAnim(null)
+        ReadBook.saveRead()
+        save()
+    }
+
+    var durConfig
+        get() = bookConfig ?: getConfig(styleSelect)
+        set(value) {
+            if (hasBookAppearance) {
+                appearanceConfig = value
+                save()
+                return
+            }
             val index = validStyleIndex()
             configList[index] = value
             if (shareLayout) {
@@ -153,6 +228,13 @@ object ReadBookConfig {
     }
 
     fun save() {
+        val book = ReadBook.book
+        bookConfig?.let { local ->
+            val json = GSON.toJson(local)
+            book?.config?.readerAppearance = json
+            appearanceJson = json
+            ReadBook.saveRead()
+        }
         Coroutine.async {
             synchronized(this) {
                 GSON.toJson(configList).let {
@@ -286,7 +368,37 @@ object ReadBookConfig {
     var hideNavigationBar = appCtx.getPrefBoolean(PreferKey.hideNavigationBar)
     var useZhLayout = appCtx.getPrefBoolean(PreferKey.useZhLayout)
 
-    val config get() = if (shareLayout) shareConfig else durConfig
+    val config get() = bookConfig ?: if (shareLayout) shareConfig else durConfig
+
+    data class AppearanceSnapshot(
+        val bookUrl: String?,
+        val local: Config?,
+        val defaults: List<Config>,
+        val shared: Config,
+        val typeface: Int,
+        val animationSpeed: Int,
+        val bookPageAnim: Int?
+    )
+
+    fun captureAppearance() = AppearanceSnapshot(
+        ReadBook.book?.bookUrl, bookConfig?.copy(), configList.map { it.copy() },
+        shareConfig.copy(), appCtx.getPrefInt(PreferKey.systemTypefaces),
+        appCtx.getPrefInt(PreferKey.pageAnimationSpeed, 300), ReadBook.book?.readConfig?.pageAnim
+    )
+
+    fun restoreAppearance(snapshot: AppearanceSnapshot) {
+        val book = ReadBook.book ?: return
+        if (snapshot.bookUrl != book.bookUrl) return
+        book.config.readerAppearance = snapshot.local?.let(GSON::toJson)
+        book.setPageAnim(snapshot.bookPageAnim)
+        configList.clear()
+        configList.addAll(snapshot.defaults.map { it.copy() })
+        shareConfig = snapshot.shared.copy()
+        appCtx.putPrefInt(PreferKey.systemTypefaces, snapshot.typeface)
+        appCtx.putPrefInt(PreferKey.pageAnimationSpeed, snapshot.animationSpeed)
+        save()
+        ReadBook.saveRead()
+    }
 
     var bgAlpha: Int
         get() = config.bgAlpha
@@ -313,6 +425,10 @@ object ReadBookConfig {
         }
 
     private fun setGlobalPageAnim(@PageAnim.Anim value: Int) {
+        bookConfig?.let {
+            it.setCurPageAnim(value)
+            return
+        }
         configList.forEach { it.setCurPageAnim(value) }
         shareConfig.setCurPageAnim(value)
     }
@@ -679,8 +795,21 @@ object ReadBookConfig {
         var tipColor: Int = 0,
         var tipDividerColor: Int = -1,
         var headerMode: Int = 0,
-        var footerMode: Int = 0
+        var footerMode: Int = 0,
+        var systemTypefaceOverride: Int? = null,
+        var animationSpeedOverride: Int? = null
     ) {
+
+        // Shared layout and per-style day/night colors must both survive scope changes.
+        fun withAppearanceFrom(source: Config): Config = copy(
+            bgStr = source.bgStr, bgStrNight = source.bgStrNight, bgStrEInk = source.bgStrEInk,
+            bgType = source.bgType, bgTypeNight = source.bgTypeNight, bgTypeEInk = source.bgTypeEInk,
+            textColor = source.textColor, textColorNight = source.textColorNight,
+            textColorEInk = source.textColorEInk, textAccentColor = source.textAccentColor,
+            textAccentColorNight = source.textAccentColorNight, textAccentColorEInk = source.textAccentColorEInk,
+            darkStatusIcon = source.darkStatusIcon, darkStatusIconNight = source.darkStatusIconNight,
+            darkStatusIconEInk = source.darkStatusIconEInk
+        )
 
         @Transient
         private var textColorIntEInk = -1

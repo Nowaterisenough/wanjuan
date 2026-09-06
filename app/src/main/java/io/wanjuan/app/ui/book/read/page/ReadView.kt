@@ -68,7 +68,7 @@ class ReadView(context: Context, attrs: AttributeSet) :
     val curPage by lazy { PageView(context) }
     val nextPage by lazy { PageView(context) }
     val defaultAnimationSpeed: Int
-        get() = AppConfig.pageAnimationSpeed
+        get() = ReadBookConfig.animationSpeed
     private var pressDown = false
     private var isMove = false
 

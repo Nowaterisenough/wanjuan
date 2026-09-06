@@ -117,7 +117,7 @@ data class ReadMenuThemeSuite(
         ReadBookConfig.textWeight = textWeight
         ReadBookConfig.textBold = textBold
         ReadBookConfig.textFont = textFont.orEmpty()
-        AppConfig.systemTypefaces = systemTypeface
+        ReadBookConfig.systemTypeface = systemTypeface
         ReadBookConfig.letterSpacing = letterSpacing
         ReadBookConfig.lineSpacingExtra = lineSpacingExtra
         ReadBookConfig.paragraphSpacing = paragraphSpacing
@@ -144,7 +144,7 @@ data class ReadMenuThemeSuite(
         ReadBookConfig.pageAnim = pageAnim
         ReadBook.book?.setPageAnim(null)
         ReadBook.saveRead()
-        AppConfig.pageAnimationSpeed = pageAnimationSpeed
+        ReadBookConfig.animationSpeed = pageAnimationSpeed
         ReadBookConfig.bgBrightness = bgBrightness
         ReadBookConfig.bgSaturation = bgSaturation
         ReadBookConfig.bgAlpha = bgAlpha
@@ -190,7 +190,7 @@ data class ReadMenuThemeSuite(
                 textWeight = ReadBookConfig.textWeight,
                 textBold = ReadBookConfig.textBold,
                 textFont = ReadBookConfig.textFont,
-                systemTypeface = AppConfig.systemTypefaces,
+                systemTypeface = ReadBookConfig.systemTypeface,
                 letterSpacing = ReadBookConfig.letterSpacing,
                 lineSpacingExtra = ReadBookConfig.lineSpacingExtra,
                 paragraphSpacing = ReadBookConfig.paragraphSpacing,
@@ -214,8 +214,8 @@ data class ReadMenuThemeSuite(
                 footerPaddingLeft = ReadBookConfig.footerPaddingLeft,
                 footerPaddingRight = ReadBookConfig.footerPaddingRight,
                 showFooterLine = ReadBookConfig.showFooterLine,
-                pageAnim = ReadBookConfig.pageAnim,
-                pageAnimationSpeed = AppConfig.pageAnimationSpeed,
+                pageAnim = ReadBook.pageAnim(),
+                pageAnimationSpeed = ReadBookConfig.animationSpeed,
                 bgBrightness = ReadBookConfig.bgBrightness,
                 bgSaturation = ReadBookConfig.bgSaturation,
                 bgAlpha = ReadBookConfig.bgAlpha,

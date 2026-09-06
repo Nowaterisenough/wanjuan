@@ -263,7 +263,7 @@ class ReadMenu @JvmOverloads constructor(
                 newFontSampleCard(),
                 R.string.default_font,
                 Typeface.DEFAULT,
-                { ReadBookConfig.textFont.isBlank() && AppConfig.systemTypefaces == 0 },
+                { ReadBookConfig.textFont.isBlank() && ReadBookConfig.systemTypeface == 0 },
                 { setSystemFont(0) }
             ),
             FontSample(
@@ -3459,7 +3459,7 @@ class ReadMenu @JvmOverloads constructor(
         updatePageAnimSampleCards()
         configureOptionButton(panelPageAutoPage, false)
         configureOptionButton(panelPageTouchSlop, AppConfig.pageTouchSlop > 0)
-        configureOptionButton(panelPageAnimSpeed, AppConfig.pageAnimationSpeed != 300)
+        configureOptionButton(panelPageAnimSpeed, ReadBookConfig.animationSpeed != 300)
         configureOptionButton(panelPageVolumeKey, AppConfig.volumeKeyPage)
         configureOptionButton(panelPageMouseWheel, AppConfig.mouseWheelPage)
     }
@@ -3639,7 +3639,7 @@ class ReadMenu @JvmOverloads constructor(
                 ReadBookConfig.textWeight == preset.textWeight &&
                 ReadBookConfig.textBold == preset.textBold &&
                 ReadBookConfig.textFont == preset.textFont &&
-                AppConfig.systemTypefaces == preset.systemTypeface &&
+                ReadBookConfig.systemTypeface == preset.systemTypeface &&
                 abs(ReadBookConfig.letterSpacing - preset.letterSpacing) < 0.01f &&
                 ReadBookConfig.lineSpacingExtra == preset.lineSpacingExtra &&
                 ReadBookConfig.paragraphSpacing == preset.paragraphSpacing &&
@@ -3664,7 +3664,7 @@ class ReadMenu @JvmOverloads constructor(
                 ReadBookConfig.footerPaddingRight == preset.footerPaddingRight &&
                 ReadBookConfig.showFooterLine == preset.showFooterLine &&
                 ReadBookConfig.pageAnim == preset.pageAnim &&
-                AppConfig.pageAnimationSpeed == preset.pageAnimationSpeed &&
+                ReadBookConfig.animationSpeed == preset.pageAnimationSpeed &&
                 ReadBookConfig.bgBrightness == preset.bgBrightness &&
                 ReadBookConfig.bgSaturation == preset.bgSaturation &&
                 ReadBookConfig.bgAlpha == preset.bgAlpha &&
@@ -3799,7 +3799,7 @@ class ReadMenu @JvmOverloads constructor(
         ReadBookConfig.textWeight = preset.textWeight
         ReadBookConfig.textBold = preset.textBold
         ReadBookConfig.textFont = preset.textFont
-        AppConfig.systemTypefaces = preset.systemTypeface
+        ReadBookConfig.systemTypeface = preset.systemTypeface
         ReadBookConfig.letterSpacing = preset.letterSpacing
         ReadBookConfig.lineSpacingExtra = preset.lineSpacingExtra
         ReadBookConfig.paragraphSpacing = preset.paragraphSpacing
@@ -3825,7 +3825,7 @@ class ReadMenu @JvmOverloads constructor(
         ReadBookConfig.showFooterLine = preset.showFooterLine
         ReadBookConfig.pageAnim = preset.pageAnim
         ReadBook.book?.setPageAnim(preset.pageAnim)
-        AppConfig.pageAnimationSpeed = preset.pageAnimationSpeed
+        ReadBookConfig.animationSpeed = preset.pageAnimationSpeed
         ReadBookConfig.bgBrightness = preset.bgBrightness
         ReadBookConfig.bgSaturation = preset.bgSaturation
         ReadBookConfig.bgAlpha = preset.bgAlpha
@@ -3910,7 +3910,7 @@ class ReadMenu @JvmOverloads constructor(
 
     private fun setSystemFont(systemTypeface: Int) {
         ReadBookConfig.textFont = ""
-        AppConfig.systemTypefaces = systemTypeface
+        ReadBookConfig.systemTypeface = systemTypeface
         ReadBookConfig.save()
         updateFontButtons()
         postEvent(EventBus.UP_CONFIG, arrayListOf(2, 5))
@@ -5123,14 +5123,14 @@ class ReadMenu @JvmOverloads constructor(
                 .setTitle(context.getString(R.string.page_animation_speed_dialog_title))
                 .setMaxValue(2000)
                 .setMinValue(0)
-                .setValue(AppConfig.pageAnimationSpeed)
+                .setValue(ReadBookConfig.animationSpeed)
                 .setCustomButton(R.string.btn_default_s) {
-                    AppConfig.pageAnimationSpeed = 300
+                    ReadBookConfig.animationSpeed = 300
                     updatePageTurnControls()
                     persistActiveThemeSuiteChange()
                 }
                 .show {
-                    AppConfig.pageAnimationSpeed = it
+                    ReadBookConfig.animationSpeed = it
                     updatePageTurnControls()
                     persistActiveThemeSuiteChange()
                 }

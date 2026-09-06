@@ -478,7 +478,8 @@ data class Book(
         var mangaDisableClickScroll: Boolean? = null,
         var mangaDisableScale: Boolean? = null,
         var mangaAutoPageSpeed: Int? = null,
-        var mangaPageAnim: Int? = null
+        var mangaPageAnim: Int? = null,
+        var readerAppearance: String? = null
     ) : Parcelable
 
     class Converters {

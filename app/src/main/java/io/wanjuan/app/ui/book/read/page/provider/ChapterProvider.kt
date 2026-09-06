@@ -272,7 +272,7 @@ object ChapterProvider {
                 }
 
                 fontPath.isNotEmpty() -> Typeface.createFromFile(fontPath)
-                else -> when (AppConfig.systemTypefaces) {
+                else -> when (ReadBookConfig.systemTypeface) {
                     1 -> Typeface.SERIF
                     2 -> Typeface.MONOSPACE
                     else -> Typeface.DEFAULT
