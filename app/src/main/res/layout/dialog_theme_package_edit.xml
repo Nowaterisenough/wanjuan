@@ -48,6 +48,19 @@
                 android:id="@+id/row_bottom_background"
                 layout="@layout/item_theme_package_option" />
 
+            <include
+                android:id="@+id/row_comment_indicator"
+                layout="@layout/item_theme_package_option" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingHorizontal="12dp"
+                android:paddingBottom="6dp"
+                android:text="@string/theme_color_comment_indicator_summary"
+                android:textColor="@color/secondaryText"
+                android:textSize="12sp" />
+
         </LinearLayout>
 
         <LinearLayout

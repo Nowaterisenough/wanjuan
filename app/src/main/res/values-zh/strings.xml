@@ -1741,6 +1741,10 @@
     <string name="theme_color_accent">强调色</string>
     <string name="theme_color_background">背景色</string>
     <string name="theme_color_bottom_background">底栏色</string>
+    <string name="theme_color_comment_indicator">正文评论标识颜色</string>
+    <string name="theme_color_comment_indicator_summary">调整正文中可点击数字气泡的轮廓和数字颜色。</string>
+    <string name="theme_color_follow_source">沿用书源颜色</string>
+    <string name="theme_color_custom">自定义颜色</string>
     <string name="theme_image_main_background">主界面背景</string>
     <string name="theme_image_book_info_background">详情页背景</string>
     <string name="theme_image_blur">背景图片模糊</string>

@@ -72,6 +72,7 @@ object ThemeConfig {
         applyTheme(context)
         initNightMode()
         BookCover.upDefaultCover()
+        postEvent(EventBus.UP_CONFIG, arrayListOf(9, 6))
         postEvent(EventBus.RECREATE, "")
     }
 
@@ -233,6 +234,7 @@ object ThemeConfig {
             config.accentColor.toColorInt()
             config.backgroundColor.toColorInt()
             config.bottomBackground.toColorInt()
+            config.commentIndicatorColor?.toColorInt()
             return true
         } catch (_: Exception) {
             return false
@@ -267,6 +269,7 @@ object ThemeConfig {
             val accent = config.accentColor.toColorInt()
             val background = config.backgroundColor.toColorInt()
             val bBackground = config.bottomBackground.toColorInt()
+            config.commentIndicatorColor?.toColorInt()
             val isNightTheme = config.isNightTheme
             val backgroundPath = config.backgroundImgPath
             val bookInfoBackgroundPath = config.bookInfoBackgroundImgPath
@@ -322,6 +325,10 @@ object ThemeConfig {
                 }
             }
             val backgroundBlur = config.backgroundImgBlur
+            context.putPrefString(
+                if (isNightTheme) PreferKey.commentIndicatorColorNight else PreferKey.commentIndicatorColor,
+                config.commentIndicatorColor
+            )
             if (isNightTheme) {
                 context.putPrefString(PreferKey.dNThemeName, config.themeName)
                 context.putPrefInt(PreferKey.cNPrimary, primary)
@@ -354,6 +361,7 @@ object ThemeConfig {
             } else {
                 applyTheme(context)
                 BookCover.upDefaultCover()
+                postEvent(EventBus.UP_CONFIG, arrayListOf(9, 6))
                 postEvent(EventBus.RECREATE, "")
             }
         } catch (e: Exception) {
@@ -373,6 +381,12 @@ object ThemeConfig {
         } else {
             getDayTheme(context, name)
         }
+    }
+
+    fun getCommentIndicatorColor(context: Context, isNightTheme: Boolean = AppConfig.isNightTheme): String? {
+        return context.getPrefString(
+            if (isNightTheme) PreferKey.commentIndicatorColorNight else PreferKey.commentIndicatorColor
+        )
     }
 
     fun getThemeConfig(context: Context, isNightTheme: Boolean): Config {
@@ -415,6 +429,7 @@ object ThemeConfig {
                 accentColor = "#${accent.hexString}",
                 backgroundColor = "#${background.hexString}",
                 bottomBackground = "#${bBackground.hexString}",
+                commentIndicatorColor = getCommentIndicatorColor(context, false),
                 transparentNavBar = true,
                 backgroundImgPath = bgImgPath,
                 backgroundImgBlur = bgImgBlur,
@@ -465,6 +480,7 @@ object ThemeConfig {
                 accentColor = "#${accent.hexString}",
                 backgroundColor = "#${background.hexString}",
                 bottomBackground = "#${bBackground.hexString}",
+                commentIndicatorColor = getCommentIndicatorColor(context, true),
                 transparentNavBar = true,
                 backgroundImgPath = bgImgPath,
                 backgroundImgBlur = bgImgBlur,
@@ -631,7 +647,8 @@ object ThemeConfig {
         var uiLayoutAlpha: Int? = null,
         var uiCornerSearchFollow: Boolean? = null,
         var uiCornerReplyFollow: Boolean? = null,
-        var fontScale: Int? = null
+        var fontScale: Int? = null,
+        var commentIndicatorColor: String? = null
     ) {
 
         override fun hashCode(): Int {
@@ -656,6 +673,7 @@ object ThemeConfig {
                         && other.uiCornerSearchFollow == uiCornerSearchFollow
                         && other.uiCornerReplyFollow == uiCornerReplyFollow
                         && other.fontScale == fontScale
+                        && other.commentIndicatorColor == commentIndicatorColor
             }
             return false
         }
@@ -675,7 +693,8 @@ object ThemeConfig {
             "uiLayoutAlpha" to uiLayoutAlpha,
             "uiCornerSearchFollow" to uiCornerSearchFollow,
             "uiCornerReplyFollow" to uiCornerReplyFollow,
-            "fontScale" to fontScale
+            "fontScale" to fontScale,
+            "commentIndicatorColor" to commentIndicatorColor
         )
 
     }

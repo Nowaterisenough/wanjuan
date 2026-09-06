@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.Size
 import androidx.collection.LruCache
+import androidx.core.graphics.toColorInt
 import io.wanjuan.app.R
 import io.wanjuan.app.constant.AppLog.putDebug
 import io.wanjuan.app.data.entities.Book
@@ -14,10 +15,12 @@ import io.wanjuan.app.help.book.isEpub
 import io.wanjuan.app.help.book.isMobi
 import io.wanjuan.app.help.book.isPdf
 import io.wanjuan.app.help.config.AppConfig
+import io.wanjuan.app.help.config.ThemeConfig
 import io.wanjuan.app.model.localBook.EpubFile
 import io.wanjuan.app.model.localBook.MobiFile
 import io.wanjuan.app.model.localBook.PdfFile
 import io.wanjuan.app.utils.BitmapUtils
+import io.wanjuan.app.utils.CommentIndicatorSvg
 import io.wanjuan.app.utils.decodeBase64DataUrlBytes
 import io.wanjuan.app.utils.FileUtils
 import io.wanjuan.app.utils.SvgUtils
@@ -34,6 +37,7 @@ import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.FileOutputStream
 import java.util.concurrent.ConcurrentHashMap
+import java.util.Locale
 import kotlin.math.min
 
 object ImageProvider {
@@ -263,13 +267,19 @@ object ImageProvider {
         }
         val vFile = BookHelp.getImage(book, src)
         if (!vFile.exists()) return errorBitmap
+        val commentColor = ThemeConfig.getCommentIndicatorColor(appCtx)?.let { color ->
+            if (!CommentIndicatorSvg.isInlineActionSvg(src)) return@let null
+            runCatching { String.format(Locale.ROOT, "#%06X", color.toColorInt() and 0xFFFFFF) }.getOrNull()
+        }
         //epub文件提供图片链接是相对链接，同时阅读多个epub文件，缓存命中错误
         //bitmapLruCache的key同一改成缓存文件的路径
-        val cacheKey = if (cacheKeySuffix.isNullOrBlank()) {
+        val baseCacheKey = if (cacheKeySuffix.isNullOrBlank()) {
             vFile.absolutePath
         } else {
             "${vFile.absolutePath}#$cacheKeySuffix"
         }
+        // Keep the original SVG on disk so cached chapters can follow theme changes immediately.
+        val cacheKey = commentColor?.let { "$baseCacheKey#comment:$it" } ?: baseCacheKey
         val cacheBitmap = getNotRecycled(cacheKey)
         if (cacheBitmap != null) return cacheBitmap
         if (!vFile.exists() && src.isDataUrl()) {
@@ -300,7 +310,12 @@ object ImageProvider {
             }.getOrDefault(errorBitmap)
         }
         return kotlin.runCatching {
-            val bitmap = BitmapUtils.decodeBitmap(vFile.absolutePath, width, height)
+            val themedBitmap = commentColor?.let { color ->
+                CommentIndicatorSvg.recolor(vFile.readText(), color)?.byteInputStream()?.use {
+                    SvgUtils.createBitmap(it, width, height)
+                }
+            }
+            val bitmap = themedBitmap ?: BitmapUtils.decodeBitmap(vFile.absolutePath, width, height)
                 ?: SvgUtils.createBitmap(vFile.absolutePath, width, height)
                 ?: throw NoStackTraceException(appCtx.getString(R.string.error_decode_bitmap))
             put(cacheKey, bitmap)

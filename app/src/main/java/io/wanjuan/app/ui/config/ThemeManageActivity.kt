@@ -79,6 +79,7 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
     private var pendingFontScale = 0
     private var pendingUiCornerSearchFollow = false
     private var pendingUiCornerReplyFollow = false
+    private var pendingCommentIndicatorColor: String? = null
     private var loadVersion = 0
     private var appliedDayThemeOverride: String? = null
     private var appliedNightThemeOverride: String? = null
@@ -271,12 +272,14 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
         pendingFontScale = current.fontScale ?: getPrefInt(PreferKey.fontScale, 0)
         pendingUiCornerSearchFollow = current.uiCornerSearchFollow ?: AppConfig.uiCornerSearchFollow
         pendingUiCornerReplyFollow = current.uiCornerReplyFollow ?: AppConfig.uiCornerReplyFollow
+        pendingCommentIndicatorColor = current.commentIndicatorColor
         return DialogThemePackageEditBinding.inflate(layoutInflater).apply {
             etName.setText(current.themeName)
             setupColorRow(rowPrimary, R.string.theme_color_primary, current.primaryColor, colorPrimary)
             setupColorRow(rowAccent, R.string.theme_color_accent, current.accentColor, colorAccent)
             setupColorRow(rowBackground, R.string.theme_color_background, current.backgroundColor, colorBackground)
             setupColorRow(rowBottomBackground, R.string.theme_color_bottom_background, current.bottomBackground, colorBottomBackground)
+            setupCommentIndicatorRow(rowCommentIndicator)
             setupImageRow(rowMainBackground, R.string.theme_image_main_background, true)
             setupImageRow(rowBookInfoBackground, R.string.theme_image_book_info_background, false)
             setupInterfaceRows(this)
@@ -406,6 +409,38 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
         }
     }
 
+    private fun setupCommentIndicatorRow(row: ItemThemePackageOptionBinding) {
+        row.tvTitle.setText(R.string.theme_color_comment_indicator)
+        row.tvTitle.maxLines = 2
+        row.tvValue.layoutParams.width = ViewGroup.LayoutParams.WRAP_CONTENT
+        updateCommentIndicatorRow(row)
+        row.root.setOnClickListener {
+            selector(
+                getString(R.string.theme_color_comment_indicator),
+                listOf(getString(R.string.theme_color_custom), getString(R.string.theme_color_follow_source))
+            ) { _, index ->
+                if (index == 0) {
+                    ColorPickerDialog.newBuilder()
+                        .setColor(pendingCommentIndicatorColor?.toColorInt() ?: Color.GRAY)
+                        .setShowAlphaSlider(false)
+                        .setDialogType(ColorPickerDialog.TYPE_CUSTOM)
+                        .setDialogId(colorCommentIndicator)
+                        .show(this)
+                } else {
+                    pendingCommentIndicatorColor = null
+                    updateCommentIndicatorRow(row)
+                }
+            }
+        }
+    }
+
+    private fun updateCommentIndicatorRow(row: ItemThemePackageOptionBinding) {
+        val color = pendingCommentIndicatorColor
+        row.tvValue.text = color?.uppercase(Locale.ROOT) ?: getString(R.string.theme_color_follow_source)
+        row.viewSwatch.visibility = if (color == null) View.GONE else View.VISIBLE
+        color?.let { updateSwatch(row, it.toColorInt()) }
+    }
+
     private fun setupImageRow(row: ItemThemePackageOptionBinding, titleRes: Int, isMain: Boolean) {
         row.tvTitle.text = getString(titleRes)
         row.viewSwatch.visibility = View.INVISIBLE
@@ -498,7 +533,8 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
                 uiLayoutAlpha = pendingUiLayoutAlpha,
                 uiCornerSearchFollow = pendingUiCornerSearchFollow,
                 uiCornerReplyFollow = pendingUiCornerReplyFollow,
-                fontScale = pendingFontScale
+                fontScale = pendingFontScale,
+                commentIndicatorColor = pendingCommentIndicatorColor
             )
         }.onFailure {
             toastOnUi(R.string.color_format_error)
@@ -562,6 +598,7 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
             accentColor = "#${accent.hexString}",
             backgroundColor = "#${background.hexString}",
             bottomBackground = "#${bottom.hexString}",
+            commentIndicatorColor = ThemeConfig.getCommentIndicatorColor(this, isNightTheme),
             transparentNavBar = true,
             backgroundImgPath = getPrefString(if (isNightTheme) PreferKey.bgImageN else PreferKey.bgImage),
             backgroundImgBlur = getPrefInt(if (isNightTheme) PreferKey.bgImageNBlurring else PreferKey.bgImageBlurring, 0),
@@ -869,6 +906,11 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
     override fun onColorSelected(dialogId: Int, color: Int) {
         val binding = editDialogBinding ?: return
         val hex = "#${color.hexString}".uppercase(Locale.ROOT)
+        if (dialogId == colorCommentIndicator) {
+            pendingCommentIndicatorColor = hex
+            updateCommentIndicatorRow(binding.rowCommentIndicator)
+            return
+        }
         val row = when (dialogId) {
             colorPrimary -> binding.rowPrimary
             colorAccent -> binding.rowAccent
@@ -893,6 +935,7 @@ class ThemeManageActivity : BaseActivity<ActivityThemeManageBinding>(),
         private const val colorAccent = 402
         private const val colorBackground = 403
         private const val colorBottomBackground = 404
+        private const val colorCommentIndicator = 405
     }
 
     private enum class ThemeAction(val titleRes: Int) {
