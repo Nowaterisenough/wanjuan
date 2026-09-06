@@ -1026,7 +1026,7 @@ class TestReadMenuLayout {
     fun readMenuTopBarUsesFrostedGlassMenuSurface() {
         val readMenu = repoFile("app/src/main/java/io/wanjuan/app/ui/book/read/ReadMenu.kt").readText()
         val initBlock = readMenu.substringAfter("private fun initView")
-            .substringBefore("if (AppConfig.isEInkMode)")
+            .substringBefore("flExpandedPanel.background")
 
         assertTrue(initBlock.contains("titleBar.setBackgroundColor(Color.TRANSPARENT)"))
         assertTrue(readMenu.contains("private fun configureTopBarFrostedGlass()"))
@@ -2004,17 +2004,11 @@ class TestReadMenuLayout {
     }
 
     @Test
-    fun selectedSavedThemeIsUpdatedWhenReaderThemeControlsChange() {
+    fun savedThemeIsNotOverwrittenWhenReaderControlsChange() {
         val readMenu = repoFile("app/src/main/java/io/wanjuan/app/ui/book/read/ReadMenu.kt").readText()
-        val suiteStore = repoFile("app/src/main/java/io/wanjuan/app/ui/book/read/ReadMenuThemeSuite.kt").readText()
-        val activity = repoFile("app/src/main/java/io/wanjuan/app/ui/book/read/ReadBookActivity.kt").readText()
-
-        assertTrue(suiteStore.contains("fun updateActiveFromCurrent"))
-        assertTrue(suiteStore.contains("createdAt = active.createdAt"))
-        assertTrue(readMenu.contains("fun persistActiveThemeSuiteChange()"))
-        assertTrue(readMenu.contains("ReadMenuThemeSuiteStore.updateActiveFromCurrent(context)"))
-        assertTrue(readMenu.contains("persistActiveThemeSuiteChange()"))
-        assertTrue(activity.contains("binding.readMenu.persistActiveThemeSuiteChange()"))
+        val persist = readMenu.substringAfter("fun persistActiveThemeSuiteChange()").substringBefore("private fun applyThemePreset")
+        assertFalse(persist.contains("ReadMenuThemeSuiteStore.updateActiveFromCurrent"))
+        assertTrue(persist.contains("workbench?.refresh()"))
     }
 
     @Test

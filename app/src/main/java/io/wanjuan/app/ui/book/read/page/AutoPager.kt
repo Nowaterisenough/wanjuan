@@ -7,6 +7,8 @@ import androidx.core.graphics.withClip
 import io.wanjuan.app.help.config.AppConfig
 import io.wanjuan.app.help.config.ReadBookConfig
 import io.wanjuan.app.lib.theme.ThemeStore
+import io.wanjuan.app.ui.book.read.ReadMenuWorkbench
+import io.wanjuan.app.utils.getPrefInt
 import io.wanjuan.app.ui.book.read.page.entities.PageDirection
 import io.wanjuan.app.utils.canvasrecorder.CanvasRecorderFactory
 import io.wanjuan.app.utils.canvasrecorder.recordIfNeeded
@@ -25,12 +27,23 @@ class AutoPager(private val readView: ReadView) : Runnable {
     private var lastTimeMillis = 0L
     private var canvasRecorder = CanvasRecorderFactory.create()
     private val paint by lazy { Paint() }
+    var onStopped: (() -> Unit)? = null
+    private var stopAt = 0L
+    private val stopTimer = object : Runnable {
+        override fun run() {
+            if (!isRunning || stopAt == 0L) return
+            val remaining = stopAt - SystemClock.elapsedRealtime()
+            if (remaining <= 0) stop() else readView.postDelayed(this, remaining.coerceAtMost(1000L))
+        }
+    }
     private val isTimedMode: Boolean
         get() = ReadBookConfig.autoReadMode == ReadBookConfig.AUTO_READ_MODE_TIMED
 
 
     fun start() {
+        if (isRunning) return
         isRunning = true
+        updateStopTimer()
         isEInkMode = AppConfig.isEInkMode
         readView.curPage.upSelectAble(false)
         if (isTimedMode || isEInkMode) {
@@ -50,10 +63,13 @@ class AutoPager(private val readView: ReadView) : Runnable {
         isPausing = false
         isEInkMode = false
         readView.removeCallbacks(this)
+        readView.removeCallbacks(stopTimer)
+        stopAt = 0L
         readView.curPage.upSelectAble(AppConfig.textSelectAble)
         readView.invalidate()
         reset()
         canvasRecorder.recycle()
+        onStopped?.invoke()
     }
 
     fun pause() {
@@ -69,6 +85,10 @@ class AutoPager(private val readView: ReadView) : Runnable {
             return
         }
         isPausing = false
+        readView.removeCallbacks(this)
+        readView.removeCallbacks(stopTimer)
+        stopTimer.run()
+        if (!isRunning) return
         if (isTimedMode || isEInkMode) {
             readView.postDelayed(this, ReadBookConfig.autoReadSpeed * 1000L)
         } else {
@@ -80,13 +100,20 @@ class AutoPager(private val readView: ReadView) : Runnable {
     fun reset() {
         if (isTimedMode || isEInkMode) {
             readView.removeCallbacks(this)
-            readView.postDelayed(this, ReadBookConfig.autoReadSpeed * 1000L)
+            if (isRunning && !isPausing) readView.postDelayed(this, ReadBookConfig.autoReadSpeed * 1000L)
         } else {
             progress = 0
             scrollOffsetRemain = 0.0
             scrollOffset = 0
             canvasRecorder.invalidate()
         }
+    }
+
+    fun updateStopTimer() {
+        readView.removeCallbacks(stopTimer)
+        val minutes = readView.context.getPrefInt(ReadMenuWorkbench.AUTO_STOP_MINUTES).coerceAtLeast(0)
+        stopAt = if (isRunning && minutes > 0) SystemClock.elapsedRealtime() + minutes * 60_000L else 0L
+        if (stopAt > 0L) readView.postDelayed(stopTimer, 1000L)
     }
 
     fun upRecorder() {

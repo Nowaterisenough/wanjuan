@@ -177,6 +177,29 @@ class ReadBookActivity : BaseReadBookActivity(),
     ColorPickerDialogListener,
     LayoutProgressListener {
 
+    private val importReaderFontFiles = registerForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        if (uris.isNotEmpty()) lifecycleScope.launch {
+            val results = withContext(IO) {
+                uris.distinct().map { uri ->
+                    runCatching { io.wanjuan.app.ui.font.ReaderFontLibrary.import(this@ReadBookActivity, uri) }
+                }
+            }
+            val imported = results.count { it.isSuccess }
+            val failed = results.size - imported
+            toastOnUi(when {
+                imported == 0 -> results.firstOrNull()?.exceptionOrNull()?.localizedMessage ?: "导入失败"
+                failed > 0 -> "已导入 $imported 个字体，$failed 个失败。点选字体后应用。"
+                else -> "已导入 $imported 个字体，点选字体后应用。"
+            })
+            binding.readMenu.showWorkbenchPage(ReadMenuWorkbench.Page.FONTS)
+        }
+    }
+
+    fun importReaderFonts() {
+        // Some document providers classify fonts as generic binary files.
+        importReaderFontFiles.launch(arrayOf("*/*"))
+    }
+
     private val tocActivity =
         registerForActivityResult(TocActivityResult()) {
             it?.let {
@@ -208,6 +231,7 @@ class ReadBookActivity : BaseReadBookActivity(),
                 viewModel.searchContentQuery = searchResult.query
                 binding.searchMenu.upSearchResultList(searchResultList)
                 isShowingSearchResult = true
+                inlineSearchActive = false
                 viewModel.searchResultIndex = index
                 binding.searchMenu.updateSearchResultIndex(index)
                 binding.searchMenu.selectedSearchResult?.let { currentResult ->
@@ -253,6 +277,7 @@ class ReadBookActivity : BaseReadBookActivity(),
     override val isScroll: Boolean get() = binding.readView.isScroll
     private val isAutoPage get() = binding.readView.isAutoPage
     override var isShowingSearchResult = false
+    private var inlineSearchActive = false
     override var isSelectingSearchResult = false
         set(value) {
             field = value && isShowingSearchResult
@@ -1215,6 +1240,7 @@ class ReadBookActivity : BaseReadBookActivity(),
     }
 
     private fun updateChapterProgressMinimap(show: Boolean = binding.readMenu.isVisible) {
+        binding.readMenu.refreshProgress()
         val textChapter = ReadBook.curTextChapter
         val pageCount = textChapter?.pageSize ?: 0
         val shouldShow = show
@@ -1455,9 +1481,9 @@ class ReadBookActivity : BaseReadBookActivity(),
 
     override fun showActionMenu() {
         when {
-            BaseReadAloudService.isRun -> showReadAloudDialog()
-            isAutoPage -> showDialogFragment<AutoReadDialog>()
-            isShowingSearchResult -> binding.searchMenu.runMenuIn()
+            BaseReadAloudService.isRun -> binding.readMenu.showWorkbenchPage(ReadMenuWorkbench.Page.ALOUD)
+            isAutoPage -> binding.readMenu.showWorkbenchPage(ReadMenuWorkbench.Page.AUTO)
+            isShowingSearchResult && !inlineSearchActive -> binding.searchMenu.runMenuIn()
             else -> binding.readMenu.runMenuIn()
         }
     }
@@ -1466,7 +1492,7 @@ class ReadBookActivity : BaseReadBookActivity(),
      * 鏄剧ず鏈楄鑿滃崟
      */
     override fun showReadAloudDialog() {
-        showDialogFragment<ReadAloudDialog>()
+        binding.readMenu.showWorkbenchPage(ReadMenuWorkbench.Page.ALOUD)
     }
 
     /**
@@ -1478,6 +1504,10 @@ class ReadBookActivity : BaseReadBookActivity(),
             autoPageStop()
         } else {
             binding.readView.autoPager.start()
+            binding.readView.autoPager.onStopped = {
+                binding.readMenu.setAutoPage(false)
+                upScreenTimeOut()
+            }
             binding.readMenu.setAutoPage(true)
             screenTimeOut = -1L
             screenOffTimerStart()
@@ -1491,6 +1521,11 @@ class ReadBookActivity : BaseReadBookActivity(),
             dismissDialogFragment<AutoReadDialog>()
             upScreenTimeOut()
         }
+    }
+
+    override fun updateAutoPageConfig(resetTimer: Boolean) {
+        binding.readView.autoPager.reset()
+        if (resetTimer) binding.readView.autoPager.updateStopTimer()
     }
 
     override fun openSourceEditActivity() {
@@ -1557,6 +1592,7 @@ class ReadBookActivity : BaseReadBookActivity(),
         binding.searchMenu.upSearchResultList(results)
         binding.searchMenu.updateSearchResultIndex(index)
         isShowingSearchResult = true
+        inlineSearchActive = true
         confirmRestoreSearchProgress = null
         ReadBook.saveSearchOriginProgress()
         binding.readMenu.runMenuOut {
@@ -1607,11 +1643,19 @@ class ReadBookActivity : BaseReadBookActivity(),
     override fun exitSearchMenu() {
         if (isShowingSearchResult) {
             isShowingSearchResult = false
+            inlineSearchActive = false
             binding.searchMenu.invalidate()
             binding.searchMenu.invisible()
             ReadBook.clearSearchResult()
             binding.readView.cancelSelect(true)
         }
+    }
+
+    override fun returnFromInlineSearch(chapter: Int, position: Int) {
+        exitSearchMenu()
+        ReadBook.searchOriginProgress = null
+        confirmRestoreSearchProgress = false
+        ReadBook.openChapter(chapter, position)
     }
 
     // 恢复到打开全文搜索结果前的位置
@@ -2236,6 +2280,7 @@ class ReadBookActivity : BaseReadBookActivity(),
             }
         }
         observeEvent<Int>(EventBus.ALOUD_STATE) {
+            readMenu.refreshAloudPanel()
             if (it == Status.STOP || it == Status.PAUSE) {
                 ReadBook.curTextChapter?.let { textChapter ->
                     val page = textChapter.getPageByReadPos(ReadBook.durChapterPos)
@@ -2246,6 +2291,7 @@ class ReadBookActivity : BaseReadBookActivity(),
                 }
             }
         }
+        observeEvent<Int>(EventBus.READ_ALOUD_DS) { readMenu.refreshAloudPanel() }
         observeEventSticky<Int>(EventBus.TTS_PROGRESS) { chapterStart ->
             lifecycleScope.launch(IO) {
                 if (BaseReadAloudService.isPlay()) {

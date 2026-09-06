@@ -1094,6 +1094,10 @@ object AppConfig : SharedPreferences.OnSharedPreferenceChangeListener {
             appCtx.putPrefInt(PreferKey.chineseConverterType, value)
         }
 
+    var readAloudHighlight: Boolean
+        get() = appCtx.getPrefBoolean("readerAloudHighlight", true)
+        set(value) { appCtx.putPrefBoolean("readerAloudHighlight", value) }
+
     var systemTypefaces: Int
         get() = appCtx.getPrefInt(PreferKey.systemTypefaces)
         set(value) {

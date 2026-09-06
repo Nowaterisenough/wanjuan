@@ -256,6 +256,7 @@ data class TextPage(
      */
     fun upPageAloudSpan(aloudSpanStart: Int) {
         removePageAloudSpan()
+        if (!AppConfig.readAloudHighlight) return
         var lineStart = 0
         for (index in textLines.indices) {
             val textLine = textLines[index]

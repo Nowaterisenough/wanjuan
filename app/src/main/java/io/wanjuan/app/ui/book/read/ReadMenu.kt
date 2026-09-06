@@ -145,9 +145,12 @@ class ReadMenu @JvmOverloads constructor(
 ) : FrameLayout(context, attrs) {
     var canShowMenu: Boolean = false
     val isExpandedPanelVisible: Boolean
-        get() = binding.flExpandedPanel.isVisible
+        get() = workbench?.expanded == true || binding.layoutMarginAdjustOverlay.isVisible
+    val menuSurfaceColor: Int
+        get() = workbench?.surfaceColor ?: bgColor
     private val callBack: CallBack get() = activity as CallBack
     private val binding = ViewReadMenuBinding.inflate(LayoutInflater.from(context), this, true)
+    private var workbench: ReadMenuWorkbench? = null
     private var isMenuOutAnimating = false
     private enum class BottomTab {
         Search,
@@ -479,6 +482,43 @@ class ReadMenu @JvmOverloads constructor(
         initView()
         upBrightnessState()
         bindEvent()
+        workbench = ReadMenuWorkbench(context, callBack,
+            dismissMenu = { action -> runMenuOut(onMenuOutEnd = action) },
+            advanced = ::openWorkbenchAdvanced,
+            setBrightness = { setScreenBrightness(it.toFloat()) }
+        ).also {
+            binding.bottomMenu.addView(it, LayoutParams(-1, -2, Gravity.BOTTOM))
+        }
+        binding.bottomTabBar.gone()
+    }
+
+    fun showWorkbenchPage(page: ReadMenuWorkbench.Page) {
+        if (!isVisible) runMenuIn()
+        workbench?.show(page)
+    }
+
+    fun refreshAloudPanel() {
+        if (isVisible && workbench?.page == ReadMenuWorkbench.Page.ALOUD) workbench?.refresh()
+    }
+
+    fun refreshProgress() {
+        if (isVisible && workbench?.page in listOf(ReadMenuWorkbench.Page.MAIN, ReadMenuWorkbench.Page.PROGRESS)) workbench?.refresh()
+    }
+
+    private fun openWorkbenchAdvanced(action: ReadMenuWorkbench.Advanced) {
+        when (action) {
+            ReadMenuWorkbench.Advanced.FONT_IMPORT -> (activity as? ReadBookActivity)?.importReaderFonts()
+            ReadMenuWorkbench.Advanced.FONT -> openFontSelectDialog()
+            ReadMenuWorkbench.Advanced.BODY -> showLayoutMarginAdjustOverlay(LayoutMarginAdjustMode.Body)
+            ReadMenuWorkbench.Advanced.TITLE -> showLayoutMarginAdjustOverlay(LayoutMarginAdjustMode.Title)
+            ReadMenuWorkbench.Advanced.HEADER -> showLayoutMarginAdjustOverlay(LayoutMarginAdjustMode.Header)
+            ReadMenuWorkbench.Advanced.FOOTER -> showLayoutMarginAdjustOverlay(LayoutMarginAdjustMode.Footer)
+            ReadMenuWorkbench.Advanced.BACKGROUND -> activity?.showDialogFragment<io.wanjuan.app.ui.book.read.config.BgTextConfigDialog>()
+            ReadMenuWorkbench.Advanced.TEXT_COLOR -> binding.llLayoutTipColor.performClick()
+            ReadMenuWorkbench.Advanced.SETTINGS -> callBack.showMoreSetting()
+            ReadMenuWorkbench.Advanced.VOICE -> activity?.showDialogFragment<ReadAloudConfigDialog>()
+            ReadMenuWorkbench.Advanced.REPLACE -> callBack.openReplaceRule()
+        }
     }
 
     private fun initView() = binding.run {
@@ -488,7 +528,7 @@ class ReadMenu @JvmOverloads constructor(
         setupTocPanel()
         setupAloudPanel()
         setupTopBarLoginAction()
-        val topBarTextColor = textColor
+        val topBarTextColor = if (AppConfig.isEInkMode) Color.BLACK else Color.WHITE
         configureCompactReadToolbar()
         val additionTextColor = if (immersiveMenu) {
             ColorUtils.withAlpha(ColorUtils.lightenColor(topBarTextColor), 0.75f)
@@ -580,7 +620,7 @@ class ReadMenu @JvmOverloads constructor(
         /**
          * 确保视图不被导航栏遮挡
          */
-        applyNavigationBarPadding()
+        applyNavigationBarPadding(extraPaddingDp = 0)
     }
 
     private fun configureCompactReadToolbar() = binding.run {
@@ -608,6 +648,9 @@ class ReadMenu @JvmOverloads constructor(
     fun reset() {
         upColorConfig()
         initView()
+        binding.bottomTabBar.gone()
+        workbench?.refresh()
+        if (isVisible) callBack.upSystemUiVisibility()
     }
 
     fun refreshMenuColorFilter() {
@@ -643,6 +686,7 @@ class ReadMenu @JvmOverloads constructor(
         }
         updateBrightnessValue()
         setScreenBrightness(AppConfig.readBrightness.toFloat())
+        workbench?.refresh()
     }
 
     private fun updateBrightnessValue() = binding.run {
@@ -679,6 +723,8 @@ class ReadMenu @JvmOverloads constructor(
         switchBottomTabMode(BottomTabMode.Primary, animate = false)
         hideExpandedPanel(anim = false)
         bottomTabSelectionAnchor = null
+        binding.bottomTabBar.gone()
+        workbench?.beginSession()
         if (anim) {
             binding.titleBarShell.startAnimation(menuTopIn)
             binding.bottomMenu.startAnimation(menuBottomIn)
@@ -1556,6 +1602,20 @@ class ReadMenu @JvmOverloads constructor(
     }
 
     private fun showBottomPanel(tab: BottomTab) = binding.run {
+        workbench?.let {
+            it.show(when (tab) {
+                BottomTab.Search -> ReadMenuWorkbench.Page.SEARCH
+                BottomTab.Toc -> ReadMenuWorkbench.Page.TOC
+                BottomTab.Aloud -> ReadMenuWorkbench.Page.ALOUD
+                BottomTab.Settings -> ReadMenuWorkbench.Page.SETTINGS
+                BottomTab.Layout -> ReadMenuWorkbench.Page.LAYOUT
+                BottomTab.PageTurn -> ReadMenuWorkbench.Page.TURN
+                BottomTab.Background -> ReadMenuWorkbench.Page.BACKGROUND
+                BottomTab.Theme -> ReadMenuWorkbench.Page.THEME
+            })
+            bottomTabBar.gone()
+            return@run
+        }
         if (tab.usesPrimaryNavigation()) {
             if (bottomTabMode != BottomTabMode.Primary) {
                 switchBottomTabMode(BottomTabMode.Primary, animate = false)
@@ -1673,6 +1733,8 @@ class ReadMenu @JvmOverloads constructor(
 
     private fun handleBackgroundDismiss() {
         when {
+            binding.layoutMarginAdjustOverlay.isVisible -> hideLayoutMarginAdjustOverlay()
+            workbench?.expanded == true -> workbench?.goBack()
             binding.flExpandedPanel.isVisible -> hideExpandedPanel(returnToPrimary = true)
             else -> runMenuOut()
         }
@@ -3787,9 +3849,8 @@ class ReadMenu @JvmOverloads constructor(
     }
 
     fun persistActiveThemeSuiteChange() {
-        if (ReadMenuThemeSuiteStore.updateActiveFromCurrent(context)) {
-            updateThemePresetCards()
-        }
+        // Saved themes are snapshots. Editing the reader must not overwrite a preset.
+        workbench?.refresh()
     }
 
     private fun applyThemePreset(preset: ReadMenuThemePreset) {
@@ -4359,11 +4420,12 @@ class ReadMenu @JvmOverloads constructor(
     }
 
     private fun configureOptionButton(view: TextView, selected: Boolean) {
+        val accent = if (AppConfig.isEInkMode) Color.BLACK else Color.rgb(0, 110, 255)
         view.background = roundedRect(
-            if (selected) context.accentColor else ColorUtils.adjustAlpha(textColor, 0.06f),
+            if (selected) accent else ColorUtils.adjustAlpha(textColor, 0.06f),
             12f.dpToPx(),
             1.dpToPx(),
-            if (selected) context.accentColor else ColorUtils.adjustAlpha(textColor, 0.14f)
+            if (selected) accent else ColorUtils.adjustAlpha(textColor, 0.14f)
         )
         view.setTextColor(if (selected) Color.WHITE else textColor)
     }
@@ -5394,6 +5456,7 @@ class ReadMenu @JvmOverloads constructor(
     }
 
     fun upBookView() {
+        workbench?.refresh()
         binding.titleBar.title = null
         binding.titleBar.subtitle = null
         binding.tvChapterName.text = ReadBook.book?.name.orEmpty()
@@ -5415,6 +5478,7 @@ class ReadMenu @JvmOverloads constructor(
     }
 
     fun setAutoPage(autoPage: Boolean) = binding.run {
+        workbench?.setAutoRunning(autoPage)
         if (autoPage) {
             panelMoreAutoPage.text = context.getString(R.string.auto_next_page_stop)
             panelMoreAutoPage.contentDescription = context.getString(R.string.auto_next_page_stop)
@@ -5432,10 +5496,12 @@ class ReadMenu @JvmOverloads constructor(
 
     interface CallBack {
         fun autoPage()
+        fun updateAutoPageConfig(resetTimer: Boolean)
         fun openReplaceRule()
         fun openChapterList()
         fun openSearchActivity(searchWord: String?)
         fun openInlineSearchResult(searchResult: SearchResult, results: List<SearchResult>, index: Int)
+        fun returnFromInlineSearch(chapter: Int, position: Int)
         fun openSourceEditActivity()
         fun openBookInfoActivity()
         fun showMoreSetting()
@@ -5452,7 +5518,7 @@ class ReadMenu @JvmOverloads constructor(
         fun onReadMenuExpandedPanelVisibilityChanged(isVisible: Boolean)
     }
 
-    private class PageAnimPreviewDrawable(
+    internal class PageAnimPreviewDrawable(
         private val pageColor: Int,
         private val inkColor: Int,
         private val menuTextColor: Int,
