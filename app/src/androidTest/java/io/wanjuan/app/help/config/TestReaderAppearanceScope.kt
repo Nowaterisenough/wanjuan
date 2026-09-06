@@ -4,6 +4,9 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.wanjuan.app.data.appDb
 import io.wanjuan.app.data.entities.Book
 import io.wanjuan.app.model.ReadBook
+import io.wanjuan.app.ui.book.read.ReadMenuThemeSuite
+import io.wanjuan.app.utils.GSON
+import io.wanjuan.app.utils.fromJsonObject
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
@@ -91,5 +94,23 @@ class TestReaderAppearanceScope {
         assertEquals(19, ReadBookConfig.shareConfig.textSize)
         ReadBookConfig.useDefaultAppearance()
         assertEquals(19, ReadBookConfig.textSize)
+    }
+
+    @Test
+    fun malformedOverrideFallsBackAndPartialThemeLeavesUnselectedSectionsAlone() {
+        first.config.readerAppearance = "{broken"
+        assertFalse(ReadBookConfig.hasBookAppearance)
+        ReadBookConfig.useBookAppearance()
+        val current = ReadMenuThemeSuite.captureCurrent("partial")
+        val partial = current.copy(textSize = 35, bgValue = "#ABCDEF", includeTypography = true,
+            includeBackground = false, includeTurning = false)
+        partial.applyToReader()
+        assertEquals(35, ReadBookConfig.textSize)
+        assertEquals(current.bgValue, ReadBookConfig.durConfig.curBgStr())
+        assertTrue(partial.matchesCurrentTheme())
+        val legacyJson = GSON.toJson(current)
+        val legacy = GSON.fromJsonObject<ReadMenuThemeSuite>(legacyJson).getOrThrow()
+        legacy.applyToReader()
+        assertEquals(current.textSize, ReadBookConfig.textSize)
     }
 }

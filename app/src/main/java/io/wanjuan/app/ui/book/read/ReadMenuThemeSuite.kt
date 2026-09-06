@@ -54,7 +54,10 @@ data class ReadMenuThemeSuite(
     val bgSaturation: Int,
     val bgAlpha: Int,
     val paperInkStrength: Int,
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    val includeTypography: Boolean? = null,
+    val includeBackground: Boolean? = null,
+    val includeTurning: Boolean? = null
 ) {
 
     fun matchesCurrentTheme(): Boolean {
@@ -62,9 +65,12 @@ data class ReadMenuThemeSuite(
     }
 
     fun matches(other: ReadMenuThemeSuite): Boolean {
-        return textColor == other.textColor &&
+        return (includeBackground == false || (textColor == other.textColor &&
                 bgType == other.bgType &&
                 bgValue.equals(other.bgValue, ignoreCase = true) &&
+                bgBrightness == other.bgBrightness && bgSaturation == other.bgSaturation &&
+                bgAlpha == other.bgAlpha && paperInkStrength == other.paperInkStrength)) &&
+                (includeTypography == false || (
                 textSize == other.textSize &&
                 textWeight == other.textWeight &&
                 textBold == other.textBold &&
@@ -92,13 +98,10 @@ data class ReadMenuThemeSuite(
                 footerPaddingBottom == other.footerPaddingBottom &&
                 footerPaddingLeft == other.footerPaddingLeft &&
                 footerPaddingRight == other.footerPaddingRight &&
-                showFooterLine == other.showFooterLine &&
+                showFooterLine == other.showFooterLine)) &&
+                (includeTurning == false || (
                 pageAnim == other.pageAnim &&
-                pageAnimationSpeed == other.pageAnimationSpeed &&
-                bgBrightness == other.bgBrightness &&
-                bgSaturation == other.bgSaturation &&
-                bgAlpha == other.bgAlpha &&
-                paperInkStrength == other.paperInkStrength
+                pageAnimationSpeed == other.pageAnimationSpeed))
     }
 
     fun summaryText(context: Context): String {
@@ -111,44 +114,51 @@ data class ReadMenuThemeSuite(
     }
 
     fun applyToReader() {
-        ReadBookConfig.durConfig.setCurBg(bgType, bgValue)
-        ReadBookConfig.durConfig.setCurTextColor(textColor)
-        ReadBookConfig.textSize = textSize
-        ReadBookConfig.textWeight = textWeight
-        ReadBookConfig.textBold = textBold
-        ReadBookConfig.textFont = textFont.orEmpty()
-        ReadBookConfig.systemTypeface = systemTypeface
-        ReadBookConfig.letterSpacing = letterSpacing
-        ReadBookConfig.lineSpacingExtra = lineSpacingExtra
-        ReadBookConfig.paragraphSpacing = paragraphSpacing
-        ReadBookConfig.paddingTop = paddingTop
-        ReadBookConfig.paddingBottom = paddingBottom
-        ReadBookConfig.paddingLeft = paddingLeft
-        ReadBookConfig.paddingRight = paddingRight
-        ReadBookConfig.titleTopSpacing = titleTopSpacing
-        ReadBookConfig.titleBottomSpacing = titleBottomSpacing
-        ReadBookConfig.titleSize = titleSize
-        ReadBookConfig.titleMode = titleMode
-        ReadTipConfig.headerMode = headerMode
-        ReadBookConfig.headerPaddingTop = headerPaddingTop
-        ReadBookConfig.headerPaddingBottom = headerPaddingBottom
-        ReadBookConfig.headerPaddingLeft = headerPaddingLeft
-        ReadBookConfig.headerPaddingRight = headerPaddingRight
-        ReadBookConfig.showHeaderLine = showHeaderLine
-        ReadTipConfig.footerMode = footerMode
-        ReadBookConfig.footerPaddingTop = footerPaddingTop
-        ReadBookConfig.footerPaddingBottom = footerPaddingBottom
-        ReadBookConfig.footerPaddingLeft = footerPaddingLeft
-        ReadBookConfig.footerPaddingRight = footerPaddingRight
-        ReadBookConfig.showFooterLine = showFooterLine
-        ReadBookConfig.pageAnim = pageAnim
-        ReadBook.book?.setPageAnim(null)
-        ReadBook.saveRead()
-        ReadBookConfig.animationSpeed = pageAnimationSpeed
-        ReadBookConfig.bgBrightness = bgBrightness
-        ReadBookConfig.bgSaturation = bgSaturation
-        ReadBookConfig.bgAlpha = bgAlpha
-        ReadBookConfig.paperInkStrength = paperInkStrength
+        if (includeBackground != false) {
+            ReadBookConfig.durConfig.setCurBg(bgType, bgValue)
+            ReadBookConfig.durConfig.setCurTextColor(textColor)
+            ReadBookConfig.bgBrightness = bgBrightness
+            ReadBookConfig.bgSaturation = bgSaturation
+            ReadBookConfig.bgAlpha = bgAlpha
+            ReadBookConfig.paperInkStrength = paperInkStrength
+        }
+        if (includeTypography != false) {
+            ReadBookConfig.textSize = textSize
+            ReadBookConfig.textWeight = textWeight
+            ReadBookConfig.textBold = textBold
+            ReadBookConfig.textFont = textFont.orEmpty()
+            ReadBookConfig.systemTypeface = systemTypeface
+            ReadBookConfig.letterSpacing = letterSpacing
+            ReadBookConfig.lineSpacingExtra = lineSpacingExtra
+            ReadBookConfig.paragraphSpacing = paragraphSpacing
+            ReadBookConfig.paddingTop = paddingTop
+            ReadBookConfig.paddingBottom = paddingBottom
+            ReadBookConfig.paddingLeft = paddingLeft
+            ReadBookConfig.paddingRight = paddingRight
+            ReadBookConfig.titleTopSpacing = titleTopSpacing
+            ReadBookConfig.titleBottomSpacing = titleBottomSpacing
+            ReadBookConfig.titleSize = titleSize
+            ReadBookConfig.titleMode = titleMode
+            ReadTipConfig.headerMode = headerMode
+            ReadBookConfig.headerPaddingTop = headerPaddingTop
+            ReadBookConfig.headerPaddingBottom = headerPaddingBottom
+            ReadBookConfig.headerPaddingLeft = headerPaddingLeft
+            ReadBookConfig.headerPaddingRight = headerPaddingRight
+            ReadBookConfig.showHeaderLine = showHeaderLine
+            ReadTipConfig.footerMode = footerMode
+            ReadBookConfig.footerPaddingTop = footerPaddingTop
+            ReadBookConfig.footerPaddingBottom = footerPaddingBottom
+            ReadBookConfig.footerPaddingLeft = footerPaddingLeft
+            ReadBookConfig.footerPaddingRight = footerPaddingRight
+            ReadBookConfig.showFooterLine = showFooterLine
+        }
+        if (includeTurning != false) {
+            ReadBookConfig.pageAnim = pageAnim
+            ReadBook.book?.setPageAnim(null)
+            ReadBook.saveRead()
+            ReadBookConfig.animationSpeed = pageAnimationSpeed
+        }
+        ReadBookConfig.save()
     }
 
     private fun pageTurnLabelRes(): Int {
