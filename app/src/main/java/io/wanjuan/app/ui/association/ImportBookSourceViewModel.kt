@@ -3,7 +3,6 @@ package io.wanjuan.app.ui.association
 import android.app.Application
 import android.net.Uri
 import androidx.lifecycle.MutableLiveData
-import com.jayway.jsonpath.JsonPath
 import io.wanjuan.app.R
 import io.wanjuan.app.base.BaseViewModel
 import io.wanjuan.app.constant.AppConst
@@ -16,17 +15,13 @@ import io.wanjuan.app.exception.NoStackTraceException
 import io.wanjuan.app.help.book.ContentProcessor
 import io.wanjuan.app.help.config.AppConfig
 import io.wanjuan.app.help.http.decompressed
-import io.wanjuan.app.help.http.newCallResponseBody
+import io.wanjuan.app.help.http.newCallResponse
 import io.wanjuan.app.help.http.okHttpClient
+import io.wanjuan.app.help.source.BookSourceImportParser
 import io.wanjuan.app.help.source.SourceHelp
 import io.wanjuan.app.model.RuleUpdate
-import io.wanjuan.app.utils.GSON
-import io.wanjuan.app.utils.fromJsonArray
-import io.wanjuan.app.utils.fromJsonObject
 import io.wanjuan.app.utils.inputStream
 import io.wanjuan.app.utils.isAbsUrl
-import io.wanjuan.app.utils.isJsonArray
-import io.wanjuan.app.utils.isJsonObject
 import io.wanjuan.app.utils.isUri
 import io.wanjuan.app.utils.splitNotBlank
 
@@ -131,54 +126,23 @@ class ImportBookSourceViewModel(app: Application) : BaseViewModel(app) {
 
     fun importSource(text: String) {
         execute {
-            val mText = text.trim()
-            when {
-                mText.isJsonObject() -> {
-                    kotlin.runCatching {
-                        val json = JsonPath.parse(mText)
-                        json.read<List<String>>("$.sourceUrls")
-                    }.onSuccess { listUrl ->
-                        listUrl.forEach {
-                            importSourceUrl(it)
-                        }
-                    }.onFailure {
-                        GSON.fromJsonObject<BookSource>(mText).getOrThrow().let {
-                            if (it.bookSourceUrl.isEmpty()) {
-                                throw NoStackTraceException("不是书源")
-                            }
-                            allSources.add(it)
-                        }
-                    }
-                }
-
-                mText.isJsonArray() -> GSON.fromJsonArray<BookSource>(mText).getOrThrow()
-                    .let { items ->
-                        val source = items.firstOrNull() ?: return@let
-                        if (source.bookSourceUrl.isEmpty()) {
-                            throw NoStackTraceException("不是书源")
-                        }
-                        allSources.addAll(items)
-                    }
-
-                mText.isAbsUrl() -> {
-                    importSourceUrl(mText)
-                }
-
+            val mText = text.trim { it.isWhitespace() || it == '\uFEFF' }
+            val sources = when {
+                mText.isAbsUrl() -> importSourceUrl(mText, emptySet())
                 mText.isUri() -> {
                     val uri = Uri.parse(mText)
                     uri.inputStream(context).getOrThrow().use { inputS ->
-                        GSON.fromJsonArray<BookSource>(inputS).getOrThrow().let {
-                            val source = it.firstOrNull() ?: return@let
-                            if (source.bookSourceUrl.isEmpty()) {
-                                throw NoStackTraceException("不是书源")
-                            }
-                            allSources.addAll(it)
-                        }
+                        importContent(BookSourceImportParser.parse(inputS.reader(Charsets.UTF_8)))
                     }
                 }
-
-                else -> throw NoStackTraceException(context.getString(R.string.wrong_format))
+                else -> importContent(BookSourceImportParser.parse(mText))
             }
+            if (sources.isEmpty()) {
+                throw NoStackTraceException(context.getString(R.string.wrong_format))
+            }
+            // Publish only after all files and linked sources have been validated.
+            allSources.clear()
+            allSources.addAll(sources)
         }.onError {
             errorLiveData.postValue("ImportError:${it.localizedMessage}")
             AppLog.put("ImportError:${it.localizedMessage}", it)
@@ -187,32 +151,46 @@ class ImportBookSourceViewModel(app: Application) : BaseViewModel(app) {
         }
     }
 
-    private suspend fun importSourceUrl(url: String) {
-        RuleUpdate.cacheBookSourceMap[url]?.also {
-            allSources.addAll(it)
-            RuleUpdate.cacheBookSourceMap.remove(url)
-            return
+    private suspend fun importContent(
+        content: BookSourceImportParser.Content,
+        visitedUrls: Set<String> = emptySet()
+    ): List<BookSource> {
+        val sources = content.sources.toMutableList()
+        content.sourceUrls.forEach { sources.addAll(importSourceUrl(it, visitedUrls)) }
+        return sources
+    }
+
+    private suspend fun importSourceUrl(url: String, visitedUrls: Set<String>): List<BookSource> {
+        if (url in visitedUrls || visitedUrls.size >= 8) {
+            throw NoStackTraceException("书源链接存在循环引用或嵌套层数过多")
         }
-        okHttpClient.newCallResponseBody {
+        RuleUpdate.cacheBookSourceMap[url]?.also {
+            RuleUpdate.cacheBookSourceMap.remove(url)
+            return it
+        }
+        return okHttpClient.newCallResponse {
             if (url.endsWith("#requestWithoutUA")) {
                 url(url.substringBeforeLast("#requestWithoutUA"))
                 header(AppConst.UA_NAME, "null")
             } else {
                 url(url)
             }
-        }.decompressed().byteStream().use {
-            GSON.fromJsonArray<BookSource>(it).getOrThrow().let { list ->
-                val source = list.firstOrNull() ?: return@let
-                if (source.bookSourceUrl.isEmpty()) {
-                    throw NoStackTraceException("不是书源")
-                }
-                allSources.addAll(list)
+        }.use { response ->
+            if (!response.isSuccessful) {
+                throw NoStackTraceException("书源下载失败：HTTP ${response.code}，请检查链接或稍后重试")
+            }
+            response.body.decompressed().use { body ->
+                importContent(BookSourceImportParser.parse(body.charStream()), visitedUrls + url)
             }
         }
     }
 
     private fun comparisonSource() {
         execute {
+            checkSources.clear()
+            selectStatus.clear()
+            newSourceStatus.clear()
+            updateSourceStatus.clear()
             allSources.forEach {
                 val source = appDb.bookSourceDao.getBookSourcePart(it.bookSourceUrl)
                 checkSources.add(source)

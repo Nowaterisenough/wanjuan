@@ -80,6 +80,7 @@ class ImportBookSourceDialog() : BaseDialogFragment(R.layout.dialog_recycler_vie
             dismissAllowingStateLoss()
         }
         binding.tvOk.visible()
+        binding.tvOk.isEnabled = false
         binding.tvOk.setOnClickListener {
             val waitDialog = WaitDialog(requireContext())
             waitDialog.show()
@@ -100,6 +101,7 @@ class ImportBookSourceDialog() : BaseDialogFragment(R.layout.dialog_recycler_vie
             upSelectText()
         }
         viewModel.errorLiveData.observe(this) {
+            binding.tvOk.isEnabled = false
             binding.rotateLoading.gone()
             binding.tvMsg.apply {
                 text = it
@@ -109,6 +111,7 @@ class ImportBookSourceDialog() : BaseDialogFragment(R.layout.dialog_recycler_vie
         viewModel.successLiveData.observe(this) {
             binding.rotateLoading.gone()
             if (it > 0) {
+                binding.tvOk.isEnabled = true
                 adapter.setItems(viewModel.allSources)
                 upSelectText()
             } else {
