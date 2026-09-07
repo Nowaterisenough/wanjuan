@@ -61,7 +61,7 @@ import io.wanjuan.app.ui.book.manga.recyclerview.ScrollTimer
 import io.wanjuan.app.ui.book.read.config.ReaderSheetStyle
 import io.wanjuan.app.ui.book.read.MangaMenu
 import io.wanjuan.app.ui.book.read.ReadBookActivity.Companion.RESULT_DELETED
-import io.wanjuan.app.ui.book.read.setMinimapChapterNavigationClickListener
+import io.wanjuan.app.ui.book.read.applyMinimapChapterNavigationStyle
 import io.wanjuan.app.ui.browser.WebViewActivity
 import io.wanjuan.app.ui.widget.number.NumberPickerDialog
 import io.wanjuan.app.ui.widget.recycler.LoadMoreView
@@ -439,15 +439,15 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
         binding.mangaProgressMinimap.onProgressChanging = ::previewMangaProgressMinimap
         binding.mangaProgressMinimap.onProgressChanged = ::commitMangaProgressMinimap
         binding.mangaProgressMinimap.onThumbnailReady = ::reloadMangaProgressPageIfCurrent
-        binding.btnMangaMinimapPrevious.setMinimapChapterNavigationClickListener(binding.tvMangaMinimapPrevious) {
+        binding.btnMangaMinimapPrevious.setOnClickListener {
             clearCommittedMangaProgressMinimapRatio()
             ReadManga.moveToPrevChapter(true)
         }
-        binding.btnMangaMinimapCurrent.setMinimapChapterNavigationClickListener(binding.tvMangaMinimapCurrent) {
+        binding.btnMangaMinimapCurrent.setOnClickListener {
             clearCommittedMangaProgressMinimapRatio()
             openMangaCatalog()
         }
-        binding.btnMangaMinimapNext.setMinimapChapterNavigationClickListener(binding.tvMangaMinimapNext) {
+        binding.btnMangaMinimapNext.setOnClickListener {
             clearCommittedMangaProgressMinimapRatio()
             ReadManga.moveToNextChapter(true)
         }
@@ -456,14 +456,9 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
     private fun setupMangaMinimapAppearance() = binding.run {
         val colors = ReaderSheetStyle.resolve(this@ReadMangaActivity)
         mangaProgressMinimap.refreshPalette()
-        listOf(btnMangaMinimapPrevious, btnMangaMinimapCurrent, btnMangaMinimapNext).forEach { button ->
-            button.clipToOutline = false
-            button.background = ReaderSheetStyle.blockDrawable(colors.surface, colors.stroke)
-            button.elevation = 2f.dpToPx()
-        }
-        tvMangaMinimapPrevious.setTextColor(colors.textColor)
-        tvMangaMinimapNext.setTextColor(colors.textColor)
-        tvMangaMinimapCurrent.setTextColor(colors.textColor)
+        btnMangaMinimapPrevious.applyMinimapChapterNavigationStyle(tvMangaMinimapPrevious)
+        btnMangaMinimapCurrent.applyMinimapChapterNavigationStyle(tvMangaMinimapCurrent)
+        btnMangaMinimapNext.applyMinimapChapterNavigationStyle(tvMangaMinimapNext)
         tvMangaMinimapPosition.setTextColor(colors.secondaryTextColor)
         btnMangaMinimapPrevious.isEnabled = ReadManga.durChapterIndex > 0
         btnMangaMinimapNext.isEnabled = ReadManga.durChapterIndex < ReadManga.chapterSize - 1

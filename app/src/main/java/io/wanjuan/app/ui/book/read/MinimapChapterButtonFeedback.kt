@@ -1,106 +1,35 @@
 package io.wanjuan.app.ui.book.read
 
-import android.annotation.SuppressLint
-import android.graphics.drawable.GradientDrawable
-import android.view.MotionEvent
-import android.view.View
+import android.content.res.ColorStateList
+import android.graphics.drawable.StateListDrawable
 import android.view.ViewGroup
-import android.view.animation.DecelerateInterpolator
-import android.widget.FrameLayout
 import android.widget.TextView
+import androidx.core.graphics.ColorUtils
+import io.wanjuan.app.ui.book.ProgressMinimapStyle
 import io.wanjuan.app.ui.book.read.config.ReaderSheetStyle
-import io.wanjuan.app.ui.book.read.config.ReaderUiStyle
 
-const val MINIMAP_CHAPTER_BUTTON_PRESSED_SCALE = 1.08f
+fun ViewGroup.applyMinimapChapterNavigationStyle(label: TextView) {
+    val colors = ReaderSheetStyle.resolve(context)
+    val disabled = intArrayOf(-android.R.attr.state_enabled)
+    val pressed = intArrayOf(android.R.attr.state_pressed)
+    val focused = intArrayOf(android.R.attr.state_focused)
+    val normal = intArrayOf()
+    fun surface(active: Boolean) = ProgressMinimapStyle.surfaceDrawable(
+        if (active) ColorUtils.blendARGB(colors.surface, colors.accentColor, .16f) else colors.surface,
+        if (active) colors.accentColor else colors.stroke
+    )
 
-private const val MINIMAP_CHAPTER_BUTTON_FEEDBACK_OVERLAY_TAG = "minimap_chapter_button_feedback_overlay"
-private const val MINIMAP_CHAPTER_BUTTON_RELEASE_DURATION = 120L
-private const val MINIMAP_CHAPTER_BUTTON_OVERLAY_MAX_ALPHA = 0.58f
-
-@SuppressLint("ClickableViewAccessibility")
-fun ViewGroup.setMinimapChapterNavigationClickListener(label: TextView, action: () -> Unit) {
-    setOnTouchListener { _, event ->
-        when (event.actionMasked) {
-            MotionEvent.ACTION_DOWN -> applyMinimapChapterButtonPressedFeedback(label)
-            MotionEvent.ACTION_UP,
-            MotionEvent.ACTION_CANCEL -> clearMinimapChapterButtonPressedFeedback(label)
-        }
-        false
+    // Native pressed state handles dragging out, cancellation and disabled buttons without scaling.
+    background = StateListDrawable().apply {
+        addState(disabled, surface(false))
+        addState(pressed, surface(true))
+        addState(focused, surface(true))
+        addState(normal, surface(false))
     }
-    setOnClickListener {
-        action()
-    }
-}
-
-private fun ViewGroup.applyMinimapChapterButtonPressedFeedback(label: TextView) {
-    animate().cancel()
-
-    val overlay = ensureMinimapChapterButtonFeedbackOverlay(label)
-    overlay.animate().cancel()
-
-    pivotX = width / 2f
-    pivotY = height / 2f
-    scaleX = MINIMAP_CHAPTER_BUTTON_PRESSED_SCALE
-    scaleY = MINIMAP_CHAPTER_BUTTON_PRESSED_SCALE
-    overlay.alpha = MINIMAP_CHAPTER_BUTTON_OVERLAY_MAX_ALPHA
-}
-
-private fun ViewGroup.clearMinimapChapterButtonPressedFeedback(@Suppress("UNUSED_PARAMETER") label: TextView) {
-    val overlay = findMinimapChapterButtonFeedbackOverlay()
-
-    animate().cancel()
-    overlay?.animate()?.cancel()
-
-    animate()
-        .scaleX(1f)
-        .scaleY(1f)
-        .setDuration(MINIMAP_CHAPTER_BUTTON_RELEASE_DURATION)
-        .setInterpolator(DecelerateInterpolator())
-        .start()
-
-    overlay
-        ?.animate()
-        ?.alpha(0f)
-        ?.setDuration(MINIMAP_CHAPTER_BUTTON_RELEASE_DURATION)
-        ?.setInterpolator(DecelerateInterpolator())
-        ?.start()
-}
-
-private fun ViewGroup.ensureMinimapChapterButtonFeedbackOverlay(label: TextView): View {
-    val existing = findMinimapChapterButtonFeedbackOverlay()
-    if (existing != null) {
-        existing.background = minimapChapterButtonFeedbackBackground()
-        return existing
-    }
-    return View(context).apply {
-        tag = MINIMAP_CHAPTER_BUTTON_FEEDBACK_OVERLAY_TAG
-        alpha = 0f
-        isClickable = false
-        isFocusable = false
-        background = minimapChapterButtonFeedbackBackground()
-        val insertIndex = indexOfChild(label).takeIf { it >= 0 } ?: childCount
-        val params = FrameLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.MATCH_PARENT
-        )
-        addView(this, insertIndex, params)
-    }
-}
-
-private fun ViewGroup.findMinimapChapterButtonFeedbackOverlay(): View? {
-    for (index in 0 until childCount) {
-        val child = getChildAt(index)
-        if (child.tag == MINIMAP_CHAPTER_BUTTON_FEEDBACK_OVERLAY_TAG) {
-            return child
-        }
-    }
-    return null
-}
-
-private fun View.minimapChapterButtonFeedbackBackground(): GradientDrawable {
-    return GradientDrawable().apply {
-        shape = GradientDrawable.RECTANGLE
-        cornerRadius = ReaderUiStyle.dp(context, ReaderUiStyle.RADIUS_CONTROL).toFloat()
-        setColor(ReaderSheetStyle.resolve(context).accentColor)
-    }
+    elevation = 0f
+    label.isDuplicateParentStateEnabled = true
+    label.setTextColor(ColorStateList(
+        arrayOf(disabled, pressed, focused, normal),
+        intArrayOf(colors.secondaryTextColor, colors.accentTextColor, colors.accentTextColor, colors.textColor)
+    ))
 }

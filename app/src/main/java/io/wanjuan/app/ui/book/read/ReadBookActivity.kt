@@ -1209,13 +1209,13 @@ class ReadBookActivity : BaseReadBookActivity(),
     private fun bindChapterProgressMinimap() {
         binding.chapterProgressMinimap.onProgressChanging = ::previewChapterProgressMinimap
         binding.chapterProgressMinimap.onProgressChanged = ::commitChapterProgressMinimap
-        binding.btnChapterMinimapPrevious.setMinimapChapterNavigationClickListener(binding.tvChapterMinimapPrevious) {
+        binding.btnChapterMinimapPrevious.setOnClickListener {
             ReadBook.moveToPrevChapter(upContent = true, toLast = false)
         }
-        binding.btnChapterMinimapCurrent.setMinimapChapterNavigationClickListener(binding.tvChapterMinimapCurrent) {
+        binding.btnChapterMinimapCurrent.setOnClickListener {
             binding.readMenu.showCurrentChapterList()
         }
-        binding.btnChapterMinimapNext.setMinimapChapterNavigationClickListener(binding.tvChapterMinimapNext) {
+        binding.btnChapterMinimapNext.setOnClickListener {
             ReadBook.moveToNextChapter(true)
         }
     }
@@ -1223,16 +1223,9 @@ class ReadBookActivity : BaseReadBookActivity(),
     private fun setupChapterMinimapAppearance() = binding.run {
         val colors = io.wanjuan.app.ui.book.read.config.ReaderSheetStyle.resolve(this@ReadBookActivity)
         chapterProgressMinimap.refreshPalette()
-        listOf(btnChapterMinimapPrevious, btnChapterMinimapCurrent, btnChapterMinimapNext).forEach { button ->
-            button.clipToOutline = false
-            button.background = io.wanjuan.app.ui.book.read.config.ReaderSheetStyle.blockDrawable(
-                colors.surface, colors.stroke
-            )
-            button.elevation = 2f.dpToPx()
-        }
-        tvChapterMinimapPrevious.setTextColor(colors.textColor)
-        tvChapterMinimapCurrent.setTextColor(colors.textColor)
-        tvChapterMinimapNext.setTextColor(colors.textColor)
+        btnChapterMinimapPrevious.applyMinimapChapterNavigationStyle(tvChapterMinimapPrevious)
+        btnChapterMinimapCurrent.applyMinimapChapterNavigationStyle(tvChapterMinimapCurrent)
+        btnChapterMinimapNext.applyMinimapChapterNavigationStyle(tvChapterMinimapNext)
         tvChapterMinimapPosition.setTextColor(colors.secondaryTextColor)
         val pages = ReadBook.curTextChapter?.pageSize ?: 0
         tvChapterMinimapPosition.text = "${ReadBook.durPageIndex + 1} / $pages"

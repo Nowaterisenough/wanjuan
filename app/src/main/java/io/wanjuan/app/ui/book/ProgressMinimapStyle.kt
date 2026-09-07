@@ -4,12 +4,23 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.RectF
+import android.graphics.drawable.GradientDrawable
 import androidx.core.graphics.ColorUtils
 import io.wanjuan.app.ui.book.read.config.ReaderSheetStyle
 import io.wanjuan.app.utils.dpToPx
 
 /** Shared chrome for text and image chapter previews; each view owns its progress mapping. */
 class ProgressMinimapStyle(private val context: Context) {
+    companion object {
+        private val surfaceRadius = 8f.dpToPx()
+
+        fun surfaceDrawable(fillColor: Int, strokeColor: Int) = GradientDrawable().apply {
+            cornerRadius = surfaceRadius
+            setColor(fillColor)
+            setStroke(1.dpToPx(), strokeColor)
+        }
+    }
+
     var palette = ReaderSheetStyle.resolve(context)
         private set
     val horizontalInset = 9f.dpToPx()
@@ -24,8 +35,8 @@ class ProgressMinimapStyle(private val context: Context) {
         fill.color = palette.surface
         outline.color = palette.stroke
         outline.strokeWidth = 1f.dpToPx()
-        canvas.drawRoundRect(bounds, 8f.dpToPx(), 8f.dpToPx(), fill)
-        canvas.drawRoundRect(bounds, 8f.dpToPx(), 8f.dpToPx(), outline)
+        canvas.drawRoundRect(bounds, surfaceRadius, surfaceRadius, fill)
+        canvas.drawRoundRect(bounds, surfaceRadius, surfaceRadius, outline)
     }
 
     fun drawThumb(canvas: Canvas, bounds: RectF, pressed: Boolean) {

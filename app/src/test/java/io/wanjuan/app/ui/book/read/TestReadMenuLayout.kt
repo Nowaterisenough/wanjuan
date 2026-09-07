@@ -1491,9 +1491,9 @@ class TestReadMenuLayout {
             .substringBefore("private fun syncMangaProgressAfterScroll")
         val touchBody = mangaActivity.substringAfter("setOnTouchListener { _, event ->")
             .substringBefore("false")
-        val previousChapterClickBody = bindBody.substringAfter("binding.btnMangaMinimapPrevious.setMinimapChapterNavigationClickListener")
-            .substringBefore("binding.btnMangaMinimapNext.setMinimapChapterNavigationClickListener")
-        val nextChapterClickBody = bindBody.substringAfter("binding.btnMangaMinimapNext.setMinimapChapterNavigationClickListener")
+        val previousChapterClickBody = bindBody.substringAfter("binding.btnMangaMinimapPrevious.setOnClickListener")
+            .substringBefore("binding.btnMangaMinimapNext.setOnClickListener")
+        val nextChapterClickBody = bindBody.substringAfter("binding.btnMangaMinimapNext.setOnClickListener")
             .substringBefore("private fun")
 
         assertFalse(mangaActivity.contains("private data class MangaProgressMinimapDragScrollRange"))
@@ -1652,66 +1652,6 @@ class TestReadMenuLayout {
         val minimapButtons = repoFile("app/src/main/java/io/wanjuan/app/ui/book/read/ReaderBottomGlassStyle.kt").readText()
 
         listOf(readMenu, mangaMenu, minimapButtons).forEach(::assertDarkReaderGlassRecipe)
-    }
-
-    @Test
-    fun minimapChapterButtonsUsePressedBackgroundFeedbackWithoutClippingScale() {
-        val readLayout = readActivityLayout()
-        val mangaLayout = mangaActivityLayout()
-        val feedback = repoFile("app/src/main/java/io/wanjuan/app/ui/book/read/MinimapChapterButtonFeedback.kt").readText()
-        val readActivity = repoFile("app/src/main/java/io/wanjuan/app/ui/book/read/ReadBookActivity.kt").readText()
-        val mangaActivity = repoFile("app/src/main/java/io/wanjuan/app/ui/book/manga/ReadMangaActivity.kt").readText()
-
-        listOf(
-            readLayout.elementById("chapter_progress_minimap_panel"),
-            readLayout.elementById("chapter_progress_minimap_controls"),
-            mangaLayout.elementById("manga_progress_minimap_panel"),
-            mangaLayout.elementById("manga_progress_minimap_controls")
-        ).forEach { container ->
-            assertEquals("false", container.androidAttr("clipChildren"))
-            assertEquals("false", container.androidAttr("clipToPadding"))
-        }
-
-        listOf(
-            readLayout.elementById("btn_chapter_minimap_previous"),
-            readLayout.elementById("btn_chapter_minimap_next"),
-            mangaLayout.elementById("btn_manga_minimap_previous"),
-            mangaLayout.elementById("btn_manga_minimap_current"),
-            mangaLayout.elementById("btn_manga_minimap_next")
-        ).forEach { button ->
-            assertEquals("false", button.androidAttr("clipChildren"))
-            assertEquals("false", button.androidAttr("clipToPadding"))
-            assertEquals("false", button.androidAttr("clipToOutline"))
-        }
-
-        assertFalse(readActivity.contains("button.clipToOutline = true"))
-        assertFalse(mangaActivity.contains("button.clipToOutline = true"))
-        assertTrue(readActivity.contains("button.clipToOutline = false"))
-        assertTrue(mangaActivity.contains("button.clipToOutline = false"))
-        assertTrue(feedback.contains("const val MINIMAP_CHAPTER_BUTTON_PRESSED_SCALE = 1.08f"))
-        assertTrue(feedback.contains("fun ViewGroup.setMinimapChapterNavigationClickListener"))
-        assertTrue(feedback.contains("setOnTouchListener"))
-        assertTrue(feedback.contains("MotionEvent.ACTION_DOWN"))
-        assertTrue(feedback.contains("MotionEvent.ACTION_UP"))
-        assertTrue(feedback.contains("MotionEvent.ACTION_CANCEL"))
-        assertTrue(feedback.contains("applyMinimapChapterButtonPressedFeedback(label)"))
-        assertTrue(feedback.contains("clearMinimapChapterButtonPressedFeedback(label)"))
-        assertTrue(feedback.contains("ReaderSheetStyle.resolve(context).accentColor"))
-        assertTrue(feedback.contains("scaleX = MINIMAP_CHAPTER_BUTTON_PRESSED_SCALE"))
-        assertTrue(feedback.contains("scaleY = MINIMAP_CHAPTER_BUTTON_PRESSED_SCALE"))
-        assertTrue(feedback.contains("overlay.alpha = MINIMAP_CHAPTER_BUTTON_OVERLAY_MAX_ALPHA"))
-        assertTrue(feedback.contains("addView(this, insertIndex, params)"))
-        assertFalse(feedback.contains("label.setTextColor(context.accentColor)"))
-        assertFalse(feedback.contains("androidx.core.graphics.ColorUtils.blendARGB"))
-        assertTrue(
-            feedback.indexOf("val insertIndex = indexOfChild(label).takeIf { it >= 0 } ?: childCount") <
-                feedback.indexOf("addView(this, insertIndex, params)")
-        )
-
-        assertTrue(readActivity.contains("binding.btnChapterMinimapPrevious.setMinimapChapterNavigationClickListener(binding.tvChapterMinimapPrevious)"))
-        assertTrue(readActivity.contains("binding.btnChapterMinimapNext.setMinimapChapterNavigationClickListener(binding.tvChapterMinimapNext)"))
-        assertTrue(mangaActivity.contains("binding.btnMangaMinimapPrevious.setMinimapChapterNavigationClickListener(binding.tvMangaMinimapPrevious)"))
-        assertTrue(mangaActivity.contains("binding.btnMangaMinimapNext.setMinimapChapterNavigationClickListener(binding.tvMangaMinimapNext)"))
     }
 
     @Test
