@@ -3132,8 +3132,25 @@ class ReadMenu @JvmOverloads constructor(
             LayoutMarginAdjustMode.Text -> measureLayoutAdjustChildHeight(layoutTextStyleControls)
                 .coerceAtLeast(1.dpToPx())
 
-            LayoutMarginAdjustMode.Body -> 300.dpToPx()
-            LayoutMarginAdjustMode.Title -> 352.dpToPx()
+            LayoutMarginAdjustMode.Body -> {
+                val controlHeight = maxOf(
+                    measureLayoutAdjustChildHeight(layoutMarginSpinboxTop),
+                    measureLayoutAdjustChildHeight(layoutMarginSpinboxBottom)
+                )
+                // The centered preview needs equal room above and below for the controls.
+                (layoutMarginAdjustPreview.layoutParams.height + 2 * (controlHeight + 8.dpToPx()))
+                    .coerceAtLeast(300.dpToPx())
+            }
+            LayoutMarginAdjustMode.Title -> {
+                val controlHeight = maxOf(
+                    measureLayoutAdjustChildHeight(layoutMarginSpinboxTop),
+                    measureLayoutAdjustChildHeight(layoutMarginSpinboxBottom)
+                )
+                (controlHeight + layoutMarginAdjustPreview.layoutParams.height +
+                        measureLayoutAdjustChildHeight(layoutMarginTitleSize) +
+                        measureLayoutAdjustChildHeight(llLayoutMarginTitleMode) + 26.dpToPx())
+                    .coerceAtLeast(352.dpToPx())
+            }
             LayoutMarginAdjustMode.Header,
             LayoutMarginAdjustMode.Footer -> {
                 val tipTopMargin = (layoutTipControls.layoutParams as? ViewGroup.MarginLayoutParams)

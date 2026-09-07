@@ -163,6 +163,17 @@ class BgTextConfigDialog : BaseDialogFragment(R.layout.dialog_read_bg_text) {
         } else {
             val textStyles = arrayOf("关闭", "实线", "虚线")
             val adapter = object : ArrayAdapter<String>(requireContext(), R.layout.item_text_common, textStyles) {
+                override fun getView(position: Int, convertView: View?, parent: ViewGroup): View =
+                    super.getView(position, convertView, parent).apply {
+                        if (this is android.widget.TextView) {
+                            setTextColor(primaryTextColor)
+                            minHeight = ReaderUiStyle.dp(context, ReaderUiStyle.CONTROL_NORMAL)
+                            val inset = ReaderUiStyle.dp(context, ReaderUiStyle.GAP)
+                            setPadding(inset, 0, inset, 0)
+                            ReaderUiStyle.disclosure(this, dropdown = true)
+                        }
+                    }
+
                 override fun getDropDownView(
                     position: Int,
                     convertView: View?,
@@ -177,6 +188,8 @@ class BgTextConfigDialog : BaseDialogFragment(R.layout.dialog_read_bg_text) {
                 }
             }
             adapter.setDropDownViewResource(R.layout.item_spinner_dropdown)
+            spUnderline.background = ReaderUiStyle.rounded(requireContext(), palette.panelStrong)
+            spUnderline.setPadding(0, 0, 0, 0)
             spUnderline.adapter = adapter
             spUnderline.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
                 var isInitializing = true

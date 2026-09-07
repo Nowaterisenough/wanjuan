@@ -12,6 +12,7 @@ import androidx.fragment.app.DialogFragment
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentManager
 import androidx.preference.PreferenceGroupAdapter
+import androidx.preference.ListPreference
 import androidx.preference.PreferenceScreen
 import androidx.preference.PreferenceViewHolder
 import androidx.recyclerview.widget.RecyclerView
@@ -85,6 +86,7 @@ abstract class ReaderPreferenceFragment : PreferenceFragment() {
                     minHeight = dp(ReaderUiStyle.CONTROL_COMPACT)
                     maxWidth = dp(160)
                     background = ReaderUiStyle.rounded(context, colors.panelStrong)
+                    if (getItem(position) is ListPreference) ReaderUiStyle.disclosure(this, dropdown = true)
                 }
                 (holder.findViewById(R.id.preference_widget)?.layoutParams as? ViewGroup.MarginLayoutParams)?.apply {
                     topMargin = 0

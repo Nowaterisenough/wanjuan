@@ -17,6 +17,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.SeekBar
 import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.content.res.AppCompatResources
 import androidx.appcompat.widget.SwitchCompat
 import io.wanjuan.app.R
 import io.wanjuan.app.help.config.AppConfig
@@ -64,6 +65,17 @@ object ReaderUiStyle {
             minimumWidth = dp(context, CONTROL_NORMAL)
             minimumHeight = dp(context, CONTROL_NORMAL)
         }
+
+    fun disclosure(view: TextView, dropdown: Boolean = false) {
+        val resource = if (dropdown) R.drawable.ic_lucide_chevron_down else R.drawable.ic_lucide_chevron_right
+        val arrow = AppCompatResources.getDrawable(view.context, resource)?.mutate()?.apply {
+            setTint(view.currentTextColor)
+            val size = dp(view.context, ICON_LARGE)
+            setBounds(0, 0, size, size)
+        }
+        view.setCompoundDrawablesRelative(null, null, arrow, null)
+        view.compoundDrawablePadding = dp(view.context, 4)
+    }
 
     fun tintSwitch(view: SwitchCompat) {
         val colors = ReaderSheetStyle.resolve(view.context)

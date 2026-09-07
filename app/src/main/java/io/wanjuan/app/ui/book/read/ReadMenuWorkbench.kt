@@ -248,6 +248,15 @@ class ReadMenuWorkbench(
         includeFontPadding = false
         gravity = Gravity.CENTER_VERTICAL
     }
+    private fun disclosureText(value: String, size: Int = Ui.TEXT_BODY, color: Int = palette.secondary, dropdown: Boolean = false) =
+        text(value, size, color).apply {
+            Ui.disclosure(this, dropdown)
+            minWidth = dp(Ui.CONTROL_NORMAL)
+            minHeight = dp(Ui.CONTROL_NORMAL)
+            maxLines = 1
+            ellipsize = TextUtils.TruncateAt.END
+            isFocusable = true
+        }
     private fun column() = LinearLayout(context).apply { orientation = VERTICAL }
     private fun row() = LinearLayout(context).apply { orientation = HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
     private fun rounded(fill: Int, radius: Int = Ui.RADIUS_CONTROL, border: Int = Color.TRANSPARENT) = GradientDrawable().apply {
@@ -274,7 +283,7 @@ class ReadMenuWorkbench(
         val line = row().apply { minimumHeight = dp(Ui.CONTROL_NORMAL); setOnClickListener { onClick() }; isFocusable = true }
         line.addView(text(title), LayoutParams(0, -2, 1f))
         line.addView(text(summary, Ui.TEXT_CAPTION, palette.secondary).apply { maxLines = 1; maxWidth = dp(145) })
-        line.addView(icon(R.drawable.ic_lucide_chevron_left, "", size = Ui.ICON_SMALL).apply { rotation = 180f; importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO }, LayoutParams(dp(Ui.ICON_LARGE), dp(Ui.CONTROL_NORMAL)))
+        line.addView(icon(R.drawable.ic_lucide_chevron_right, "", size = Ui.ICON_LARGE).apply { importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO }, LayoutParams(dp(Ui.ICON_LARGE), dp(Ui.CONTROL_NORMAL)))
         parent.addView(line)
     }
     private fun switchRow(parent: LinearLayout, title: String, checked: Boolean, onChanged: (Boolean) -> Unit) {
@@ -405,12 +414,13 @@ class ReadMenuWorkbench(
             }
         }, LayoutParams(dp(Ui.CONTROL_NORMAL), dp(Ui.CONTROL_NORMAL)))
         val ratio = (ReadBook.durChapterIndex + (ReadBook.durPageIndex + 1f) / (ReadBook.curTextChapter?.pageSize ?: 1).coerceAtLeast(1)) / ReadBook.chapterSize.coerceAtLeast(1)
-        body.addView(text(String.format(Locale.ROOT, "%.1f%% ›", ratio * 100), Ui.TEXT_CAPTION, palette.secondary).apply {
+        body.addView(disclosureText(String.format(Locale.ROOT, "%.1f%%", ratio * 100), Ui.TEXT_CAPTION).apply {
             gravity = Gravity.CENTER
+            setPadding(dp(Ui.GAP), 0, dp(Ui.GAP), 0)
             background = rounded(palette.well, Ui.RADIUS_CONTROL)
             contentDescription = "阅读进度，点击调整"
             setOnClickListener { show(Page.PROGRESS) }
-        }, LayoutParams(dp(80), dp(Ui.CONTROL_NORMAL)).apply { marginStart = dp(7) })
+        }, LayoutParams(dp(88), dp(Ui.CONTROL_NORMAL)).apply { marginStart = dp(7) })
         dockHost.addView(body, FrameLayout.LayoutParams(-1, -2))
     }
 
@@ -419,11 +429,16 @@ class ReadMenuWorkbench(
         val pages = ReadBook.curTextChapter?.pageSize?.coerceAtLeast(1) ?: 1
         val inChapter = (ReadBook.durPageIndex + 1f) / pages
         val ratio = if (chapterProgress) inChapter else (ReadBook.durChapterIndex + inChapter) / total
-        slider(body, if (chapterProgress) "本章 ▾" else "全书 ▾", (ratio * 10000).roundToInt(), 0, 10000,
+        slider(body, if (chapterProgress) "本章" else "全书", (ratio * 10000).roundToInt(), 0, 10000,
             { String.format(Locale.ROOT, "%.1f%%", it / 100f) }) {}
         // Commit navigation when the user releases the scrubber, not while dragging.
         val progressRow = body.getChildAt(0) as LinearLayout
-        progressRow.getChildAt(0).setOnClickListener { chapterProgress = !chapterProgress; refresh() }
+        (progressRow.getChildAt(0) as TextView).apply {
+            Ui.disclosure(this, dropdown = true)
+            layoutParams.width = dp(80)
+            isFocusable = true
+            setOnClickListener { chapterProgress = !chapterProgress; refresh() }
+        }
         val seek = progressRow.getChildAt(1) as SeekBar
         seek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onStartTrackingTouch(seekBar: SeekBar) { tracking = true }
@@ -483,7 +498,7 @@ class ReadMenuWorkbench(
                 gravity = Gravity.CENTER; setOnClickListener { locateCurrentChapter() }
             }, LayoutParams(dp(74), dp(Ui.CONTROL_NORMAL)))
         } else {
-            if (page in detailPages) header.addView(icon(R.drawable.ic_lucide_chevron_left, "返回") { show(parentPage()) }, LayoutParams(dp(Ui.CONTROL_NORMAL), dp(Ui.CONTROL_NORMAL)))
+            if (page in detailPages) header.addView(icon(R.drawable.ic_lucide_chevron_left, "返回", size = Ui.ICON_LARGE) { show(parentPage()) }, LayoutParams(dp(Ui.CONTROL_NORMAL), dp(Ui.CONTROL_NORMAL)))
             header.addView(text(titles[page].orEmpty(), Ui.TEXT_TITLE, bold = true), LayoutParams(0, dp(Ui.CONTROL_NORMAL), 1f))
             if (page == Page.FONTS) header.addView(text("＋ 导入", Ui.TEXT_CAPTION, palette.accentText).apply { gravity = Gravity.CENTER; setOnClickListener { advanced(Advanced.FONT_IMPORT) } }, LayoutParams(dp(65), dp(Ui.CONTROL_NORMAL)))
         }
@@ -534,7 +549,8 @@ class ReadMenuWorkbench(
         }
         if (appearance) {
             val footer = row().apply { setPadding(dp(Ui.INSET), 0, dp(Ui.INSET), 0) }
-            footer.addView(text(if (ReadBookConfig.hasBookAppearance) "仅本书⌄" else "默认外观⌄", Ui.TEXT_CAPTION, palette.secondary).apply { setOnClickListener { show(Page.SCOPE) } }, LayoutParams(0, dp(Ui.CONTROL_NORMAL), 1f))
+            footer.addView(disclosureText(if (ReadBookConfig.hasBookAppearance) "仅本书" else "默认外观", Ui.TEXT_CAPTION, dropdown = true).apply { setOnClickListener { show(Page.SCOPE) } }, LayoutParams(-2, dp(Ui.CONTROL_NORMAL)))
+            footer.addView(View(context), LayoutParams(0, 1, 1f))
             footer.addView(text("恢复默认", Ui.TEXT_CAPTION, palette.secondary).apply { setOnClickListener { resetCurrentSection() } }, LayoutParams(-2, dp(Ui.CONTROL_NORMAL)))
             panel.addView(footer)
         }
@@ -575,7 +591,7 @@ class ReadMenuWorkbench(
     private fun buildTypography(body: LinearLayout) {
         val font = row()
         font.addView(text("字体", Ui.TEXT_CAPTION, palette.secondary), LayoutParams(dp(Ui.CONTROL_NORMAL), dp(Ui.CONTROL_NORMAL)))
-        font.addView(text(currentFontName() + "  ⌄", Ui.TEXT_BODY).apply {
+        font.addView(disclosureText(currentFontName(), color = palette.text, dropdown = true).apply {
             background = rounded(palette.well, Ui.RADIUS_CONTROL); setPadding(dp(11), 0, dp(9), 0)
             maxLines = 1; ellipsize = TextUtils.TruncateAt.END
             setOnClickListener { show(Page.FONTS) }
@@ -725,8 +741,8 @@ class ReadMenuWorkbench(
         }
         slider(body, "动画速度", ReadBookConfig.animationSpeed, 0, 2000, { "${it}ms" }) { ReadBookConfig.animationSpeed = it; changed(flags = arrayListOf(4)) }
         val options = row()
-        options.addView(text(if (autoRunning) "自动翻页 · 运行中 ›" else "自动翻页 ›", Ui.TEXT_BODY).apply { setOnClickListener { show(Page.AUTO) } }, LayoutParams(0, dp(Ui.CONTROL_NORMAL), 1f))
-        options.addView(text("更多设置 ›", Ui.TEXT_CAPTION, palette.secondary).apply { gravity = Gravity.END or Gravity.CENTER_VERTICAL; setOnClickListener { show(Page.TURN_DETAILS) } }, LayoutParams(0, dp(Ui.CONTROL_NORMAL), 1f))
+        options.addView(disclosureText(if (autoRunning) "自动翻页 · 运行中" else "自动翻页", color = palette.text).apply { setOnClickListener { show(Page.AUTO) } }, LayoutParams(0, dp(Ui.CONTROL_NORMAL), 1f))
+        options.addView(disclosureText("更多设置", Ui.TEXT_CAPTION).apply { gravity = Gravity.END or Gravity.CENTER_VERTICAL; setOnClickListener { show(Page.TURN_DETAILS) } }, LayoutParams(-2, dp(Ui.CONTROL_NORMAL)).apply { marginStart = dp(Ui.GAP) })
         body.addView(options)
     }
 
@@ -1092,7 +1108,7 @@ class ReadMenuWorkbench(
         }
         val filters = row()
         filters.addView(text(if (regexSearch) "✓ 正则表达式" else "正则表达式", Ui.TEXT_CAPTION, palette.secondary).apply { minHeight = dp(Ui.CONTROL_NORMAL); setOnClickListener { regexSearch = !regexSearch; startSearch() } }, LayoutParams(0, -2, 1f))
-        filters.addView(text(if (currentChapterOnly) "仅当前章 ▾" else "已缓存章节 ▾", Ui.TEXT_CAPTION, palette.secondary).apply { minHeight = dp(Ui.CONTROL_NORMAL); setOnClickListener { currentChapterOnly = !currentChapterOnly; startSearch() } })
+        filters.addView(disclosureText(if (currentChapterOnly) "仅当前章" else "已缓存章节", Ui.TEXT_CAPTION, dropdown = true).apply { setOnClickListener { currentChapterOnly = !currentChapterOnly; startSearch() } })
         body.addView(filters)
         searchCount = text(searchMessage, Ui.TEXT_CAPTION, palette.secondary)
         body.addView(searchCount, LayoutParams(-1, dp(31)))
@@ -1166,7 +1182,7 @@ class ReadMenuWorkbench(
         filter.doAfterTextChanged { chapterQuery = it?.toString().orEmpty(); renderChapters() }
         val meta = row()
         meta.addView(text("${chapters.size} 章 · 已缓存 ${cachedChapters.size} 章", Ui.TEXT_CAPTION, palette.secondary), LayoutParams(0, dp(37), 1f))
-        meta.addView(text(if (reverseChapters) "倒序 ▾" else "正序 ▾", Ui.TEXT_CAPTION, palette.secondary).apply { minHeight = dp(Ui.CONTROL_NORMAL); setOnClickListener { reverseChapters = !reverseChapters; renderChapters(); text = if (reverseChapters) "倒序 ▾" else "正序 ▾" } })
+        meta.addView(disclosureText(if (reverseChapters) "倒序" else "正序", Ui.TEXT_CAPTION, dropdown = true).apply { setOnClickListener { reverseChapters = !reverseChapters; renderChapters(); text = if (reverseChapters) "倒序" else "正序" } })
         body.addView(meta)
         createList(body)
         renderChapters()
