@@ -90,7 +90,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="24dp"
                 android:gravity="center"
-                android:textSize="10sp" />
+                android:textSize="12sp" />
 
             <FrameLayout
                 android:id="@+id/btn_chapter_minimap_previous"

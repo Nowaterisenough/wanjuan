@@ -5,7 +5,6 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.LinearLayout
 import androidx.preference.ListPreference
 import androidx.preference.Preference
 import io.wanjuan.app.R
@@ -17,9 +16,6 @@ import io.wanjuan.app.help.IntentHelp
 import io.wanjuan.app.help.config.AppConfig
 import io.wanjuan.app.lib.dialogs.SelectItem
 import io.wanjuan.app.lib.prefs.SwitchPreference
-import io.wanjuan.app.lib.prefs.fragment.PreferenceFragment
-import io.wanjuan.app.lib.theme.dialogSurfaceBackground
-import io.wanjuan.app.lib.theme.primaryColor
 import io.wanjuan.app.model.ReadAloud
 import io.wanjuan.app.service.BaseReadAloudService
 import io.wanjuan.app.utils.GSON
@@ -27,7 +23,6 @@ import io.wanjuan.app.utils.StringUtils
 import io.wanjuan.app.utils.fromJsonObject
 import io.wanjuan.app.utils.postEvent
 import io.wanjuan.app.utils.setEdgeEffectColor
-import io.wanjuan.app.utils.setLayout
 import io.wanjuan.app.utils.showDialogFragment
 
 class ReadAloudConfigDialog : BasePrefDialogFragment() {
@@ -35,10 +30,7 @@ class ReadAloudConfigDialog : BasePrefDialogFragment() {
 
     override fun onStart() {
         super.onStart()
-        dialog?.window?.run {
-            setBackgroundDrawableResource(R.color.transparent)
-            setLayout(0.9f, ViewGroup.LayoutParams.WRAP_CONTENT)
-        }
+        dialog?.window?.let(ReaderUiStyle::configureSheet)
     }
 
     override fun onCreateView(
@@ -46,12 +38,7 @@ class ReadAloudConfigDialog : BasePrefDialogFragment() {
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
-        val view = LinearLayout(requireContext())
-        view.background = requireContext().dialogSurfaceBackground
-        view.clipToOutline = true
-        view.id = R.id.tag1
-        container?.addView(view)
-        return view
+        return ReaderUiStyle.preferenceSheet(requireContext(), "语音设置") { dismissAllowingStateLoss() }
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -59,11 +46,11 @@ class ReadAloudConfigDialog : BasePrefDialogFragment() {
         var preferenceFragment = childFragmentManager.findFragmentByTag(readAloudPreferTag)
         if (preferenceFragment == null) preferenceFragment = ReadAloudPreferenceFragment()
         childFragmentManager.beginTransaction()
-            .replace(view.id, preferenceFragment, readAloudPreferTag)
+            .replace(R.id.tag1, preferenceFragment, readAloudPreferTag)
             .commit()
     }
 
-    class ReadAloudPreferenceFragment : PreferenceFragment(),
+    class ReadAloudPreferenceFragment : ReaderPreferenceFragment(),
         SpeakEngineDialog.CallBack,
         SharedPreferences.OnSharedPreferenceChangeListener {
 
@@ -91,7 +78,7 @@ class ReadAloudConfigDialog : BasePrefDialogFragment() {
             super.onViewCreated(view, savedInstanceState)
             listView.background = null
             listView.clipToPadding = true
-            listView.setEdgeEffectColor(primaryColor)
+            listView.setEdgeEffectColor(ReaderSheetStyle.resolve(requireContext()).accentColor)
         }
 
         override fun onResume() {

@@ -18,7 +18,10 @@ object ReaderSheetStyle {
         val secondaryTextColor: Int,
         val primaryColor: Int,
         val accentColor: Int
-    )
+    ) {
+        val accentTextColor: Int
+            get() = if (AppConfig.isNightTheme && !AppConfig.isEInkMode) 0xff80b6ff.toInt() else accentColor
+    }
 
     fun resolve(context: Context, baseColor: Int = context.bottomBackground): Palette {
         val dark = AppConfig.isNightTheme
@@ -38,7 +41,7 @@ object ReaderSheetStyle {
         )
     }
 
-    fun topSheetDrawable(palette: Palette, radiusDp: Float = 10f): GradientDrawable {
+    fun topSheetDrawable(palette: Palette, radiusDp: Float = ReaderUiStyle.RADIUS_SHEET.toFloat()): GradientDrawable {
         val radius = UiCorner.scaledDp(radiusDp)
         return GradientDrawable().apply {
             cornerRadii = floatArrayOf(
@@ -52,7 +55,7 @@ object ReaderSheetStyle {
         }
     }
 
-    fun blockDrawable(fillColor: Int, strokeColor: Int, radiusDp: Float = 10f): GradientDrawable {
+    fun blockDrawable(fillColor: Int, strokeColor: Int, radiusDp: Float = ReaderUiStyle.RADIUS_CONTROL.toFloat()): GradientDrawable {
         return GradientDrawable().apply {
             cornerRadius = UiCorner.scaledDp(radiusDp)
             setColor(fillColor)

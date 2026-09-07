@@ -7,7 +7,11 @@ import io.wanjuan.app.R
 import io.wanjuan.app.utils.applyTint
 import io.wanjuan.app.utils.hideSoftInput
 
-class NumberPickerDialog(context: Context, private val isDecimalMode: Boolean = false) {
+class NumberPickerDialog(
+    context: Context,
+    private val isDecimalMode: Boolean = false,
+    private val styleDialog: ((AlertDialog) -> Unit)? = null
+) {
     private val builder = AlertDialog.Builder(context)
     private var numberPicker: NumberPicker? = null
     private var maxValue: Int? = null
@@ -76,5 +80,6 @@ class NumberPickerDialog(context: Context, private val isDecimalMode: Boolean = 
                 }
             }
         }
+        styleDialog?.invoke(dialog)
     }
 }

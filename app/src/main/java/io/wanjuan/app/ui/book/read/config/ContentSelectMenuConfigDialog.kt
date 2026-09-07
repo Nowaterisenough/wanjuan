@@ -50,7 +50,10 @@ class ContentSelectMenuConfigDialog : BaseDialogFragment(R.layout.dialog_content
     }
 
     override fun onFragmentCreated(view: View, savedInstanceState: Bundle?) {
-        binding.toolBar.setBackgroundColor(primaryColor)
+        val palette = ReaderSheetStyle.resolve(requireContext())
+        view.background = ReaderUiStyle.rounded(requireContext(), palette.surface, ReaderUiStyle.RADIUS_SHEET)
+        binding.toolBar.setBackgroundColor(palette.surface)
+        ReaderUiStyle.styleLabels(view)
         initData()
         binding.tvCancel.onClick {
             dismissAllowingStateLoss()

@@ -36,6 +36,8 @@ import androidx.core.widget.doAfterTextChanged
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import io.wanjuan.app.R
+import io.wanjuan.app.ui.book.read.config.ReaderUiStyle as Ui
+import io.wanjuan.app.ui.book.read.config.ReaderSheetStyle
 import io.wanjuan.app.constant.EventBus
 import io.wanjuan.app.constant.PageAnim
 import io.wanjuan.app.constant.PreferKey
@@ -85,13 +87,12 @@ class ReadMenuWorkbench(
     enum class Advanced { FONT_IMPORT, FONT, BODY, TITLE, HEADER, FOOTER, BACKGROUND, TEXT_COLOR, SETTINGS, VOICE, REPLACE }
 
     private data class Palette(val surface: Int, val text: Int, val secondary: Int, val line: Int, val well: Int, val selected: Int, val accentText: Int)
-    private val brand = Color.rgb(0, 110, 255)
-    private val palette: Palette get() = when {
-        AppConfig.isEInkMode -> Palette(Color.WHITE, Color.BLACK, Color.DKGRAY, Color.GRAY, Color.WHITE, 0xffdddddd.toInt(), Color.BLACK)
-        AppConfig.isNightTheme -> Palette(0xff282f35.toInt(), 0xffe0e5e5.toInt(), 0xffa0abb0.toInt(), 0xff414a50.toInt(), 0xff333c43.toInt(), 0xff263e60.toInt(), 0xff80b6ff.toInt())
-        else -> Palette(0xfff8faf8.toInt(), 0xff303934.toInt(), 0xff77817e.toInt(), 0xffdce1dd.toInt(), 0xffedf1ee.toInt(), 0xffe5efff.toInt(), brand)
+    private val palette: Palette get() {
+        val colors = ReaderSheetStyle.resolve(context)
+        return Palette(colors.surface, colors.textColor, colors.secondaryTextColor, colors.stroke,
+            colors.panel, colors.panelStrong, colors.accentTextColor)
     }
-    private val accent get() = if (AppConfig.isEInkMode) Color.BLACK else brand
+    private val accent get() = ReaderSheetStyle.resolve(context).accentColor
     val surfaceColor get() = palette.surface
     var page = Page.MAIN
         private set
@@ -206,8 +207,8 @@ class ReadMenuWorkbench(
         list = null
         listAdapter = null
         content = null
-        background = rounded(palette.surface, 24, palette.line)
-        (parent as? View)?.setPadding(dp(11), 0, dp(11), dp(10))
+        background = rounded(palette.surface, Ui.RADIUS_SHEET, palette.line)
+        (parent as? View)?.setPadding(dp(Ui.GAP), 0, dp(Ui.GAP), dp(Ui.GAP))
         panelHost.isVisible = expanded
         dockHost.isVisible = !expanded
         if (page == Page.MAIN) {
@@ -225,7 +226,7 @@ class ReadMenuWorkbench(
     }
 
     private fun dp(value: Int) = (value * resources.displayMetrics.density).roundToInt()
-    private fun text(value: CharSequence, size: Int = 14, color: Int = palette.text, bold: Boolean = false) = TextView(context).apply {
+    private fun text(value: CharSequence, size: Int = Ui.TEXT_BODY, color: Int = palette.text, bold: Boolean = false) = TextView(context).apply {
         text = value
         textSize = size.toFloat()
         setTextColor(color)
@@ -235,45 +236,40 @@ class ReadMenuWorkbench(
     }
     private fun column() = LinearLayout(context).apply { orientation = VERTICAL }
     private fun row() = LinearLayout(context).apply { orientation = HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-    private fun rounded(fill: Int, radius: Int = 10, border: Int = Color.TRANSPARENT) = GradientDrawable().apply {
+    private fun rounded(fill: Int, radius: Int = Ui.RADIUS_CONTROL, border: Int = Color.TRANSPARENT) = GradientDrawable().apply {
         setColor(fill)
         cornerRadius = dp(radius).toFloat()
         if (border != Color.TRANSPARENT) setStroke(dp(1), border)
     }
-    private fun icon(res: Int, label: String, tint: Int = palette.secondary, onClick: (() -> Unit)? = null) = ImageView(context).apply {
-        setImageResource(res)
-        setColorFilter(tint)
-        setPadding(dp(11), dp(11), dp(11), dp(11))
-        contentDescription = label
-        if (onClick != null) { isFocusable = true; setOnClickListener { onClick() } }
-    }
+    private fun icon(res: Int, label: String, tint: Int = palette.secondary, size: Int = Ui.ICON_NORMAL, onClick: (() -> Unit)? = null) =
+        Ui.icon(context, res, label, tint, size).apply {
+            if (onClick != null) { isFocusable = true; setOnClickListener { onClick() } }
+        }
     private fun addDivider(parent: LinearLayout, margin: Int = 7) {
         parent.addView(View(context).apply { setBackgroundColor(palette.line) }, LayoutParams(-1, dp(1)).apply { topMargin = dp(margin); bottomMargin = dp(margin) })
     }
     private fun section(parent: LinearLayout, name: String, action: String? = null, onClick: (() -> Unit)? = null) {
         val line = row()
-        line.addView(text(name, 14, bold = true), LayoutParams(0, dp(36), 1f))
-        if (action != null) line.addView(text(action, 12, palette.secondary).apply {
-            minHeight = dp(44); setPadding(dp(8), 0, 0, 0); setOnClickListener { onClick?.invoke() }
+        line.addView(text(name, Ui.TEXT_BODY, bold = true), LayoutParams(0, dp(Ui.CONTROL_NORMAL), 1f))
+        if (action != null) line.addView(text(action, Ui.TEXT_CAPTION, palette.secondary).apply {
+            minHeight = dp(Ui.CONTROL_NORMAL); setPadding(dp(8), 0, 0, 0); setOnClickListener { onClick?.invoke() }
         })
         parent.addView(line)
     }
     private fun actionRow(parent: LinearLayout, title: String, summary: String = "", onClick: () -> Unit) {
-        val line = row().apply { minimumHeight = dp(44); setOnClickListener { onClick() }; isFocusable = true }
+        val line = row().apply { minimumHeight = dp(Ui.CONTROL_NORMAL); setOnClickListener { onClick() }; isFocusable = true }
         line.addView(text(title), LayoutParams(0, -2, 1f))
-        line.addView(text(summary, 12, palette.secondary).apply { maxLines = 1; maxWidth = dp(145) })
-        line.addView(text("›", 22, palette.secondary).apply { gravity = Gravity.CENTER }, LayoutParams(dp(23), dp(44)))
+        line.addView(text(summary, Ui.TEXT_CAPTION, palette.secondary).apply { maxLines = 1; maxWidth = dp(145) })
+        line.addView(icon(R.drawable.ic_lucide_chevron_left, "", size = Ui.ICON_SMALL).apply { rotation = 180f; importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO }, LayoutParams(dp(Ui.ICON_LARGE), dp(Ui.CONTROL_NORMAL)))
         parent.addView(line)
     }
     private fun switchRow(parent: LinearLayout, title: String, checked: Boolean, onChanged: (Boolean) -> Unit) {
-        val line = row().apply { minimumHeight = dp(44) }
+        val line = row().apply { minimumHeight = dp(Ui.CONTROL_NORMAL) }
         line.addView(text(title), LayoutParams(0, -2, 1f))
         val toggle = SwitchCompat(context).apply {
             isChecked = checked
             contentDescription = title
-            thumbTintList = ColorStateList.valueOf(if (AppConfig.isEInkMode) Color.BLACK else Color.WHITE)
-            trackTintList = ColorStateList(arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()), intArrayOf(accent, palette.line))
-            minHeight = dp(44)
+            Ui.tintSwitch(this)
             setOnCheckedChangeListener { _, value -> onChanged(value) }
         }
         line.addView(toggle)
@@ -282,8 +278,8 @@ class ReadMenuWorkbench(
     }
     private fun slider(parent: LinearLayout, title: String, value: Int, min: Int, max: Int, format: (Int) -> String = { "$it" }, change: (Int) -> Unit) {
         val line = row()
-        line.addView(text(title, 13), LayoutParams(dp(59), dp(44)))
-        val number = text(format(value), 12, palette.secondary).apply { gravity = Gravity.END or Gravity.CENTER_VERTICAL }
+        line.addView(text(title, Ui.TEXT_BODY), LayoutParams(dp(64), dp(Ui.CONTROL_NORMAL)))
+        val number = text(format(value), Ui.TEXT_CAPTION, palette.secondary).apply { gravity = Gravity.END or Gravity.CENTER_VERTICAL }
         val seek = SeekBar(context).apply {
             this.max = max - min
             progress = value.coerceIn(min, max) - min
@@ -303,20 +299,20 @@ class ReadMenuWorkbench(
                 }
             })
         }
-        line.addView(seek, LayoutParams(0, dp(44), 1f))
-        line.addView(number, LayoutParams(dp(43), dp(44)))
+        line.addView(seek, LayoutParams(0, dp(Ui.CONTROL_NORMAL), 1f))
+        line.addView(number, LayoutParams(dp(56), dp(Ui.CONTROL_NORMAL)))
         parent.addView(line)
     }
     private fun button(parent: LinearLayout, title: String, filled: Boolean = false, onClick: () -> Unit) {
-        parent.addView(text(title, 14, if (filled) Color.WHITE else palette.accentText, true).apply {
+        parent.addView(text(title, Ui.TEXT_BODY, if (filled) Color.WHITE else palette.accentText, true).apply {
             gravity = Gravity.CENTER
-            background = rounded(if (filled) accent else palette.selected, 10)
+            background = rounded(if (filled) accent else palette.selected, Ui.RADIUS_CONTROL)
             setOnClickListener { onClick() }
             isFocusable = true
-        }, LayoutParams(-1, dp(46)).apply { topMargin = dp(12) })
+        }, LayoutParams(-1, dp(Ui.CONTROL_NORMAL)).apply { topMargin = dp(12) })
     }
     private fun note(parent: LinearLayout, value: String) {
-        parent.addView(text(value, 12, palette.secondary).apply {
+        parent.addView(text(value, Ui.TEXT_CAPTION, palette.secondary).apply {
             setLineSpacing(dp(4).toFloat(), 1f)
             setPadding(dp(12), dp(12), dp(12), dp(12))
             background = rounded(palette.well)
@@ -338,16 +334,15 @@ class ReadMenuWorkbench(
                 }
             }
             tab.addView(icon(icons[index], name).apply {
-                setPadding(dp(6), dp(5), dp(6), dp(3))
                 importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO
-            }, LayoutParams(dp(30), dp(28)))
-            tab.addView(text(name, 11).apply {
+            }, LayoutParams(dp(Ui.ICON_LARGE), dp(Ui.ICON_LARGE)))
+            tab.addView(text(name, Ui.TEXT_CAPTION).apply {
                 gravity = Gravity.CENTER
                 importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO
-            }, LayoutParams(-1, dp(19)))
+            }, LayoutParams(-1, dp(20)))
             val slot = FrameLayout(context)
-            slot.addView(tab, FrameLayout.LayoutParams(dp(52), dp(52), Gravity.CENTER))
-            nav.addView(slot, LayoutParams(0, dp(52), 1f))
+            slot.addView(tab, FrameLayout.LayoutParams(dp(Ui.CONTROL_LARGE), dp(Ui.CONTROL_LARGE), Gravity.CENTER))
+            nav.addView(slot, LayoutParams(0, dp(Ui.CONTROL_LARGE), 1f))
             navigationItems.add(tab)
         }
         addView(nav)
@@ -366,7 +361,7 @@ class ReadMenuWorkbench(
         navigationItems.forEachIndexed { index, tab ->
             val selected = selectedNavigation() == index
             tab.isSelected = selected
-            tab.background = if (selected) rounded(accent, 14) else null
+            tab.background = if (selected) rounded(accent, Ui.RADIUS_CONTROL) else null
             (tab.getChildAt(0) as ImageView).setColorFilter(if (selected) Color.WHITE else palette.secondary)
             (tab.getChildAt(1) as TextView).setTextColor(if (selected) Color.WHITE else palette.secondary)
         }
@@ -377,7 +372,7 @@ class ReadMenuWorkbench(
         body.addView(icon(R.drawable.ic_lucide_sun, "切换日间或夜间", palette.secondary) {
             AppConfig.isNightTheme = !AppConfig.isNightTheme
             post { changed(true); callbacks.upSystemUiVisibility() }
-        }, LayoutParams(dp(38), dp(44)))
+        }, LayoutParams(dp(Ui.CONTROL_NORMAL), dp(Ui.CONTROL_NORMAL)))
         val bright = column()
         slider(bright, "", AppConfig.readBrightness.coerceIn(1, 255), 1, 255, { "" }) {
             context.putPrefBoolean("brightnessAuto", false)
@@ -387,21 +382,21 @@ class ReadMenuWorkbench(
         val sliderRow = bright.getChildAt(0) as LinearLayout
         sliderRow.getChildAt(0).visibility = GONE
         sliderRow.getChildAt(2).visibility = GONE
-        body.addView(bright, LayoutParams(0, dp(44), 1f))
-        body.addView(text("自动", 11, if (context.getPrefBoolean("brightnessAuto", true)) palette.accentText else palette.secondary).apply {
+        body.addView(bright, LayoutParams(0, dp(Ui.CONTROL_NORMAL), 1f))
+        body.addView(text("自动", Ui.TEXT_CAPTION, if (context.getPrefBoolean("brightnessAuto", true)) palette.accentText else palette.secondary).apply {
             gravity = Gravity.CENTER
             setOnClickListener {
                 context.putPrefBoolean("brightnessAuto", !context.getPrefBoolean("brightnessAuto", true))
                 setBrightness(AppConfig.readBrightness); refresh()
             }
-        }, LayoutParams(dp(42), dp(44)))
+        }, LayoutParams(dp(Ui.CONTROL_NORMAL), dp(Ui.CONTROL_NORMAL)))
         val ratio = (ReadBook.durChapterIndex + (ReadBook.durPageIndex + 1f) / (ReadBook.curTextChapter?.pageSize ?: 1).coerceAtLeast(1)) / ReadBook.chapterSize.coerceAtLeast(1)
-        body.addView(text(String.format(Locale.ROOT, "%.1f%% ›", ratio * 100), 11, palette.secondary).apply {
+        body.addView(text(String.format(Locale.ROOT, "%.1f%% ›", ratio * 100), Ui.TEXT_CAPTION, palette.secondary).apply {
             gravity = Gravity.CENTER
-            background = rounded(palette.well, 8)
+            background = rounded(palette.well, Ui.RADIUS_CONTROL)
             contentDescription = "阅读进度，点击调整"
             setOnClickListener { show(Page.PROGRESS) }
-        }, LayoutParams(dp(74), dp(32)).apply { marginStart = dp(7) })
+        }, LayoutParams(dp(80), dp(Ui.CONTROL_NORMAL)).apply { marginStart = dp(7) })
         dockHost.addView(body, FrameLayout.LayoutParams(-1, -2))
     }
 
@@ -449,42 +444,45 @@ class ReadMenuWorkbench(
         panel.addView(View(context).apply { background = rounded(palette.line, 2) }, LayoutParams(dp(24), dp(3)).apply {
             gravity = Gravity.CENTER_HORIZONTAL; topMargin = dp(9)
         })
-        val header = row().apply { setPadding(dp(18), 0, dp(10), 0) }
+        val header = row().apply { setPadding(dp(Ui.INSET), 0, dp(Ui.GAP), 0) }
         val appearance = page in appearancePages
         val titles = mapOf(Page.SEARCH to "全文搜索", Page.TOC to "目录与书签", Page.ALOUD to "朗读", Page.SETTINGS to "阅读设置", Page.SCOPE to "应用范围", Page.SAVE to "保存为主题", Page.AUTO to "自动翻页", Page.TOUCH to "点击区域", Page.FONTS to "字体", Page.LAYOUT_DETAILS to "排版细节", Page.TURN_DETAILS to "翻页设置", Page.BACKGROUND_DETAILS to "背景调校", Page.THEME_LIBRARY to "我的主题", Page.ALOUD_DETAILS to "朗读设置", Page.SETTINGS_DETAILS to "显示与内容", Page.PROGRESS to "阅读进度")
         if (appearance) {
             val tabs = row()
             appearancePages.forEachIndexed { index, target ->
                 val tab = column().apply { gravity = Gravity.CENTER; setOnClickListener { show(target) } }
-                tab.addView(text(listOf("排版", "翻页", "背景", "主题")[index], 14, if (page == target) palette.accentText else palette.secondary, page == target).apply { gravity = Gravity.CENTER }, LayoutParams(-1, dp(34)))
+                tab.addView(text(listOf("排版", "翻页", "背景", "主题")[index], Ui.TEXT_BODY, if (page == target) palette.accentText else palette.secondary, page == target).apply { gravity = Gravity.CENTER }, LayoutParams(-1, dp(34)))
                 tab.addView(View(context).apply { background = if (page == target) rounded(accent, 1) else null }, LayoutParams(dp(16), dp(2)))
-                tabs.addView(tab, LayoutParams(dp(50), dp(42)))
+                tabs.addView(tab, LayoutParams(dp(50), dp(Ui.CONTROL_NORMAL)))
             }
-            header.addView(tabs, LayoutParams(0, dp(42), 1f))
+            header.addView(tabs, LayoutParams(0, dp(Ui.CONTROL_NORMAL), 1f))
         } else if (page == Page.TOC) {
             listOf("目录", "书签").forEachIndexed { index, name ->
                 val selected = showBookmarks == (index == 1)
-                header.addView(text(name, 16, if (selected) palette.accentText else palette.secondary, selected).apply {
+                header.addView(text(name, Ui.TEXT_TITLE, if (selected) palette.accentText else palette.secondary, selected).apply {
                     gravity = Gravity.CENTER
                     setOnClickListener { showBookmarks = index == 1; refresh() }
-                }, LayoutParams(dp(58), dp(42)))
+                }, LayoutParams(dp(58), dp(Ui.CONTROL_NORMAL)))
             }
             header.addView(View(context), LayoutParams(0, 1, 1f))
-            header.addView(text("定位当前", 12, palette.accentText).apply {
+            header.addView(text("定位当前", Ui.TEXT_CAPTION, palette.accentText).apply {
                 gravity = Gravity.CENTER; setOnClickListener { locateCurrentChapter() }
-            }, LayoutParams(dp(74), dp(42)))
+            }, LayoutParams(dp(74), dp(Ui.CONTROL_NORMAL)))
         } else {
-            if (page in detailPages) header.addView(icon(R.drawable.ic_lucide_chevron_left, "返回") { show(parentPage()) }, LayoutParams(dp(32), dp(42)))
-            header.addView(text(titles[page].orEmpty(), 16, bold = true), LayoutParams(0, dp(42), 1f))
-            if (page == Page.FONTS) header.addView(text("＋ 导入", 12, palette.accentText).apply { gravity = Gravity.CENTER; setOnClickListener { advanced(Advanced.FONT_IMPORT) } }, LayoutParams(dp(65), dp(42)))
+            if (page in detailPages) header.addView(icon(R.drawable.ic_lucide_chevron_left, "返回") { show(parentPage()) }, LayoutParams(dp(Ui.CONTROL_NORMAL), dp(Ui.CONTROL_NORMAL)))
+            header.addView(text(titles[page].orEmpty(), Ui.TEXT_TITLE, bold = true), LayoutParams(0, dp(Ui.CONTROL_NORMAL), 1f))
+            if (page == Page.FONTS) header.addView(text("＋ 导入", Ui.TEXT_CAPTION, palette.accentText).apply { gravity = Gravity.CENTER; setOnClickListener { advanced(Advanced.FONT_IMPORT) } }, LayoutParams(dp(65), dp(Ui.CONTROL_NORMAL)))
         }
-        header.addView(text("×", 21, palette.secondary).apply { gravity = Gravity.CENTER; contentDescription = "关闭面板"; setOnClickListener { show(Page.MAIN) } }, LayoutParams(dp(40), dp(42)))
+        header.addView(icon(R.drawable.ic_close_x, "关闭面板") { show(Page.MAIN) }, LayoutParams(dp(Ui.CONTROL_NORMAL), dp(Ui.CONTROL_NORMAL)))
         panel.addView(header)
         val screenHeight = rootView.height.takeIf { it > 0 } ?: resources.displayMetrics.heightPixels
-        val desired = dp(if (page == Page.FONTS || page == Page.TOC || page == Page.SEARCH) 338 else 308)
+        val desired = dp(when (page) {
+            Page.FONTS, Page.TOC, Page.SEARCH -> 338
+            else -> 320
+        })
         val panelHeight = desired.coerceAtMost((screenHeight * .78f).roundToInt() - dp(90)).coerceAtLeast(dp(180))
-        val bodyHeight = panelHeight - dp(54 + if (appearance) 32 else 0)
-        val body = column().apply { setPadding(dp(18), 0, dp(18), 0) }
+        val bodyHeight = panelHeight - dp(Ui.CONTROL_NORMAL + 12 + if (appearance) Ui.CONTROL_NORMAL else 0)
+        val body = column().apply { setPadding(dp(Ui.INSET), 0, dp(Ui.INSET), 0) }
         content = body
         if (page == Page.SEARCH || page == Page.TOC) {
             panel.addView(body, LayoutParams(-1, bodyHeight))
@@ -516,9 +514,9 @@ class ReadMenuWorkbench(
             Page.MAIN -> Unit
         }
         if (appearance) {
-            val footer = row().apply { setPadding(dp(18), 0, dp(18), 0) }
-            footer.addView(text(if (ReadBookConfig.hasBookAppearance) "仅本书⌄" else "默认外观⌄", 11, palette.secondary).apply { setOnClickListener { show(Page.SCOPE) } }, LayoutParams(0, dp(32), 1f))
-            footer.addView(text("恢复默认", 11, palette.secondary).apply { setOnClickListener { resetCurrentSection() } }, LayoutParams(-2, dp(32)))
+            val footer = row().apply { setPadding(dp(Ui.INSET), 0, dp(Ui.INSET), 0) }
+            footer.addView(text(if (ReadBookConfig.hasBookAppearance) "仅本书⌄" else "默认外观⌄", Ui.TEXT_CAPTION, palette.secondary).apply { setOnClickListener { show(Page.SCOPE) } }, LayoutParams(0, dp(Ui.CONTROL_NORMAL), 1f))
+            footer.addView(text("恢复默认", Ui.TEXT_CAPTION, palette.secondary).apply { setOnClickListener { resetCurrentSection() } }, LayoutParams(-2, dp(Ui.CONTROL_NORMAL)))
             panel.addView(footer)
         }
     }
@@ -557,18 +555,18 @@ class ReadMenuWorkbench(
 
     private fun buildTypography(body: LinearLayout) {
         val font = row()
-        font.addView(text("字体", 12, palette.secondary), LayoutParams(dp(48), dp(44)))
-        font.addView(text(currentFontName() + "  ⌄", 13).apply {
-            background = rounded(palette.well, 8); setPadding(dp(11), 0, dp(9), 0)
+        font.addView(text("字体", Ui.TEXT_CAPTION, palette.secondary), LayoutParams(dp(Ui.CONTROL_NORMAL), dp(Ui.CONTROL_NORMAL)))
+        font.addView(text(currentFontName() + "  ⌄", Ui.TEXT_BODY).apply {
+            background = rounded(palette.well, Ui.RADIUS_CONTROL); setPadding(dp(11), 0, dp(9), 0)
             maxLines = 1; ellipsize = TextUtils.TruncateAt.END
             setOnClickListener { show(Page.FONTS) }
-        }, LayoutParams(0, dp(36), 1f))
-        font.addView(text("＋ 导入", 12, palette.accentText).apply { gravity = Gravity.END or Gravity.CENTER_VERTICAL; setOnClickListener { advanced(Advanced.FONT_IMPORT) } }, LayoutParams(dp(64), dp(44)))
+        }, LayoutParams(0, dp(Ui.CONTROL_NORMAL), 1f))
+        font.addView(text("＋ 导入", Ui.TEXT_CAPTION, palette.accentText).apply { gravity = Gravity.END or Gravity.CENTER_VERTICAL; setOnClickListener { advanced(Advanced.FONT_IMPORT) } }, LayoutParams(dp(64), dp(Ui.CONTROL_NORMAL)))
         body.addView(font)
         slider(body, "字号", ReadBookConfig.textSize, 5, 70) { ReadBookConfig.textSize = it; changed() }
         val sizeRow = body.getChildAt(1) as LinearLayout
-        sizeRow.addView(text("−", 20, palette.secondary).apply { gravity = Gravity.CENTER; contentDescription = "减小字号"; setOnClickListener { ReadBookConfig.textSize = (ReadBookConfig.textSize - 1).coerceAtLeast(5); changed(true) } }, 1, LayoutParams(dp(28), dp(44)))
-        sizeRow.addView(text("+", 20, palette.secondary).apply { gravity = Gravity.CENTER; contentDescription = "增大字号"; setOnClickListener { ReadBookConfig.textSize = (ReadBookConfig.textSize + 1).coerceAtMost(70); changed(true) } }, LayoutParams(dp(28), dp(44)))
+        sizeRow.addView(icon(R.drawable.ic_reader_minus, "减小字号") { ReadBookConfig.textSize = (ReadBookConfig.textSize - 1).coerceAtLeast(5); changed(true) }, 1, LayoutParams(dp(Ui.CONTROL_NORMAL), dp(Ui.CONTROL_NORMAL)))
+        sizeRow.addView(icon(R.drawable.ic_reader_plus, "增大字号") { ReadBookConfig.textSize = (ReadBookConfig.textSize + 1).coerceAtMost(70); changed(true) }, LayoutParams(dp(Ui.CONTROL_NORMAL), dp(Ui.CONTROL_NORMAL)))
         slider(body, "字重", BuiltInReadFonts.targetWeight(ReadBookConfig.textWeight), 300, 900) {
             ReadBookConfig.textWeight = if (it <= 400) (it - 300) / 2 else 50 + (it - 400) / 10
             ReadBookConfig.textBold = 0
@@ -578,19 +576,19 @@ class ReadMenuWorkbench(
         val values = listOf("字间距" to String.format(Locale.ROOT, "%.1f", ReadBookConfig.letterSpacing), "行间距" to "${ReadBookConfig.lineSpacingExtra}", "段间距" to "${ReadBookConfig.paragraphSpacing}")
         values.forEachIndexed { index, (label, value) ->
             spacing.addView(column().apply {
-                addView(text(label, 11, palette.secondary), LayoutParams(-1, dp(21)))
-                addView(text("$value ＋", 16), LayoutParams(-1, dp(27)))
+                addView(text(label, Ui.TEXT_CAPTION, palette.secondary), LayoutParams(-1, dp(21)))
+                addView(text("$value ＋", Ui.TEXT_TITLE), LayoutParams(-1, dp(27)))
                 setOnClickListener {
                     if (index == 0) {
                         val editor = column().apply { setPadding(dp(20), 0, dp(20), 0) }
                         slider(editor, "字间距", (ReadBookConfig.letterSpacing * 10).roundToInt(), 0, 100, { String.format(Locale.ROOT, "%.1f", it / 10f) }) { ReadBookConfig.letterSpacing = it / 10f; changed() }
-                        AlertDialog.Builder(context).setTitle("字间距").setView(editor).setPositiveButton("完成") { _, _ -> refresh() }.setOnDismissListener { refresh() }.show()
+                        AlertDialog.Builder(context).setTitle("字间距").setView(editor).setPositiveButton("完成") { _, _ -> refresh() }.setOnDismissListener { refresh() }.show().also(Ui::styleDialog)
                     } else numberDialog(label, if (index == 1) ReadBookConfig.lineSpacingExtra else ReadBookConfig.paragraphSpacing, 0, 100) {
                         if (index == 1) ReadBookConfig.lineSpacingExtra = it else ReadBookConfig.paragraphSpacing = it
                         changed(true)
                     }
                 }
-            }, LayoutParams(0, dp(48), 1f))
+            }, LayoutParams(0, dp(Ui.CONTROL_NORMAL), 1f))
         }
         body.addView(spacing)
         actionRow(body, "页面边距", "左右 ${ReadBookConfig.paddingLeft} / ${ReadBookConfig.paddingRight}") { show(Page.LAYOUT_DETAILS) }
@@ -624,26 +622,28 @@ class ReadMenuWorkbench(
     }
 
     private fun buildFonts(body: LinearLayout) {
-        body.addView(text("支持 TTF / OTF · 导入后点选使用", 11, palette.secondary), LayoutParams(-1, dp(27)))
+        body.addView(text("支持 TTF / OTF · 导入后点选使用", Ui.TEXT_CAPTION, palette.secondary), LayoutParams(-1, dp(27)))
         fun addFont(name: String, detail: String, path: String) {
             val selected = ReadBookConfig.textFont == path && (path.isNotBlank() || ReadBookConfig.systemTypeface == 0)
             val line = row().apply {
                 setPadding(dp(11), dp(6), dp(6), dp(6))
-                background = rounded(if (selected) palette.selected else palette.well, 10, if (selected) accent else Color.TRANSPARENT)
+                background = rounded(if (selected) palette.selected else palette.well, Ui.RADIUS_CONTROL, if (selected) accent else Color.TRANSPARENT)
             }
             val sample = column().apply { setOnClickListener { selectReaderFont(path) } }
-            val title = text(name, 15).apply { maxLines = 1; ellipsize = TextUtils.TruncateAt.END }
+            val title = text(name, Ui.TEXT_BODY).apply { maxLines = 1; ellipsize = TextUtils.TruncateAt.END }
             sample.addView(title, LayoutParams(-1, dp(24)))
-            sample.addView(text(detail, 11, palette.secondary), LayoutParams(-1, dp(20)))
+            sample.addView(text(detail, Ui.TEXT_CAPTION, palette.secondary), LayoutParams(-1, dp(20)))
             line.addView(sample, LayoutParams(0, -2, 1f))
             if (managingFonts && path.isNotBlank()) {
-                line.addView(text("移出", 12, palette.secondary).apply { gravity = Gravity.CENTER; setOnClickListener {
+                line.addView(text("移出", Ui.TEXT_CAPTION, palette.secondary).apply { gravity = Gravity.CENTER; setOnClickListener {
                     confirm("移出字体列表？", if (selected) "当前阅读将恢复系统默认字体；其他书籍及已存主题仍可使用这个字体。" else "其他书籍及已存主题仍可使用这个字体，可以通过恢复列表再次显示。") {
                         ReaderFontLibrary.hide(context, path)
                         if (selected) selectReaderFont("") else refresh()
                     }
-                } }, LayoutParams(dp(44), dp(44)))
-            } else line.addView(text(if (selected) "✓" else "", 17, palette.accentText).apply { gravity = Gravity.CENTER; setOnClickListener { selectReaderFont(path) } }, LayoutParams(dp(30), dp(44)))
+                } }, LayoutParams(dp(Ui.CONTROL_NORMAL), dp(Ui.CONTROL_NORMAL)))
+            } else line.addView(icon(R.drawable.ic_lucide_check, "选择$name", palette.accentText) { selectReaderFont(path) }.apply {
+                imageAlpha = if (selected) 255 else 0
+            }, LayoutParams(dp(Ui.CONTROL_NORMAL), dp(Ui.CONTROL_NORMAL)))
             body.addView(line, LayoutParams(-1, -2).apply { bottomMargin = dp(7) })
             if (path.isNotBlank()) scope.launch {
                 val face = withContext(Dispatchers.IO) { runCatching { ReaderFontLibrary.typeface(context, path) }.getOrNull() }
@@ -655,10 +655,10 @@ class ReadMenuWorkbench(
             val fonts = withContext(Dispatchers.IO) { ReaderFontLibrary.list(context, ReadBookConfig.textFont) }
             if (page != Page.FONTS || content !== body) return@launch
             fonts.forEach { addFont(it.name, "春夜微凉，星光落在书页间", it.path) }
-            if (fonts.isEmpty()) body.addView(text("还没有导入字体，点击右上角「导入」添加。", 12, palette.secondary), LayoutParams(-1, dp(46)))
+            if (fonts.isEmpty()) body.addView(text("还没有导入字体，点击右上角「导入」添加。", Ui.TEXT_CAPTION, palette.secondary), LayoutParams(-1, dp(Ui.CONTROL_NORMAL)))
             val actions = row()
-            actions.addView(text("使用系统默认", 12, palette.accentText).apply { setOnClickListener { selectReaderFont("") } }, LayoutParams(0, dp(44), 1f))
-            actions.addView(text(if (managingFonts) "完成管理" else "管理字体", 12, palette.secondary).apply { setOnClickListener { managingFonts = !managingFonts; refresh() } }, LayoutParams(-2, dp(44)))
+            actions.addView(text("使用系统默认", Ui.TEXT_CAPTION, palette.accentText).apply { setOnClickListener { selectReaderFont("") } }, LayoutParams(0, dp(Ui.CONTROL_NORMAL), 1f))
+            actions.addView(text(if (managingFonts) "完成管理" else "管理字体", Ui.TEXT_CAPTION, palette.secondary).apply { setOnClickListener { managingFonts = !managingFonts; refresh() } }, LayoutParams(-2, dp(Ui.CONTROL_NORMAL)))
             body.addView(actions)
             if (managingFonts) {
                 actionRow(body, "恢复移出的字体") { ReaderFontLibrary.restoreHidden(context); refresh() }
@@ -670,15 +670,15 @@ class ReadMenuWorkbench(
     private fun stepper(parent: LinearLayout, label: String, initial: Int, min: Int, max: Int, step: Int, action: (Int) -> Unit) {
         var value = initial
         val block = column()
-        block.addView(text(label, 13), LayoutParams(-1, dp(27)))
-        val line = row().apply { background = rounded(palette.well, 8, palette.line) }
-        val number = text("$value", 18).apply { gravity = Gravity.CENTER }
+        block.addView(text(label, Ui.TEXT_BODY), LayoutParams(-1, dp(27)))
+        val line = row().apply { background = rounded(palette.well, Ui.RADIUS_CONTROL, palette.line) }
+        val number = text("$value", Ui.TEXT_TITLE).apply { gravity = Gravity.CENTER }
         listOf(-step, step).forEachIndexed { index, delta ->
-            if (index == 1) line.addView(number, LayoutParams(0, dp(44), 1f))
-            line.addView(text(if (delta < 0) "−" else "+", 20, palette.secondary).apply {
-                gravity = Gravity.CENTER; contentDescription = "${if (delta < 0) "减小" else "增大"}$label"
-                setOnClickListener { value = (value + delta).coerceIn(min, max); number.text = "$value"; action(value) }
-            }, LayoutParams(dp(44), dp(44)))
+            if (index == 1) line.addView(number, LayoutParams(0, dp(Ui.CONTROL_NORMAL), 1f))
+            line.addView(icon(if (delta < 0) R.drawable.ic_reader_minus else R.drawable.ic_reader_plus,
+                "${if (delta < 0) "减小" else "增大"}$label") {
+                value = (value + delta).coerceIn(min, max); number.text = "$value"; action(value)
+            }, LayoutParams(dp(Ui.CONTROL_NORMAL), dp(Ui.CONTROL_NORMAL)))
         }
         block.addView(line)
         parent.addView(block, LayoutParams(0, -2, 1f).apply { marginEnd = dp(10) })
@@ -692,22 +692,22 @@ class ReadMenuWorkbench(
                 val selected = (ReadBook.book?.getPageAnim() ?: ReadBookConfig.pageAnim) == mode
                 val card = column().apply {
                     gravity = Gravity.CENTER
-                    background = rounded(if (selected) palette.selected else palette.well, 10, if (selected) accent else palette.line)
+                    background = rounded(if (selected) palette.selected else palette.well, Ui.RADIUS_CONTROL, if (selected) accent else palette.line)
                     setOnClickListener { ReadBookConfig.pageAnim = mode; ReadBook.book?.setPageAnim(null); ReadBook.saveRead(); changed(true) }
                 }
                 card.addView(View(context).apply {
                     background = ReadMenu.PageAnimPreviewDrawable(palette.surface, palette.secondary,
                         palette.text, accent, mode, selected, dp(1).toFloat(), dp(1).toFloat())
-                }, LayoutParams(dp(52), dp(30)).apply { topMargin = dp(4) })
-                card.addView(text(if (selected) "$name ✓" else name, 12, if (selected) palette.accentText else palette.text).apply { gravity = Gravity.CENTER }, LayoutParams(-1, dp(25)))
+                }, LayoutParams(dp(Ui.CONTROL_LARGE), dp(30)).apply { topMargin = dp(4) })
+                card.addView(text(if (selected) "$name ✓" else name, Ui.TEXT_CAPTION, if (selected) palette.accentText else palette.text).apply { gravity = Gravity.CENTER }, LayoutParams(-1, dp(25)))
                 line.addView(card, LayoutParams(0, dp(58), 1f).apply { marginEnd = dp(8) })
             }
             body.addView(line, LayoutParams(-1, -2).apply { topMargin = dp(4) })
         }
         slider(body, "动画速度", ReadBookConfig.animationSpeed, 0, 2000, { "${it}ms" }) { ReadBookConfig.animationSpeed = it; changed(flags = arrayListOf(4)) }
         val options = row()
-        options.addView(text(if (autoRunning) "自动翻页 · 运行中 ›" else "自动翻页 ›", 13).apply { setOnClickListener { show(Page.AUTO) } }, LayoutParams(0, dp(44), 1f))
-        options.addView(text("更多设置 ›", 12, palette.secondary).apply { gravity = Gravity.END or Gravity.CENTER_VERTICAL; setOnClickListener { show(Page.TURN_DETAILS) } }, LayoutParams(0, dp(44), 1f))
+        options.addView(text(if (autoRunning) "自动翻页 · 运行中 ›" else "自动翻页 ›", Ui.TEXT_BODY).apply { setOnClickListener { show(Page.AUTO) } }, LayoutParams(0, dp(Ui.CONTROL_NORMAL), 1f))
+        options.addView(text("更多设置 ›", Ui.TEXT_CAPTION, palette.secondary).apply { gravity = Gravity.END or Gravity.CENTER_VERTICAL; setOnClickListener { show(Page.TURN_DETAILS) } }, LayoutParams(0, dp(Ui.CONTROL_NORMAL), 1f))
         body.addView(options)
     }
 
@@ -722,10 +722,10 @@ class ReadMenuWorkbench(
     private fun buildBackground(body: LinearLayout) {
         val categories = row()
         listOf("纯色", "纸张", "图片").forEachIndexed { index, title ->
-            categories.addView(text(title, 13, if (backgroundCategory == index) palette.accentText else palette.secondary).apply {
-                gravity = Gravity.CENTER; if (backgroundCategory == index) background = rounded(palette.selected, 7)
+            categories.addView(text(title, Ui.TEXT_BODY, if (backgroundCategory == index) palette.accentText else palette.secondary).apply {
+                gravity = Gravity.CENTER; if (backgroundCategory == index) background = rounded(palette.selected, Ui.RADIUS_CONTROL)
                 setOnClickListener { backgroundCategory = index; refresh() }
-            }, LayoutParams(0, dp(40), 1f))
+            }, LayoutParams(0, dp(Ui.CONTROL_NORMAL), 1f))
         }
         body.addView(categories)
         val colors = if (AppConfig.isNightTheme) listOf("墨蓝" to "#131C29", "石墨" to "#282D35", "暖灰" to "#332D27", "深绿" to "#20332B", "纯黑" to "#000000")
@@ -746,8 +746,8 @@ class ReadMenuWorkbench(
                     if (type == 1) ImageLoader.load(context, "file:///android_asset/bg/$value".toUri()).into(this)
                     if (AppConfig.isNightTheme && type == 1) alpha = .65f
                 }
-                card.addView(preview, LayoutParams(-1, dp(42)))
-                card.addView(text(if (selected) "$name ✓" else name, 11, if (selected) palette.accentText else palette.secondary).apply { gravity = Gravity.CENTER; maxLines = 1 }, LayoutParams(-1, dp(23)))
+                card.addView(preview, LayoutParams(-1, dp(Ui.CONTROL_NORMAL)))
+                card.addView(text(if (selected) "$name ✓" else name, Ui.TEXT_CAPTION, if (selected) palette.accentText else palette.secondary).apply { gravity = Gravity.CENTER; maxLines = 1 }, LayoutParams(-1, dp(23)))
                 line.addView(card, LayoutParams(0, -2, 1f).apply { marginEnd = dp(8) })
             }
             repeat(3 - items.size) { line.addView(View(context), LayoutParams(0, 1, 1f)) }
@@ -769,13 +769,13 @@ class ReadMenuWorkbench(
         listOf("浅色", "深色", "跟随系统").forEachIndexed { index, name ->
             val mode = listOf("1", "2", "0")[index]
             val selected = AppConfig.themeMode == mode
-            modes.addView(text(name, 12, if (selected) palette.accentText else palette.secondary).apply {
-                gravity = Gravity.CENTER; background = rounded(if (selected) palette.selected else palette.well, 8)
+            modes.addView(text(name, Ui.TEXT_CAPTION, if (selected) palette.accentText else palette.secondary).apply {
+                gravity = Gravity.CENTER; background = rounded(if (selected) palette.selected else palette.well, Ui.RADIUS_CONTROL)
                 setOnClickListener {
                     context.putPrefString(PreferKey.themeMode, mode)
                     post { changed(true); callbacks.upSystemUiVisibility() }
                 }
-            }, LayoutParams(0, dp(36), 1f).apply { marginEnd = dp(5) })
+            }, LayoutParams(0, dp(Ui.CONTROL_NORMAL), 1f).apply { marginEnd = dp(5) })
         }
         body.addView(modes, LayoutParams(-1, -2).apply { topMargin = dp(5); bottomMargin = dp(10) })
         val presets = if (AppConfig.isNightTheme) listOf(Triple("静夜", "#1E2528", "#BEC5C4"), Triple("石墨", "#292E32", "#CDD3D5"), Triple("暖夜", "#322B25", "#CFC1AB"))
@@ -784,7 +784,7 @@ class ReadMenuWorkbench(
         presets.forEach { (name, bg, ink) ->
             val selected = ReadBookConfig.durConfig.curBgType() == 0 && ReadBookConfig.durConfig.curBgStr().equals(bg, true)
             val card = column().apply {
-                background = rounded(palette.well, 10, if (selected) accent else palette.line)
+                background = rounded(palette.well, Ui.RADIUS_CONTROL, if (selected) accent else palette.line)
                 clipToOutline = true
                 setOnClickListener {
                     ReadBookConfig.durConfig.setCurBg(0, bg); ReadBookConfig.durConfig.setCurTextColor(Color.parseColor(ink))
@@ -792,15 +792,15 @@ class ReadMenuWorkbench(
                     changed(true)
                 }
             }
-            card.addView(text("春夜\n夜色微凉\n星光落在书页", 11, Color.parseColor(ink)).apply {
+            card.addView(text("春夜\n夜色微凉\n星光落在书页", Ui.TEXT_CAPTION, Color.parseColor(ink)).apply {
                 setBackgroundColor(Color.parseColor(bg)); setPadding(dp(9), dp(8), dp(9), dp(8)); setLineSpacing(dp(5).toFloat(), 1f)
-            }, LayoutParams(-1, dp(73)))
-            card.addView(text(if (selected) "$name ✓" else name, 12, if (selected) palette.accentText else palette.text).apply { gravity = Gravity.CENTER }, LayoutParams(-1, dp(30)))
+            }, LayoutParams(-1, dp(64)))
+            card.addView(text(if (selected) "$name ✓" else name, Ui.TEXT_CAPTION, if (selected) palette.accentText else palette.text).apply { gravity = Gravity.CENTER }, LayoutParams(-1, dp(24)))
             cards.addView(card, LayoutParams(0, -2, 1f).apply { marginEnd = dp(6) })
         }
         body.addView(cards)
         actionRow(body, "我的主题", "${ReadMenuThemeSuiteStore.load(context).size} 个已保存") { show(Page.THEME_LIBRARY) }
-        body.addView(text("颜色预设保留当前字体、字号和间距", 11, palette.secondary), LayoutParams(-1, dp(24)))
+        body.addView(text("颜色预设保留当前字体、字号和间距", Ui.TEXT_CAPTION, palette.secondary), LayoutParams(-1, dp(24)))
     }
 
     private fun buildThemeLibrary(body: LinearLayout) {
@@ -809,8 +809,8 @@ class ReadMenuWorkbench(
         if (saved.isEmpty()) note(body, "还没有保存的主题。调整好外观后，可保存为自己的阅读习惯。")
         saved.forEach { suite ->
             val line = row()
-            line.addView(text(suite.name, 14).apply { minHeight = dp(49); setOnClickListener { suite.applyToReader(); changed(true) } }, LayoutParams(0, -2, 1f))
-            line.addView(text("•••", 14, palette.secondary).apply { gravity = Gravity.CENTER; contentDescription = "管理${suite.name}"; setOnClickListener { manageTheme(suite) } }, LayoutParams(dp(44), dp(49)))
+            line.addView(text(suite.name, Ui.TEXT_BODY).apply { minHeight = dp(Ui.CONTROL_NORMAL); setOnClickListener { suite.applyToReader(); changed(true) } }, LayoutParams(0, -2, 1f))
+            line.addView(text("•••", Ui.TEXT_BODY, palette.secondary).apply { gravity = Gravity.CENTER; contentDescription = "管理${suite.name}"; setOnClickListener { manageTheme(suite) } }, LayoutParams(dp(Ui.CONTROL_NORMAL), dp(Ui.CONTROL_NORMAL)))
             body.addView(line)
         }
     }
@@ -839,7 +839,7 @@ class ReadMenuWorkbench(
         note(body, "${ReadBookConfig.textSize} 号字 · 行间距 ${ReadBookConfig.lineSpacingExtra} · 段间距 ${ReadBookConfig.paragraphSpacing}\n保存当前实际配置，之后可重命名、复制或导出。")
         section(body, "主题名称")
         saveName = input("例如：午后阅读", "阅读主题 ${ReadMenuThemeSuiteStore.load(context).size + 1}")
-        body.addView(saveName, LayoutParams(-1, dp(48)))
+        body.addView(saveName, LayoutParams(-1, dp(Ui.CONTROL_NORMAL)))
         switchRow(body, "包含字体与排版", saveTypography) { saveTypography = it }
         switchRow(body, "包含背景与文字颜色", saveBackground) { saveBackground = it }
         switchRow(body, "包含翻页偏好", saveTurning) { saveTurning = it }
@@ -868,6 +868,7 @@ class ReadMenuWorkbench(
                         }
                     } }
                     dialog.show()
+                    Ui.styleDialog(dialog)
                 }
                 2 -> { ReadMenuThemeSuiteStore.save(context, suite.copy(name = "${suite.name} 副本", createdAt = System.currentTimeMillis())); refresh() }
                 3 -> context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply { type = "application/json"; putExtra(Intent.EXTRA_TEXT, GSON.toJson(suite)); putExtra(Intent.EXTRA_SUBJECT, suite.name) }, "导出阅读主题"))
@@ -899,8 +900,8 @@ class ReadMenuWorkbench(
 
     private fun buildAloud(body: LinearLayout) {
         val playing = BaseReadAloudService.isRun && !BaseReadAloudService.pause
-        body.addView(text("${if (playing) "正在朗读" else "准备朗读"} · ${ReadBook.book?.name.orEmpty()}", 12, palette.secondary), LayoutParams(-1, dp(28)))
-        body.addView(text(ReadBook.curTextChapter?.title.orEmpty(), 17).apply { maxLines = 1; ellipsize = TextUtils.TruncateAt.END; setPadding(0, dp(6), 0, dp(12)) })
+        body.addView(text("${if (playing) "正在朗读" else "准备朗读"} · ${ReadBook.book?.name.orEmpty()}", Ui.TEXT_CAPTION, palette.secondary), LayoutParams(-1, dp(28)))
+        body.addView(text(ReadBook.curTextChapter?.title.orEmpty(), Ui.TEXT_TITLE).apply { maxLines = 1; ellipsize = TextUtils.TruncateAt.END; setPadding(0, dp(6), 0, dp(12)) })
         val controls = row()
         val buttons = listOf(Triple("停止", R.drawable.ic_stop_black_24dp, { ReadAloud.stop(context) }), Triple("上段", R.drawable.ic_skip_previous, { ReadAloud.prevParagraph(context) }), Triple(if (playing) "暂停" else "播放", if (playing) R.drawable.ic_pause_24dp else R.drawable.ic_play_24dp, { callbacks.onClickReadAloud() }), Triple("下段", R.drawable.ic_skip_next, { ReadAloud.nextParagraph(context) }))
         buttons.forEachIndexed { index, (name, res, action) ->
@@ -908,7 +909,7 @@ class ReadMenuWorkbench(
                 action(); postDelayed({ if (page == Page.ALOUD) refresh() }, 250)
             }.apply {
                 background = rounded(if (index == 2) accent else palette.well)
-            }, LayoutParams(0, dp(51), 1f).apply { marginEnd = dp(8) })
+            }, LayoutParams(0, dp(Ui.CONTROL_NORMAL), 1f).apply { marginEnd = dp(8) })
         }
         body.addView(controls)
         actionRow(body, "朗读声音", "语音设置") { advanced(Advanced.VOICE) }
@@ -940,16 +941,16 @@ class ReadMenuWorkbench(
     private fun buildAuto(body: LinearLayout) {
         val modeRow = row()
         listOf("定时翻页" to ReadBookConfig.AUTO_READ_MODE_TIMED, "连续滚动" to ReadBookConfig.AUTO_READ_MODE_SCROLL).forEach { (name, mode) ->
-            modeRow.addView(text(name, 14, if (ReadBookConfig.autoReadMode == mode) palette.accentText else palette.secondary).apply {
+            modeRow.addView(text(name, Ui.TEXT_BODY, if (ReadBookConfig.autoReadMode == mode) palette.accentText else palette.secondary).apply {
                 gravity = Gravity.CENTER; background = rounded(if (ReadBookConfig.autoReadMode == mode) palette.selected else palette.well)
                 setOnClickListener { ReadBookConfig.autoReadMode = mode; callbacks.updateAutoPageConfig(false); refresh() }
-            }, LayoutParams(0, dp(44), 1f).apply { marginEnd = dp(8) })
+            }, LayoutParams(0, dp(Ui.CONTROL_NORMAL), 1f).apply { marginEnd = dp(8) })
         }
         body.addView(modeRow)
         section(body, if (ReadBookConfig.autoReadMode == ReadBookConfig.AUTO_READ_MODE_TIMED) "翻页间隔" else "滚动一屏用时")
         slider(body, "时间", ReadBookConfig.autoReadSpeed, 1, 120, { "${it}s" }) { ReadBookConfig.autoReadSpeed = it; callbacks.updateAutoPageConfig(false) }
         val presets = row()
-        listOf(10, 15, 30).forEach { seconds -> presets.addView(text("$seconds 秒", 13, palette.accentText).apply { gravity = Gravity.CENTER; minimumHeight = dp(44); setOnClickListener { ReadBookConfig.autoReadSpeed = seconds; callbacks.updateAutoPageConfig(false); refresh() } }, LayoutParams(0, -2, 1f)) }
+        listOf(10, 15, 30).forEach { seconds -> presets.addView(text("$seconds 秒", Ui.TEXT_BODY, palette.accentText).apply { gravity = Gravity.CENTER; minimumHeight = dp(Ui.CONTROL_NORMAL); setOnClickListener { ReadBookConfig.autoReadSpeed = seconds; callbacks.updateAutoPageConfig(false); refresh() } }, LayoutParams(0, -2, 1f)) }
         body.addView(presets)
         val stopMinutes = context.getPrefInt(AUTO_STOP_MINUTES)
         actionRow(body, "定时停止", if (stopMinutes == 0) "不限时" else "$stopMinutes 分钟") {
@@ -964,8 +965,8 @@ class ReadMenuWorkbench(
         note(body, if (touchTrial) "试用模式：点击区域仅提示动作，不修改阅读进度。" else "选择持握习惯，点击任意区域可修改动作。至少保留一个菜单入口；全部移除时会自动恢复中央菜单。")
         val presets = row()
         listOf("右手习惯", "左手习惯", "自定义").forEachIndexed { index, name ->
-            presets.addView(text(name, 13, palette.accentText).apply {
-                gravity = Gravity.CENTER; minHeight = dp(44)
+            presets.addView(text(name, Ui.TEXT_BODY, palette.accentText).apply {
+                gravity = Gravity.CENTER; minHeight = dp(Ui.CONTROL_NORMAL)
                 setOnClickListener {
                     touchTrial = false
                     if (index < 2) {
@@ -985,8 +986,8 @@ class ReadMenuWorkbench(
                 val index = rowIndex * 3 + colIndex
                 val value = context.getPrefInt(key, listOf(2, 2, 1, 2, 0, 1, 2, 1, 1)[index])
                 val label = actions.getOrElse(value) { "无操作" }
-                line.addView(text(label, 12, if (value == 0) palette.accentText else palette.secondary).apply {
-                    gravity = Gravity.CENTER; background = rounded(if (value == 0) palette.selected else palette.well, 8, palette.line)
+                line.addView(text(label, Ui.TEXT_CAPTION, if (value == 0) palette.accentText else palette.secondary).apply {
+                    gravity = Gravity.CENTER; background = rounded(if (value == 0) palette.selected else palette.well, Ui.RADIUS_CONTROL, palette.line)
                     setOnClickListener {
                         if (touchTrial) context.toastOnUi(label) else choose("选择点击动作", actions + "无操作") {
                             context.putPrefInt(key, if (it == actions.size) -1 else it); AppConfig.detectClickArea(); postEvent(EventBus.UP_CONFIG, arrayListOf(12)); refresh()
@@ -1001,17 +1002,17 @@ class ReadMenuWorkbench(
     }
 
     private fun input(hint: String, value: String = "") = EditText(context).apply {
-        setText(value); this.hint = hint; isSingleLine = true; textSize = 14f
+        setText(value); this.hint = hint; isSingleLine = true; textSize = Ui.TEXT_BODY.toFloat()
         setTextColor(palette.text); setHintTextColor(palette.secondary)
-        background = rounded(palette.well, 10, palette.line)
+        background = rounded(palette.well, Ui.RADIUS_CONTROL, palette.line)
         setPadding(dp(13), 0, dp(13), 0)
     }
     private fun hideKeyboard() { (context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager)?.hideSoftInputFromWindow(windowToken, 0); clearFocus() }
     private fun choose(title: String, items: List<String>, action: (Int) -> Unit) {
-        AlertDialog.Builder(context).setTitle(title).setItems(items.toTypedArray()) { _, index -> action(index) }.setNegativeButton("取消", null).show()
+        AlertDialog.Builder(context).setTitle(title).setItems(items.toTypedArray()) { _, index -> action(index) }.setNegativeButton("取消", null).show().also(Ui::styleDialog)
     }
     private fun confirm(title: String, message: String, action: () -> Unit) {
-        AlertDialog.Builder(context).setTitle(title).setMessage(message).setPositiveButton("确定") { _, _ -> action() }.setNegativeButton("取消", null).show()
+        AlertDialog.Builder(context).setTitle(title).setMessage(message).setPositiveButton("确定") { _, _ -> action() }.setNegativeButton("取消", null).show().also(Ui::styleDialog)
     }
     private fun numberDialog(title: String, value: Int, min: Int, max: Int, action: (Int) -> Unit) {
         val field = input("$min - $max", "$value").apply { inputType = InputType.TYPE_CLASS_NUMBER }
@@ -1021,6 +1022,7 @@ class ReadMenuWorkbench(
             if (number == null || number !in min..max) field.error = "请输入 $min 至 $max" else { action(number); dialog.dismiss() }
         } }
         dialog.show()
+        Ui.styleDialog(dialog)
     }
 
     private fun createList(parent: LinearLayout): RowsAdapter {
@@ -1038,9 +1040,9 @@ class ReadMenuWorkbench(
         override fun getItemCount() = entries.size
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): Holder {
             val compact = page == Page.TOC
-            val root = column().apply { setPadding(dp(10), dp(if (compact) 8 else 13), dp(10), dp(if (compact) 8 else 13)); minimumHeight = dp(51); layoutParams = RecyclerView.LayoutParams(-1, -2) }
-            val title = text("", 14)
-            val detail = text("", if (compact) 11 else 13, palette.secondary).apply { setLineSpacing(dp(if (compact) 0 else 4).toFloat(), 1.1f); setPadding(0, dp(if (compact) 4 else 8), 0, 0) }
+            val root = column().apply { setPadding(dp(10), dp(if (compact) 8 else 13), dp(10), dp(if (compact) 8 else 13)); minimumHeight = dp(Ui.CONTROL_NORMAL); layoutParams = RecyclerView.LayoutParams(-1, -2) }
+            val title = text("", Ui.TEXT_BODY)
+            val detail = text("", Ui.TEXT_CAPTION, palette.secondary).apply { setLineSpacing(dp(if (compact) 0 else 4).toFloat(), 1.1f); setPadding(0, dp(if (compact) 4 else 8), 0, 0) }
             root.addView(title); root.addView(detail)
             return Holder(root, title, detail)
         }
@@ -1049,7 +1051,7 @@ class ReadMenuWorkbench(
             holder.title.text = entry.title
             holder.title.setTextColor(if (entry.selected) palette.accentText else palette.text)
             holder.detail.text = entry.detail; holder.detail.isVisible = entry.detail.isNotEmpty()
-            holder.root.background = if (entry.selected) rounded(palette.selected, 8) else null
+            holder.root.background = if (entry.selected) rounded(palette.selected, Ui.RADIUS_CONTROL) else null
             holder.root.setOnClickListener { entry.onClick() }
         }
     }
@@ -1057,8 +1059,8 @@ class ReadMenuWorkbench(
     private fun buildSearch(body: LinearLayout) {
         val field = input("搜索已缓存的章节", query).apply { imeOptions = EditorInfo.IME_ACTION_SEARCH }
         val searchLine = row()
-        searchLine.addView(field, LayoutParams(0, dp(46), 1f))
-        searchLine.addView(icon(R.drawable.ic_lucide_search, "开始搜索", palette.accentText) { query = field.text.toString(); startSearch() }, LayoutParams(dp(44), dp(46)))
+        searchLine.addView(field, LayoutParams(0, dp(Ui.CONTROL_NORMAL), 1f))
+        searchLine.addView(icon(R.drawable.ic_lucide_search, "开始搜索", palette.accentText) { query = field.text.toString(); startSearch() }, LayoutParams(dp(Ui.CONTROL_NORMAL), dp(Ui.CONTROL_NORMAL)))
         body.addView(searchLine)
         field.setOnEditorActionListener { _, actionId, _ -> if (actionId == EditorInfo.IME_ACTION_SEARCH) { query = field.text.toString(); startSearch(); true } else false }
         field.doAfterTextChanged {
@@ -1070,10 +1072,10 @@ class ReadMenuWorkbench(
             renderSearchResults()
         }
         val filters = row()
-        filters.addView(text(if (regexSearch) "✓ 正则表达式" else "正则表达式", 12, palette.secondary).apply { minHeight = dp(43); setOnClickListener { regexSearch = !regexSearch; startSearch() } }, LayoutParams(0, -2, 1f))
-        filters.addView(text(if (currentChapterOnly) "仅当前章 ▾" else "已缓存章节 ▾", 12, palette.secondary).apply { minHeight = dp(43); setOnClickListener { currentChapterOnly = !currentChapterOnly; startSearch() } })
+        filters.addView(text(if (regexSearch) "✓ 正则表达式" else "正则表达式", Ui.TEXT_CAPTION, palette.secondary).apply { minHeight = dp(Ui.CONTROL_NORMAL); setOnClickListener { regexSearch = !regexSearch; startSearch() } }, LayoutParams(0, -2, 1f))
+        filters.addView(text(if (currentChapterOnly) "仅当前章 ▾" else "已缓存章节 ▾", Ui.TEXT_CAPTION, palette.secondary).apply { minHeight = dp(Ui.CONTROL_NORMAL); setOnClickListener { currentChapterOnly = !currentChapterOnly; startSearch() } })
         body.addView(filters)
-        searchCount = text(searchMessage, 12, palette.secondary)
+        searchCount = text(searchMessage, Ui.TEXT_CAPTION, palette.secondary)
         body.addView(searchCount, LayoutParams(-1, dp(31)))
         createList(body)
         renderSearchResults()
@@ -1141,11 +1143,11 @@ class ReadMenuWorkbench(
 
     private fun buildToc(body: LinearLayout) {
         val filter = input("查找章节名称或序号", chapterQuery)
-        body.addView(filter, LayoutParams(-1, dp(44)))
+        body.addView(filter, LayoutParams(-1, dp(Ui.CONTROL_NORMAL)))
         filter.doAfterTextChanged { chapterQuery = it?.toString().orEmpty(); renderChapters() }
         val meta = row()
-        meta.addView(text("${chapters.size} 章 · 已缓存 ${cachedChapters.size} 章", 11, palette.secondary), LayoutParams(0, dp(37), 1f))
-        meta.addView(text(if (reverseChapters) "倒序 ▾" else "正序 ▾", 12, palette.secondary).apply { minHeight = dp(44); setOnClickListener { reverseChapters = !reverseChapters; renderChapters(); text = if (reverseChapters) "倒序 ▾" else "正序 ▾" } })
+        meta.addView(text("${chapters.size} 章 · 已缓存 ${cachedChapters.size} 章", Ui.TEXT_CAPTION, palette.secondary), LayoutParams(0, dp(37), 1f))
+        meta.addView(text(if (reverseChapters) "倒序 ▾" else "正序 ▾", Ui.TEXT_CAPTION, palette.secondary).apply { minHeight = dp(Ui.CONTROL_NORMAL); setOnClickListener { reverseChapters = !reverseChapters; renderChapters(); text = if (reverseChapters) "倒序 ▾" else "正序 ▾" } })
         body.addView(meta)
         createList(body)
         renderChapters()

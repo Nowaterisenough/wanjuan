@@ -1224,7 +1224,7 @@ class ReadBookActivity : BaseReadBookActivity(),
         listOf(btnChapterMinimapPrevious, btnChapterMinimapNext).forEach { button ->
             button.clipToOutline = false
             button.background = io.wanjuan.app.ui.book.read.config.ReaderSheetStyle.blockDrawable(
-                colors.surface, colors.stroke, 10f
+                colors.surface, colors.stroke
             )
             button.elevation = 2f.dpToPx()
         }

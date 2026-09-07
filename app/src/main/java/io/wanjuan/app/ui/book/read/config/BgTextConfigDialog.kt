@@ -128,6 +128,7 @@ class BgTextConfigDialog : BaseDialogFragment(R.layout.dialog_read_bg_text) {
         initView()
         initData()
         initEvent()
+        ReaderUiStyle.styleLabels(view)
     }
 
     override fun onDismiss(dialog: DialogInterface) {
@@ -137,10 +138,10 @@ class BgTextConfigDialog : BaseDialogFragment(R.layout.dialog_read_bg_text) {
     }
 
     private fun initView() = binding.run {
-        val bg = requireContext().bottomBackground
-        val isLight = ColorUtils.isColorLight(bg)
-        primaryTextColor = requireContext().getPrimaryTextColor(isLight)
-        secondaryTextColor = requireContext().getSecondaryTextColor(isLight)
+        val palette = ReaderSheetStyle.resolve(requireContext())
+        val bg = palette.surface
+        primaryTextColor = palette.textColor
+        secondaryTextColor = palette.secondaryTextColor
         rootView.background = ReaderSheetStyle.topSheetDrawable(ReaderSheetStyle.resolve(requireContext(), bg))
         rootView.clipToOutline = true
         tvNameTitle.setTextColor(primaryTextColor)

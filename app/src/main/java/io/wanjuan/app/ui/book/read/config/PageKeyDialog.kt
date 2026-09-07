@@ -22,12 +22,13 @@ class PageKeyDialog(context: Context) : Dialog(context) {
         super.onStart()
         window?.setBackgroundDrawableResource(android.R.color.transparent)
         setLayout(0.9f, ViewGroup.LayoutParams.WRAP_CONTENT)
+        ReaderUiStyle.styleLabels(binding.root)
     }
 
     init {
         setContentView(binding.root)
         binding.run {
-            contentView.background = context.dialogSurfaceBackground
+            contentView.background = ReaderUiStyle.rounded(context, ReaderSheetStyle.resolve(context).surface, ReaderUiStyle.RADIUS_SHEET)
             contentView.clipToOutline = true
             etPrev.setText(context.getPrefString(PreferKey.prevKeys))
             etNext.setText(context.getPrefString(PreferKey.nextKeys))

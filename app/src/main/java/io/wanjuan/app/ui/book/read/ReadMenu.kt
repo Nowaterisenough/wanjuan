@@ -3339,6 +3339,7 @@ class ReadMenu @JvmOverloads constructor(
 
     private fun showLayoutMarginAdjustOverlay(mode: LayoutMarginAdjustMode) = binding.run {
         activeLayoutMarginAdjustMode = mode
+        io.wanjuan.app.ui.book.read.config.ReaderUiStyle.styleLabels(layoutMarginAdjustPanel)
         tvLayoutMarginAdjustTitle.setText(
             when (mode) {
                 LayoutMarginAdjustMode.Body -> R.string.main_body
@@ -3356,6 +3357,11 @@ class ReadMenu @JvmOverloads constructor(
         layoutMarginAdjustOverlay.bringToFront()
         layoutMarginAdjustPanel.post {
             configureLayoutAdjustFrostedGlass()
+            val colors = io.wanjuan.app.ui.book.read.config.ReaderSheetStyle.resolve(context)
+            layoutMarginAdjustContent.background = io.wanjuan.app.ui.book.read.config.ReaderUiStyle.rounded(
+                context, colors.surface, io.wanjuan.app.ui.book.read.config.ReaderUiStyle.RADIUS_SHEET, colors.stroke
+            )
+            btnLayoutMarginAdjustClose.setColorFilter(colors.secondaryTextColor)
         }
     }
 

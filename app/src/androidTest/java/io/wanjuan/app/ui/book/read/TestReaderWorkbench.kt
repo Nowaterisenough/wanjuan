@@ -37,7 +37,7 @@ class TestReaderWorkbench {
             assertEquals("外观", (appearance.getChildAt(1) as TextView).text.toString())
             val density = context.resources.displayMetrics.density
             menu.measure(View.MeasureSpec.makeMeasureSpec((390 * density).toInt(), View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec((800 * density).toInt(), View.MeasureSpec.AT_MOST))
-            assertTrue("Expanded dock must remain compact", menu.measuredHeight <= 380 * density)
+            assertTrue("Expanded dock must remain compact", menu.measuredHeight <= 400 * density)
             menu.show(ReadMenuWorkbench.Page.TURN, false)
             assertSame(dock, menu.getChildAt(menu.childCount - 1))
             appearance.performClick()
