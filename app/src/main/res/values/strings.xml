@@ -1848,6 +1848,11 @@
     <string name="theme_color_background">Background color</string>
     <string name="theme_color_bottom_background">Bottom bar color</string>
     <string name="theme_color_comment_indicator">Comment indicator color</string>
+    <string name="theme_comment_indicator">Inline comment bubbles</string>
+    <string name="theme_comment_indicator_preview">Inline bubble preview</string>
+    <string name="theme_comment_indicator_hex">Comment bubble color value</string>
+    <string name="theme_comment_indicator_apply">Apply</string>
+    <string name="theme_comment_indicator_description">Outline and number colors are saved separately for day and night, for all books. This preview is illustrative; the source controls the shape and count.</string>
     <string name="theme_color_comment_indicator_summary">Outline and number color of clickable inline count bubbles.</string>
     <string name="theme_color_follow_source">Use source color</string>
     <string name="theme_color_custom">Choose color</string>

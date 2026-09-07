@@ -39,6 +39,7 @@ import io.wanjuan.app.R
 import io.wanjuan.app.ui.book.read.config.ReaderUiStyle as Ui
 import io.wanjuan.app.ui.book.read.config.ReaderSheetStyle
 import io.wanjuan.app.ui.book.read.config.ReaderAdvancedSettingsHost
+import io.wanjuan.app.ui.book.read.config.ReaderCommentColorPanel
 import io.wanjuan.app.constant.EventBus
 import io.wanjuan.app.constant.PageAnim
 import io.wanjuan.app.constant.PreferKey
@@ -51,6 +52,7 @@ import io.wanjuan.app.help.config.BuiltInReadFonts
 import io.wanjuan.app.ui.font.ReaderFontLibrary
 import io.wanjuan.app.help.config.AppConfig
 import io.wanjuan.app.help.config.ReadBookConfig
+import io.wanjuan.app.help.config.ThemeConfig
 import io.wanjuan.app.help.glide.ImageLoader
 import io.wanjuan.app.model.ReadAloud
 import io.wanjuan.app.model.ReadBook
@@ -84,7 +86,7 @@ class ReadMenuWorkbench(
     private val advanced: (Advanced) -> Unit,
     private val setBrightness: (Int) -> Unit
 ) : LinearLayout(context) {
-    enum class Page { MAIN, SEARCH, TOC, ALOUD, LAYOUT, TURN, BACKGROUND, THEME, SETTINGS, SCOPE, SAVE, AUTO, TOUCH, FONTS, LAYOUT_DETAILS, TURN_DETAILS, BACKGROUND_DETAILS, THEME_LIBRARY, ALOUD_DETAILS, SETTINGS_DETAILS, ADVANCED_SETTINGS, PROGRESS }
+    enum class Page { MAIN, SEARCH, TOC, ALOUD, LAYOUT, TURN, BACKGROUND, THEME, SETTINGS, SCOPE, SAVE, AUTO, TOUCH, FONTS, LAYOUT_DETAILS, TURN_DETAILS, BACKGROUND_DETAILS, COMMENT_COLORS, THEME_LIBRARY, ALOUD_DETAILS, SETTINGS_DETAILS, ADVANCED_SETTINGS, PROGRESS }
     enum class Advanced { FONT_IMPORT, FONT, BODY, TITLE, HEADER, FOOTER, BACKGROUND, TEXT_COLOR, SETTINGS, VOICE, REPLACE }
 
     private data class Palette(val surface: Int, val text: Int, val secondary: Int, val line: Int, val well: Int, val selected: Int, val accentText: Int)
@@ -119,6 +121,8 @@ class ReadMenuWorkbench(
     private var reverseChapters = false
     private var locateChapterAfterLoad = false
     private var backgroundCategory = 1
+    private var commentColorParent = Page.BACKGROUND
+    private var commentColorNight = AppConfig.isNightTheme
     private var touchTrial = false
     private var autoRunning = false
     private var chapterProgress = false
@@ -499,7 +503,8 @@ class ReadMenuWorkbench(
             }, LayoutParams(dp(74), dp(Ui.CONTROL_NORMAL)))
         } else {
             if (page in detailPages) header.addView(icon(R.drawable.ic_lucide_chevron_left, "返回", size = Ui.ICON_LARGE) { show(parentPage()) }, LayoutParams(dp(Ui.CONTROL_NORMAL), dp(Ui.CONTROL_NORMAL)))
-            header.addView(text(titles[page].orEmpty(), Ui.TEXT_TITLE, bold = true), LayoutParams(0, dp(Ui.CONTROL_NORMAL), 1f))
+            val title = if (page == Page.COMMENT_COLORS) context.getString(R.string.theme_color_comment_indicator) else titles[page].orEmpty()
+            header.addView(text(title, Ui.TEXT_TITLE, bold = true), LayoutParams(0, dp(Ui.CONTROL_NORMAL), 1f))
             if (page == Page.FONTS) header.addView(text("＋ 导入", Ui.TEXT_CAPTION, palette.accentText).apply { gravity = Gravity.CENTER; setOnClickListener { advanced(Advanced.FONT_IMPORT) } }, LayoutParams(dp(65), dp(Ui.CONTROL_NORMAL)))
         }
         header.addView(icon(R.drawable.ic_close_x, "关闭面板") { show(Page.MAIN) }, LayoutParams(dp(Ui.CONTROL_NORMAL), dp(Ui.CONTROL_NORMAL)))
@@ -507,6 +512,7 @@ class ReadMenuWorkbench(
         val screenHeight = rootView.height.takeIf { it > 0 } ?: resources.displayMetrics.heightPixels
         val desired = dp(when (page) {
             Page.ADVANCED_SETTINGS -> 480
+            Page.COMMENT_COLORS -> 380
             Page.FONTS, Page.TOC, Page.SEARCH -> 338
             else -> 320
         })
@@ -541,6 +547,7 @@ class ReadMenuWorkbench(
             Page.LAYOUT_DETAILS -> buildLayoutDetails(body)
             Page.TURN_DETAILS -> buildTurnDetails(body)
             Page.BACKGROUND_DETAILS -> buildBackgroundDetails(body)
+            Page.COMMENT_COLORS -> body.addView(ReaderCommentColorPanel(context, commentColorNight) { commentColorNight = it })
             Page.THEME_LIBRARY -> buildThemeLibrary(body)
             Page.ALOUD_DETAILS -> buildAloudDetails(body)
             Page.SETTINGS_DETAILS -> buildSettingsDetails(body)
@@ -560,6 +567,7 @@ class ReadMenuWorkbench(
         Page.FONTS, Page.LAYOUT_DETAILS -> Page.LAYOUT
         Page.TURN_DETAILS, Page.AUTO -> Page.TURN
         Page.BACKGROUND_DETAILS -> Page.BACKGROUND
+        Page.COMMENT_COLORS -> commentColorParent
         Page.THEME_LIBRARY, Page.SAVE -> Page.THEME
         Page.ALOUD_DETAILS -> Page.ALOUD
         Page.SETTINGS_DETAILS, Page.ADVANCED_SETTINGS, Page.TOUCH -> Page.SETTINGS
@@ -755,6 +763,7 @@ class ReadMenuWorkbench(
     }
 
     private fun buildBackground(body: LinearLayout) {
+        commentColorRow(body)
         val categories = row()
         listOf("纯色", "纸张", "图片").forEachIndexed { index, title ->
             categories.addView(text(title, Ui.TEXT_BODY, if (backgroundCategory == index) palette.accentText else palette.secondary).apply {
@@ -793,10 +802,21 @@ class ReadMenuWorkbench(
 
     private fun buildBackgroundDetails(body: LinearLayout) {
         actionRow(body, "选择图片或自定义颜色") { advanced(Advanced.BACKGROUND) }
+        actionRow(body, "文字颜色") { advanced(Advanced.TEXT_COLOR) }
+        commentColorRow(body)
         slider(body, "亮度", ReadBookConfig.bgBrightness, 0, 100, { "$it%" }) { ReadBookConfig.bgBrightness = it; changed(flags = arrayListOf(1, 3)) }
         slider(body, "饱和度", ReadBookConfig.bgSaturation, 0, 100, { "$it%" }) { ReadBookConfig.bgSaturation = it; changed(flags = arrayListOf(1, 3)) }
         slider(body, "透明度", ReadBookConfig.bgAlpha, 0, 100, { "$it%" }) { ReadBookConfig.bgAlpha = it; changed(flags = arrayListOf(3)) }
-        actionRow(body, "文字颜色") { advanced(Advanced.TEXT_COLOR) }
+    }
+
+    private fun commentColorRow(body: LinearLayout) {
+        val summary = ThemeConfig.getCommentIndicatorColor(context)
+            ?: context.getString(R.string.theme_color_follow_source)
+        actionRow(body, context.getString(R.string.theme_comment_indicator), summary) {
+            commentColorParent = page
+            commentColorNight = AppConfig.isNightTheme
+            show(Page.COMMENT_COLORS)
+        }
     }
 
     private fun buildThemes(body: LinearLayout) {
@@ -1234,7 +1254,7 @@ class ReadMenuWorkbench(
     companion object {
         const val AUTO_STOP_MINUTES = "readerAutoStopMinutes"
         private val appearancePages = listOf(Page.LAYOUT, Page.TURN, Page.BACKGROUND, Page.THEME)
-        private val detailPages = listOf(Page.SCOPE, Page.SAVE, Page.AUTO, Page.TOUCH, Page.FONTS, Page.LAYOUT_DETAILS, Page.TURN_DETAILS, Page.BACKGROUND_DETAILS, Page.THEME_LIBRARY, Page.ALOUD_DETAILS, Page.SETTINGS_DETAILS, Page.ADVANCED_SETTINGS, Page.PROGRESS)
+        private val detailPages = listOf(Page.SCOPE, Page.SAVE, Page.AUTO, Page.TOUCH, Page.FONTS, Page.LAYOUT_DETAILS, Page.TURN_DETAILS, Page.BACKGROUND_DETAILS, Page.COMMENT_COLORS, Page.THEME_LIBRARY, Page.ALOUD_DETAILS, Page.SETTINGS_DETAILS, Page.ADVANCED_SETTINGS, Page.PROGRESS)
         private val touchKeys = listOf(PreferKey.clickActionTL, PreferKey.clickActionTC, PreferKey.clickActionTR, PreferKey.clickActionML, PreferKey.clickActionMC, PreferKey.clickActionMR, PreferKey.clickActionBL, PreferKey.clickActionBC, PreferKey.clickActionBR)
     }
 }

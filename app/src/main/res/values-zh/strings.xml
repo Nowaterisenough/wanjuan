@@ -1742,6 +1742,11 @@
     <string name="theme_color_background">背景色</string>
     <string name="theme_color_bottom_background">底栏色</string>
     <string name="theme_color_comment_indicator">正文评论标识颜色</string>
+    <string name="theme_comment_indicator">正文评论气泡</string>
+    <string name="theme_comment_indicator_preview">正文中的气泡效果</string>
+    <string name="theme_comment_indicator_hex">评论气泡颜色值</string>
+    <string name="theme_comment_indicator_apply">应用</string>
+    <string name="theme_comment_indicator_description">描边与数字同步变色，日夜分别保存，适用于所有书籍。预览仅为示意，形状和数量由书源决定。</string>
     <string name="theme_color_comment_indicator_summary">调整正文中可点击数字气泡的轮廓和数字颜色。</string>
     <string name="theme_color_follow_source">沿用书源颜色</string>
     <string name="theme_color_custom">自定义颜色</string>
