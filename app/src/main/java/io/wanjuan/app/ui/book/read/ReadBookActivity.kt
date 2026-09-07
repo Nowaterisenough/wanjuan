@@ -84,7 +84,6 @@ import io.wanjuan.app.ui.book.read.config.AutoReadDialog
 import io.wanjuan.app.ui.book.read.config.BgTextConfigDialog.Companion.BG_COLOR
 import io.wanjuan.app.ui.book.read.config.BgTextConfigDialog.Companion.TEXT_ACCENT_COLOR
 import io.wanjuan.app.ui.book.read.config.BgTextConfigDialog.Companion.TEXT_COLOR
-import io.wanjuan.app.ui.book.read.config.MoreConfigDialog
 import io.wanjuan.app.ui.book.read.config.ParagraphRuleManageActivity
 import io.wanjuan.app.ui.book.read.config.ReadAloudDialog
 import io.wanjuan.app.ui.book.read.config.TipConfigDialog.Companion.TIP_COLOR
@@ -1624,11 +1623,11 @@ class ReadBookActivity : BaseReadBookActivity(),
      * 鏄剧ず鏇村璁剧疆
      */
     override fun showMoreSetting() {
-        showDialogFragment<MoreConfigDialog>()
+        binding.readMenu.showWorkbenchPage(ReadMenuWorkbench.Page.ADVANCED_SETTINGS)
     }
 
     override fun showSearchSetting() {
-        showDialogFragment<MoreConfigDialog>()
+        showMoreSetting()
     }
 
     /**

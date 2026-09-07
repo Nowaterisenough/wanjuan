@@ -38,6 +38,7 @@ import androidx.recyclerview.widget.RecyclerView
 import io.wanjuan.app.R
 import io.wanjuan.app.ui.book.read.config.ReaderUiStyle as Ui
 import io.wanjuan.app.ui.book.read.config.ReaderSheetStyle
+import io.wanjuan.app.ui.book.read.config.ReaderAdvancedSettingsHost
 import io.wanjuan.app.constant.EventBus
 import io.wanjuan.app.constant.PageAnim
 import io.wanjuan.app.constant.PreferKey
@@ -83,7 +84,7 @@ class ReadMenuWorkbench(
     private val advanced: (Advanced) -> Unit,
     private val setBrightness: (Int) -> Unit
 ) : LinearLayout(context) {
-    enum class Page { MAIN, SEARCH, TOC, ALOUD, LAYOUT, TURN, BACKGROUND, THEME, SETTINGS, SCOPE, SAVE, AUTO, TOUCH, FONTS, LAYOUT_DETAILS, TURN_DETAILS, BACKGROUND_DETAILS, THEME_LIBRARY, ALOUD_DETAILS, SETTINGS_DETAILS, PROGRESS }
+    enum class Page { MAIN, SEARCH, TOC, ALOUD, LAYOUT, TURN, BACKGROUND, THEME, SETTINGS, SCOPE, SAVE, AUTO, TOUCH, FONTS, LAYOUT_DETAILS, TURN_DETAILS, BACKGROUND_DETAILS, THEME_LIBRARY, ALOUD_DETAILS, SETTINGS_DETAILS, ADVANCED_SETTINGS, PROGRESS }
     enum class Advanced { FONT_IMPORT, FONT, BODY, TITLE, HEADER, FOOTER, BACKGROUND, TEXT_COLOR, SETTINGS, VOICE, REPLACE }
 
     private data class Palette(val surface: Int, val text: Int, val secondary: Int, val line: Int, val well: Int, val selected: Int, val accentText: Int)
@@ -130,6 +131,7 @@ class ReadMenuWorkbench(
     private var saveBackground = true
     private var saveTurning = true
     private val panelHost = FrameLayout(context)
+    private val advancedSettingsHost = ReaderAdvancedSettingsHost(context)
     private val dockHost = FrameLayout(context)
     private val navigationDivider = View(context)
     private val navigationItems = ArrayList<LinearLayout>()
@@ -144,6 +146,7 @@ class ReadMenuWorkbench(
         isClickable = true
         importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_YES
         addView(panelHost, LayoutParams(-1, -2))
+        addView(advancedSettingsHost, LayoutParams(-1, 0))
         addView(dockHost, LayoutParams(-1, -2))
         addView(navigationDivider, LayoutParams(-1, dp(1)))
         buildNavigation()
@@ -210,6 +213,8 @@ class ReadMenuWorkbench(
         background = rounded(palette.surface, Ui.RADIUS_SHEET, palette.line)
         (parent as? View)?.setPadding(dp(Ui.GAP), 0, dp(Ui.GAP), dp(Ui.GAP))
         panelHost.isVisible = expanded
+        advancedSettingsHost.isVisible = page == Page.ADVANCED_SETTINGS
+        if (advancedSettingsHost.isVisible) advancedSettingsHost.refreshPreferences()
         dockHost.isVisible = !expanded
         if (page == Page.MAIN) {
             buildDock()
@@ -353,7 +358,7 @@ class ReadMenuWorkbench(
         Page.TOC -> 1
         Page.ALOUD, Page.ALOUD_DETAILS -> 2
         Page.MAIN, Page.PROGRESS -> -1
-        Page.SETTINGS, Page.SETTINGS_DETAILS, Page.TOUCH -> 4
+        Page.SETTINGS, Page.SETTINGS_DETAILS, Page.ADVANCED_SETTINGS, Page.TOUCH -> 4
         else -> 3
     }
 
@@ -446,7 +451,7 @@ class ReadMenuWorkbench(
         })
         val header = row().apply { setPadding(dp(Ui.INSET), 0, dp(Ui.GAP), 0) }
         val appearance = page in appearancePages
-        val titles = mapOf(Page.SEARCH to "全文搜索", Page.TOC to "目录与书签", Page.ALOUD to "朗读", Page.SETTINGS to "阅读设置", Page.SCOPE to "应用范围", Page.SAVE to "保存为主题", Page.AUTO to "自动翻页", Page.TOUCH to "点击区域", Page.FONTS to "字体", Page.LAYOUT_DETAILS to "排版细节", Page.TURN_DETAILS to "翻页设置", Page.BACKGROUND_DETAILS to "背景调校", Page.THEME_LIBRARY to "我的主题", Page.ALOUD_DETAILS to "朗读设置", Page.SETTINGS_DETAILS to "显示与内容", Page.PROGRESS to "阅读进度")
+        val titles = mapOf(Page.SEARCH to "全文搜索", Page.TOC to "目录与书签", Page.ALOUD to "朗读", Page.SETTINGS to "阅读设置", Page.SCOPE to "应用范围", Page.SAVE to "保存为主题", Page.AUTO to "自动翻页", Page.TOUCH to "点击区域", Page.FONTS to "字体", Page.LAYOUT_DETAILS to "排版细节", Page.TURN_DETAILS to "翻页设置", Page.BACKGROUND_DETAILS to "背景调校", Page.THEME_LIBRARY to "我的主题", Page.ALOUD_DETAILS to "朗读设置", Page.SETTINGS_DETAILS to "显示与内容", Page.ADVANCED_SETTINGS to "高级设置", Page.PROGRESS to "阅读进度")
         if (appearance) {
             val tabs = row()
             appearancePages.forEachIndexed { index, target ->
@@ -477,11 +482,16 @@ class ReadMenuWorkbench(
         panel.addView(header)
         val screenHeight = rootView.height.takeIf { it > 0 } ?: resources.displayMetrics.heightPixels
         val desired = dp(when (page) {
+            Page.ADVANCED_SETTINGS -> 480
             Page.FONTS, Page.TOC, Page.SEARCH -> 338
             else -> 320
         })
         val panelHeight = desired.coerceAtMost((screenHeight * .78f).roundToInt() - dp(90)).coerceAtLeast(dp(180))
         val bodyHeight = panelHeight - dp(Ui.CONTROL_NORMAL + 12 + if (appearance) Ui.CONTROL_NORMAL else 0)
+        if (page == Page.ADVANCED_SETTINGS) {
+            advancedSettingsHost.layoutParams = LayoutParams(-1, bodyHeight)
+            return
+        }
         val body = column().apply { setPadding(dp(Ui.INSET), 0, dp(Ui.INSET), 0) }
         content = body
         if (page == Page.SEARCH || page == Page.TOC) {
@@ -511,7 +521,7 @@ class ReadMenuWorkbench(
             Page.ALOUD_DETAILS -> buildAloudDetails(body)
             Page.SETTINGS_DETAILS -> buildSettingsDetails(body)
             Page.PROGRESS -> buildProgress(body)
-            Page.MAIN -> Unit
+            Page.MAIN, Page.ADVANCED_SETTINGS -> Unit
         }
         if (appearance) {
             val footer = row().apply { setPadding(dp(Ui.INSET), 0, dp(Ui.INSET), 0) }
@@ -527,7 +537,7 @@ class ReadMenuWorkbench(
         Page.BACKGROUND_DETAILS -> Page.BACKGROUND
         Page.THEME_LIBRARY, Page.SAVE -> Page.THEME
         Page.ALOUD_DETAILS -> Page.ALOUD
-        Page.SETTINGS_DETAILS, Page.TOUCH -> Page.SETTINGS
+        Page.SETTINGS_DETAILS, Page.ADVANCED_SETTINGS, Page.TOUCH -> Page.SETTINGS
         Page.PROGRESS -> Page.MAIN
         else -> lastAppearance
     }
@@ -888,7 +898,7 @@ class ReadMenuWorkbench(
         actionRow(body, "点击区域", "左右手与自定义") { show(Page.TOUCH) }
         switchRow(body, "长按选中文字", AppConfig.textSelectAble) { context.putPrefBoolean(PreferKey.textSelectAble, it); postEvent(PreferKey.textSelectAble, it) }
         actionRow(body, "显示与内容", "状态栏 · 排版 · 净化") { show(Page.SETTINGS_DETAILS) }
-        actionRow(body, "高级设置", "按键、渲染、双页") { advanced(Advanced.SETTINGS) }
+        actionRow(body, "高级设置", "按键、渲染、双页") { show(Page.ADVANCED_SETTINGS) }
     }
 
     private fun buildSettingsDetails(body: LinearLayout) {
@@ -1193,7 +1203,7 @@ class ReadMenuWorkbench(
     companion object {
         const val AUTO_STOP_MINUTES = "readerAutoStopMinutes"
         private val appearancePages = listOf(Page.LAYOUT, Page.TURN, Page.BACKGROUND, Page.THEME)
-        private val detailPages = listOf(Page.SCOPE, Page.SAVE, Page.AUTO, Page.TOUCH, Page.FONTS, Page.LAYOUT_DETAILS, Page.TURN_DETAILS, Page.BACKGROUND_DETAILS, Page.THEME_LIBRARY, Page.ALOUD_DETAILS, Page.SETTINGS_DETAILS, Page.PROGRESS)
+        private val detailPages = listOf(Page.SCOPE, Page.SAVE, Page.AUTO, Page.TOUCH, Page.FONTS, Page.LAYOUT_DETAILS, Page.TURN_DETAILS, Page.BACKGROUND_DETAILS, Page.THEME_LIBRARY, Page.ALOUD_DETAILS, Page.SETTINGS_DETAILS, Page.ADVANCED_SETTINGS, Page.PROGRESS)
         private val touchKeys = listOf(PreferKey.clickActionTL, PreferKey.clickActionTC, PreferKey.clickActionTR, PreferKey.clickActionML, PreferKey.clickActionMC, PreferKey.clickActionMR, PreferKey.clickActionBL, PreferKey.clickActionBC, PreferKey.clickActionBR)
     }
 }
