@@ -23,7 +23,7 @@ class ProgressMinimapStyle(private val context: Context) {
 
     var palette = ReaderSheetStyle.resolve(context)
         private set
-    val horizontalInset = 9f.dpToPx()
+    val horizontalInset = .5f.dpToPx()
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
     private val outline = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
 

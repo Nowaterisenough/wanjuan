@@ -1742,8 +1742,10 @@ class TestReadMenuLayout {
             .contains("chapter_progress_minimap_glass_view"))
         assertFalse(repoFile("app/src/main/res/layout/activity_manga.xml").readText()
             .contains("manga_progress_minimap_glass_view"))
-        assertEquals("44dp", mangaActivityLayout().elementById("manga_progress_minimap").androidAttr("layout_width"))
-        assertEquals("44dp", readActivityLayout().elementById("chapter_progress_minimap").androidAttr("layout_width"))
+        assertEquals(mangaActivityLayout().elementById("manga_progress_minimap_controls").androidAttr("layout_width"),
+            mangaActivityLayout().elementById("manga_progress_minimap").androidAttr("layout_width"))
+        assertEquals(readActivityLayout().elementById("chapter_progress_minimap_controls").androidAttr("layout_width"),
+            readActivityLayout().elementById("chapter_progress_minimap").androidAttr("layout_width"))
     }
 
     @Test
