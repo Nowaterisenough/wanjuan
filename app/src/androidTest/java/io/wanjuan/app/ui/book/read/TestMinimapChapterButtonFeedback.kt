@@ -9,6 +9,7 @@ import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import io.wanjuan.app.R
 import io.wanjuan.app.ui.book.read.config.ReaderUiStyle
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -60,7 +61,7 @@ class TestMinimapChapterButtonFeedback {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         instrumentation.runOnMainSync {
             val context = instrumentation.targetContext
-            val width = ReaderUiStyle.dp(context, 68)
+            val width = context.resources.getDimensionPixelSize(R.dimen.reader_minimap_width)
             val height = ReaderUiStyle.dp(context, 36)
             val button = FrameLayout(context).apply { setOnClickListener {} }
             val label = TextView(context).apply { text = "Next" }

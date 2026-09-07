@@ -46,7 +46,7 @@
 
     <LinearLayout
         android:id="@+id/chapter_progress_minimap_panel"
-        android:layout_width="68dp"
+        android:layout_width="@dimen/reader_minimap_width"
         android:layout_height="wrap_content"
         android:layout_gravity="end|top"
         android:layout_marginEnd="8dp"
@@ -58,7 +58,7 @@
 
         <FrameLayout
             android:id="@+id/chapter_progress_minimap_host"
-            android:layout_width="68dp"
+            android:layout_width="@dimen/reader_minimap_width"
             android:layout_height="260dp"
             android:clipChildren="false"
             android:clipToOutline="false"
@@ -66,7 +66,7 @@
 
             <io.wanjuan.app.ui.book.read.ChapterProgressMinimapView
                 android:id="@+id/chapter_progress_minimap"
-                android:layout_width="68dp"
+                android:layout_width="@dimen/reader_minimap_width"
                 android:layout_height="260dp"
                 android:clickable="true"
                 android:contentDescription="@string/chapter_progress_minimap"
@@ -76,7 +76,7 @@
 
         <LinearLayout
             android:id="@+id/chapter_progress_minimap_controls"
-            android:layout_width="68dp"
+            android:layout_width="@dimen/reader_minimap_width"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
             android:clipChildren="false"
@@ -86,7 +86,7 @@
 
             <FrameLayout
                 android:id="@+id/btn_chapter_minimap_previous"
-                android:layout_width="68dp"
+                android:layout_width="@dimen/reader_minimap_width"
                 android:layout_height="36dp"
                 android:clickable="true"
                 android:clipChildren="false"
@@ -110,7 +110,7 @@
 
             <FrameLayout
                 android:id="@+id/btn_chapter_minimap_current"
-                android:layout_width="68dp"
+                android:layout_width="@dimen/reader_minimap_width"
                 android:layout_height="36dp"
                 android:layout_marginTop="4dp"
                 android:clickable="true"
@@ -134,7 +134,7 @@
 
             <FrameLayout
                 android:id="@+id/btn_chapter_minimap_next"
-                android:layout_width="68dp"
+                android:layout_width="@dimen/reader_minimap_width"
                 android:layout_height="36dp"
                 android:layout_marginTop="4dp"
                 android:clickable="true"

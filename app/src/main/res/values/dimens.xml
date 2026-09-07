@@ -45,6 +45,8 @@
     <dimen name="main_bottom_bar_elevation">12dp</dimen>
     <dimen name="main_bottom_bar_corner_radius">28dp</dimen>
     <dimen name="read_bottom_nav_horizontal_padding">18dp</dimen>
+    <dimen name="reader_minimap_width">60dp</dimen>
+    <dimen name="reader_minimap_thumb_min_height">56dp</dimen>
     <dimen name="read_top_bar_button_size">44dp</dimen>
     <dimen name="read_top_bar_icon_size">20dp</dimen>
     <dimen name="read_top_bar_icon_padding">13dp</dimen>

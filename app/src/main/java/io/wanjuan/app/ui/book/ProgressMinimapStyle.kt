@@ -6,6 +6,7 @@ import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.drawable.GradientDrawable
 import androidx.core.graphics.ColorUtils
+import io.wanjuan.app.R
 import io.wanjuan.app.ui.book.read.config.ReaderSheetStyle
 import io.wanjuan.app.utils.dpToPx
 
@@ -24,6 +25,12 @@ class ProgressMinimapStyle(private val context: Context) {
     var palette = ReaderSheetStyle.resolve(context)
         private set
     val horizontalInset = .5f.dpToPx()
+    fun thumbHeight(trackHeight: Float, pageCount: Int): Float {
+        if (pageCount <= 0 || trackHeight <= 0f) return trackHeight.coerceAtLeast(0f)
+        return (trackHeight / pageCount)
+            .coerceAtLeast(context.resources.getDimension(R.dimen.reader_minimap_thumb_min_height))
+            .coerceAtMost(trackHeight)
+    }
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
     private val outline = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
 

@@ -309,10 +309,5 @@ class ChapterProgressMinimapView @JvmOverloads constructor(
         minimapStyle.drawThumb(canvas, thumbRect, isPressed)
     }
 
-    private fun thumbHeight(trackHeight: Float): Float {
-        if (pageCount <= 0) {
-            return trackHeight
-        }
-        return (trackHeight / pageCount).coerceIn(44f.dpToPx(), trackHeight)
-    }
+    private fun thumbHeight(trackHeight: Float) = minimapStyle.thumbHeight(trackHeight, pageCount)
 }

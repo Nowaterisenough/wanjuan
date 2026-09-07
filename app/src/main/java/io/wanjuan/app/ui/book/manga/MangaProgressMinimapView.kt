@@ -15,6 +15,7 @@ import com.bumptech.glide.Priority
 import com.bumptech.glide.request.target.CustomTarget
 import com.bumptech.glide.request.transition.Transition
 import io.wanjuan.app.model.BookCover
+import io.wanjuan.app.R
 import io.wanjuan.app.ui.book.ProgressMinimapStyle
 import io.wanjuan.app.ui.book.ProgressMinimapDragCalculator
 import io.wanjuan.app.utils.dpToPx
@@ -206,7 +207,7 @@ class MangaProgressMinimapView @JvmOverloads constructor(
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-        val desiredWidth = 56f.dpToPx().roundToInt()
+        val desiredWidth = resources.getDimensionPixelSize(R.dimen.reader_minimap_width)
         val maxHeight = maxHeightForMeasureSpec(heightMeasureSpec)
         val desiredHeight = desiredHeightForPageCount().coerceAtMost(maxHeight)
         setMeasuredDimension(
@@ -462,12 +463,7 @@ class MangaProgressMinimapView @JvmOverloads constructor(
         minimapStyle.drawThumb(canvas, thumbRect, isPressed)
     }
 
-    private fun thumbHeight(trackHeight: Float): Float {
-        if (pageCount <= 0) {
-            return trackHeight
-        }
-        return (trackHeight / pageCount).coerceIn(44f.dpToPx(), trackHeight)
-    }
+    private fun thumbHeight(trackHeight: Float) = minimapStyle.thumbHeight(trackHeight, pageCount)
 
     private fun maybeLoadThumbnails() {
         if (!thumbnailLoadingEnabled ||
