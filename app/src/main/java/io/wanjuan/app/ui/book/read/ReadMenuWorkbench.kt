@@ -117,6 +117,7 @@ class ReadMenuWorkbench(
     private var showBookmarks = false
     private var chapterQuery = ""
     private var reverseChapters = false
+    private var locateChapterAfterLoad = false
     private var backgroundCategory = 1
     private var touchTrial = false
     private var autoRunning = false
@@ -176,6 +177,7 @@ class ReadMenuWorkbench(
                     .setDuration(220).excludeTarget(navigationDivider, true))
         }
         page = next
+        if (next != Page.TOC) locateChapterAfterLoad = false
         if (next in appearancePages) lastAppearance = next
         if (currentBookUrl != ReadBook.book?.bookUrl) {
             currentBookUrl = ReadBook.book?.bookUrl
@@ -201,6 +203,13 @@ class ReadMenuWorkbench(
     }
 
     fun goBack() = show(if (page in detailPages) parentPage() else Page.MAIN)
+
+    fun showCurrentChapter() {
+        showBookmarks = false
+        chapterQuery = ""
+        locateChapterAfterLoad = true
+        show(Page.TOC)
+    }
 
     fun refresh() {
         if (tracking) { pendingRefresh = true; return }
@@ -1179,7 +1188,13 @@ class ReadMenuWorkbench(
             } }.onSuccess {
                 if (ReadBook.book?.bookUrl != book.bookUrl) return@onSuccess
                 chapters = it.first; cachedChapters = it.second; bookmarks = it.third
-                if (page == Page.TOC) refresh()
+                if (page == Page.TOC) {
+                    refresh()
+                    if (locateChapterAfterLoad) {
+                        locateChapterAfterLoad = false
+                        locateCurrentChapter()
+                    }
+                }
             }.onFailure { if (it !is kotlinx.coroutines.CancellationException) context.toastOnUi("目录加载失败，请重试") }
         }
     }

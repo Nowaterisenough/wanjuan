@@ -8,6 +8,10 @@ import android.graphics.PorterDuffColorFilter
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
 import android.util.AttributeSet
+import android.transition.ChangeBounds
+import android.transition.Fade
+import android.transition.TransitionManager
+import android.transition.TransitionSet
 import android.view.LayoutInflater
 import android.view.MenuItem
 import android.view.View
@@ -20,8 +24,10 @@ import androidx.core.view.isGone
 import androidx.core.view.isVisible
 import androidx.core.view.children
 import androidx.core.view.updateLayoutParams
+import androidx.lifecycle.lifecycleScope
 import com.qmdeve.liquidglass.widget.LiquidGlassView
 import io.wanjuan.app.R
+import io.wanjuan.app.data.appDb
 import io.wanjuan.app.databinding.ViewMangaMenuBinding
 import io.wanjuan.app.help.config.AppConfig
 import io.wanjuan.app.help.source.getSourceType
@@ -33,6 +39,7 @@ import io.wanjuan.app.model.ReadManga
 import io.wanjuan.app.ui.browser.WebViewActivity
 import io.wanjuan.app.utils.ColorUtils
 import io.wanjuan.app.utils.applyStatusBarPadding
+import io.wanjuan.app.utils.applyNavigationBarPadding
 import io.wanjuan.app.utils.activity
 import io.wanjuan.app.utils.dpToPx
 import io.wanjuan.app.utils.gone
@@ -41,6 +48,10 @@ import io.wanjuan.app.utils.loadAnimation
 import io.wanjuan.app.utils.openUrl
 import io.wanjuan.app.utils.startActivity
 import io.wanjuan.app.utils.visible
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MangaMenu @JvmOverloads constructor(
     context: Context,
@@ -60,6 +71,9 @@ class MangaMenu @JvmOverloads constructor(
     private var toolbarIconColor = Color.WHITE
     private var topBarGlassStyleKey: String? = null
     private val boundTopBarGlassViewIds = hashSetOf<Int>()
+    private var chapterPanel: ReaderChapterListPanel? = null
+    private var chapterListJob: Job? = null
+    val isExpandedPanelVisible: Boolean get() = binding.bottomMenu.isVisible
 
     private val menuOutListener = object : Animation.AnimationListener {
         override fun onAnimationStart(animation: Animation) {
@@ -92,7 +106,7 @@ class MangaMenu @JvmOverloads constructor(
         @SuppressLint("RtlHardcoded")
         override fun onAnimationEnd(animation: Animation) {
             binding.run {
-                vwMenuBg.setOnClickListener { runMenuOut() }
+                vwMenuBg.setOnClickListener { if (!hideChapterList()) runMenuOut() }
             }
         }
 
@@ -101,8 +115,64 @@ class MangaMenu @JvmOverloads constructor(
 
     init {
         binding.titleBar.applyStatusBarPadding(withInitialPadding = true)
+        binding.bottomMenu.setPadding(8.dpToPx(), 0, 8.dpToPx(), 8.dpToPx())
+        binding.bottomMenu.applyNavigationBarPadding(withInitialPadding = true, extraPaddingDp = 0)
         initView()
         bindEvent()
+    }
+
+    fun showChapterList() {
+        val book = ReadManga.book ?: return
+        if (!isVisible) runMenuIn()
+        chapterListJob?.cancel()
+        animateChapterPanel()
+        val panel = ReaderChapterListPanel(context, ReadManga.durChapterIndex,
+            close = { hideChapterList() },
+            select = { chapter ->
+                runMenuOut(anim = false)
+                callBack.skipToChapter(chapter.index)
+            })
+        chapterPanel = panel
+        binding.bottomMenu.removeAllViews()
+        val availableHeight = rootView.height.takeIf { it > 0 } ?: resources.displayMetrics.heightPixels
+        val height = (availableHeight * .52f).toInt().coerceAtMost(420.dpToPx()).coerceAtLeast(180.dpToPx())
+        binding.bottomMenu.addView(panel, ViewGroup.LayoutParams(-1, height))
+        binding.bottomMenu.visible()
+        callBack.onExpandedPanelVisibilityChanged()
+        chapterListJob = activity?.lifecycleScope?.launch {
+            runCatching { withContext(Dispatchers.IO) { appDb.bookChapterDao.getChapterList(book.bookUrl) } }
+                .onSuccess {
+                    if (chapterPanel === panel && ReadManga.book?.bookUrl == book.bookUrl) panel.submitChapters(it)
+                }
+                .onFailure {
+                    if (it !is kotlinx.coroutines.CancellationException && chapterPanel === panel) panel.showLoadError()
+                }
+        }
+    }
+
+    fun hideChapterList(animate: Boolean = true): Boolean {
+        if (!isExpandedPanelVisible) return false
+        if (animate) animateChapterPanel()
+        chapterListJob?.cancel()
+        chapterPanel?.closeKeyboard()
+        chapterPanel = null
+        binding.bottomMenu.gone()
+        binding.bottomMenu.removeAllViews()
+        callBack.onExpandedPanelVisibilityChanged()
+        return true
+    }
+
+    private fun animateChapterPanel() {
+        if (isLaidOut && !AppConfig.isEInkMode) {
+            TransitionManager.beginDelayedTransition(binding.vwMenuRoot,
+                TransitionSet().addTransition(ChangeBounds()).addTransition(Fade()).setDuration(220))
+        }
+    }
+
+    override fun onDetachedFromWindow() {
+        chapterListJob?.cancel()
+        TransitionManager.endTransitions(binding.vwMenuRoot)
+        super.onDetachedFromWindow()
     }
 
     private fun initView() = binding.run {
@@ -374,6 +444,7 @@ class MangaMenu @JvmOverloads constructor(
             return
         }
         if (this.isVisible) {
+            hideChapterList(animate = false)
             if (anim) {
                 binding.titleBarShell.startAnimation(menuTopOut)
             } else {
@@ -396,7 +467,7 @@ class MangaMenu @JvmOverloads constructor(
 
 
     private fun bindEvent() = binding.run {
-        vwMenuBg.setOnClickListener { runMenuOut() }
+        vwMenuBg.setOnClickListener { if (!hideChapterList()) runMenuOut() }
         titleBar.toolbar.setOnClickListener {
             callBack.openBookInfoActivity()
         }
@@ -452,5 +523,7 @@ class MangaMenu @JvmOverloads constructor(
         fun openBookInfoActivity()
         fun upSystemUiVisibility(menuIsVisible: Boolean)
         fun showLogin()
+        fun skipToChapter(index: Int)
+        fun onExpandedPanelVisibilityChanged()
     }
 }

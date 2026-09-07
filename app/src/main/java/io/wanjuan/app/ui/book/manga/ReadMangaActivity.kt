@@ -62,7 +62,6 @@ import io.wanjuan.app.ui.book.read.config.ReaderSheetStyle
 import io.wanjuan.app.ui.book.read.MangaMenu
 import io.wanjuan.app.ui.book.read.ReadBookActivity.Companion.RESULT_DELETED
 import io.wanjuan.app.ui.book.read.setMinimapChapterNavigationClickListener
-import io.wanjuan.app.ui.book.toc.TocActivityResult
 import io.wanjuan.app.ui.browser.WebViewActivity
 import io.wanjuan.app.ui.widget.number.NumberPickerDialog
 import io.wanjuan.app.ui.widget.recycler.LoadMoreView
@@ -145,12 +144,6 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
         }
     }
 
-    //打开目录返回选择章节返回结果
-    private val tocActivity = registerForActivityResult(TocActivityResult()) {
-        it?.let {
-            viewModel.openChapter(it[0] as Int, it[1] as Int)
-        }
-    }
     private val bookInfoActivity =
         registerForActivityResult(StartActivityContract(BookInfoActivity::class.java)) {
             if (it.resultCode == RESULT_OK) {
@@ -471,6 +464,7 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
         tvMangaMinimapPrevious.setTextColor(colors.textColor)
         tvMangaMinimapNext.setTextColor(colors.textColor)
         tvMangaMinimapCurrent.setTextColor(colors.textColor)
+        tvMangaMinimapPosition.setTextColor(colors.secondaryTextColor)
         btnMangaMinimapPrevious.isEnabled = ReadManga.durChapterIndex > 0
         btnMangaMinimapNext.isEnabled = ReadManga.durChapterIndex < ReadManga.chapterSize - 1
         btnMangaMinimapPrevious.alpha = if (btnMangaMinimapPrevious.isEnabled) 1f else .45f
@@ -478,16 +472,24 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
     }
 
     private fun openMangaCatalog() {
-        ReadManga.book?.let {
-            tocActivity.launch(it.bookUrl)
-        }
+        binding.mangaMenu.showChapterList()
+    }
+
+    override fun skipToChapter(index: Int) {
+        clearCommittedMangaProgressMinimapRatio()
+        viewModel.openChapter(index, 0)
+    }
+
+    override fun onExpandedPanelVisibilityChanged() {
+        updateMangaProgressMinimap()
     }
 
     private fun updateMangaProgressMinimap(show: Boolean = binding.mangaMenu.isVisible) {
         val imageUrls = currentMangaImageUrls()
         val pageCount = imageUrls.size
         val progressRatio = currentMangaScrollProgressRatio()
-        updateMangaMinimapCurrentChapterButton()
+        val shouldShow = show && !binding.mangaMenu.isExpandedPanelVisible
+        updateMangaMinimapCurrentChapterButton(pageCount)
         if (show) {
             binding.mangaProgressMinimap.updatePages(
                 ReadManga.durChapterIndex,
@@ -499,8 +501,8 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
         } else {
             binding.mangaProgressMinimap.updateProgress(pageCount, ReadManga.durChapterPos, progressRatio)
         }
-        binding.mangaProgressMinimapPanel.gone(!show || pageCount <= 1)
-        if (!show || pageCount <= 1) {
+        binding.mangaProgressMinimapPanel.gone(!shouldShow || pageCount <= 1)
+        if (!shouldShow || pageCount <= 1) {
             return
         }
         if (!mangaProgressMinimapMenuChromeReady()) {
@@ -568,7 +570,7 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
             ?.topMargin ?: 0
         val controlsHeight = binding.mangaProgressMinimapControls.height
             .takeIf { it > 0 }
-            ?: 108.dpToPx()
+            ?: 140.dpToPx()
         val maxMinimapHeight = availableHeight - controlsTopMargin - controlsHeight
         val minimumMinimapHeight = 96.dpToPx()
         if (maxMinimapHeight < minimumMinimapHeight) {
@@ -619,14 +621,15 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
         return viewLocation[1] - rootLocation[1]
     }
 
-    private fun updateMangaMinimapCurrentChapterButton() {
+    private fun updateMangaMinimapCurrentChapterButton(pageCount: Int) {
         val chapterTitle = ReadManga.curMangaChapter?.chapter?.title.orEmpty()
-        val label = chapterTitle.ifBlank { getString(R.string.chapter) }
-        binding.tvMangaMinimapCurrent.text = label
+        val chapterNumber = getString(R.string.reader_chapter_number, ReadManga.durChapterIndex + 1)
+        binding.tvMangaMinimapPosition.text = "${ReadManga.durChapterPos + 1} / $pageCount"
+        binding.tvMangaMinimapCurrent.text = chapterNumber
         binding.btnMangaMinimapCurrent.contentDescription = if (chapterTitle.isBlank()) {
-            getString(R.string.chapter_list)
+            chapterNumber
         } else {
-            "${getString(R.string.chapter_list)}: $chapterTitle"
+            "$chapterNumber: $chapterTitle"
         }
     }
 
@@ -1504,6 +1507,7 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
     }
 
     override fun finish() {
+        if (binding.mangaMenu.hideChapterList()) return
         val book = ReadManga.book ?: return super.finish()
 
         if (ReadManga.inBookshelf) {

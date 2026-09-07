@@ -497,6 +497,11 @@ class ReadMenu @JvmOverloads constructor(
         workbench?.show(page)
     }
 
+    fun showCurrentChapterList() {
+        if (!isVisible) runMenuIn()
+        workbench?.showCurrentChapter()
+    }
+
     fun refreshAloudPanel() {
         if (isVisible && workbench?.page == ReadMenuWorkbench.Page.ALOUD) workbench?.refresh()
     }

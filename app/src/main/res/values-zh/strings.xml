@@ -1894,4 +1894,6 @@
     <string name="bookshelf_last_success_time">上次刷新成功：%1$s</string>
     <string name="bookshelf_last_success_never">尚未完成过刷新</string>
     <string name="bookshelf_last_attempt_time">上次尝试：%1$s</string>
+    <string name="reader_current_chapter">当前章</string>
+    <string name="reader_chapter_number">第 %1$d 章</string>
 </resources>

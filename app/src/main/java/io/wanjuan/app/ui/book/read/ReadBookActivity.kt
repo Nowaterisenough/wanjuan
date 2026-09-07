@@ -1212,6 +1212,9 @@ class ReadBookActivity : BaseReadBookActivity(),
         binding.btnChapterMinimapPrevious.setMinimapChapterNavigationClickListener(binding.tvChapterMinimapPrevious) {
             ReadBook.moveToPrevChapter(upContent = true, toLast = false)
         }
+        binding.btnChapterMinimapCurrent.setMinimapChapterNavigationClickListener(binding.tvChapterMinimapCurrent) {
+            binding.readMenu.showCurrentChapterList()
+        }
         binding.btnChapterMinimapNext.setMinimapChapterNavigationClickListener(binding.tvChapterMinimapNext) {
             ReadBook.moveToNextChapter(true)
         }
@@ -1220,7 +1223,7 @@ class ReadBookActivity : BaseReadBookActivity(),
     private fun setupChapterMinimapAppearance() = binding.run {
         val colors = io.wanjuan.app.ui.book.read.config.ReaderSheetStyle.resolve(this@ReadBookActivity)
         chapterProgressMinimap.refreshPalette()
-        listOf(btnChapterMinimapPrevious, btnChapterMinimapNext).forEach { button ->
+        listOf(btnChapterMinimapPrevious, btnChapterMinimapCurrent, btnChapterMinimapNext).forEach { button ->
             button.clipToOutline = false
             button.background = io.wanjuan.app.ui.book.read.config.ReaderSheetStyle.blockDrawable(
                 colors.surface, colors.stroke
@@ -1228,10 +1231,14 @@ class ReadBookActivity : BaseReadBookActivity(),
             button.elevation = 2f.dpToPx()
         }
         tvChapterMinimapPrevious.setTextColor(colors.textColor)
+        tvChapterMinimapCurrent.setTextColor(colors.textColor)
         tvChapterMinimapNext.setTextColor(colors.textColor)
         tvChapterMinimapPosition.setTextColor(colors.secondaryTextColor)
         val pages = ReadBook.curTextChapter?.pageSize ?: 0
         tvChapterMinimapPosition.text = "${ReadBook.durPageIndex + 1} / $pages"
+        val chapterNumber = getString(R.string.reader_chapter_number, ReadBook.durChapterIndex + 1)
+        tvChapterMinimapCurrent.text = chapterNumber
+        btnChapterMinimapCurrent.contentDescription = chapterNumber
         btnChapterMinimapPrevious.isEnabled = ReadBook.durChapterIndex > 0
         btnChapterMinimapNext.isEnabled = ReadBook.durChapterIndex < ReadBook.chapterSize - 1
         btnChapterMinimapPrevious.alpha = if (btnChapterMinimapPrevious.isEnabled) 1f else .45f
@@ -1323,7 +1330,7 @@ class ReadBookActivity : BaseReadBookActivity(),
         val availableHeight = (bottomLimit - topLimit).coerceAtLeast(0)
         val controlsTopMargin = (binding.chapterProgressMinimapControls.layoutParams as? ViewGroup.MarginLayoutParams)
             ?.topMargin ?: 0
-        val controlsHeight = 116.dpToPx()
+        val controlsHeight = 140.dpToPx()
         val maxMinimapHeight = availableHeight - controlsTopMargin - controlsHeight
         val minimumMinimapHeight = 96.dpToPx()
         if (maxMinimapHeight < minimumMinimapHeight) {

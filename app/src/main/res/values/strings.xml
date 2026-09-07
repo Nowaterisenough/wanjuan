@@ -2000,4 +2000,6 @@ Selected text or question:
     <string name="bookshelf_last_success_time">Last successful refresh: %1$s</string>
     <string name="bookshelf_last_success_never">No successful refresh yet</string>
     <string name="bookshelf_last_attempt_time">Last attempt: %1$s</string>
+    <string name="reader_current_chapter">Current</string>
+    <string name="reader_chapter_number">Ch. %1$d</string>
 </resources>
