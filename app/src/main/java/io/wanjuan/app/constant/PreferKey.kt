@@ -256,6 +256,8 @@ object PreferKey {
     const val cPrimary = "colorPrimary"
     const val commentIndicatorColor = "commentIndicatorColor"
     const val commentIndicatorColorNight = "commentIndicatorColorNight"
+    const val commentIndicatorCustomColors = "commentIndicatorCustomColors"
+    const val commentIndicatorCustomColorsNight = "commentIndicatorCustomColorsNight"
     const val cAccent = "colorAccent"
     const val cBackground = "colorBackground"
     const val cBBackground = "colorBottomBackground"

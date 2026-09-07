@@ -28,19 +28,27 @@ class TestReaderCommentColors {
     private val context = ContextThemeWrapper(instrumentation.targetContext, androidx.appcompat.R.style.Theme_AppCompat)
     private var day: String? = null
     private var night: String? = null
+    private var savedDay: String? = null
+    private var savedNight: String? = null
 
     @Before
     fun setUp() {
         day = context.getPrefString(PreferKey.commentIndicatorColor)
         night = context.getPrefString(PreferKey.commentIndicatorColorNight)
+        savedDay = context.getPrefString(PreferKey.commentIndicatorCustomColors)
+        savedNight = context.getPrefString(PreferKey.commentIndicatorCustomColorsNight)
         context.putPrefString(PreferKey.commentIndicatorColor, null)
         context.putPrefString(PreferKey.commentIndicatorColorNight, "#80B6FF")
+        context.putPrefString(PreferKey.commentIndicatorCustomColors, null)
+        context.putPrefString(PreferKey.commentIndicatorCustomColorsNight, null)
     }
 
     @After
     fun tearDown() {
         context.putPrefString(PreferKey.commentIndicatorColor, day)
         context.putPrefString(PreferKey.commentIndicatorColorNight, night)
+        context.putPrefString(PreferKey.commentIndicatorCustomColors, savedDay)
+        context.putPrefString(PreferKey.commentIndicatorCustomColorsNight, savedNight)
     }
 
     @Test
@@ -117,6 +125,30 @@ class TestReaderCommentColors {
     }
 
     @Test
+    fun addedColorsPersistWithoutDuplicatesAndCanBeRemovedWithoutResettingTheAppliedColor() {
+        instrumentation.runOnMainSync {
+            val panel = ReaderCommentColorPanel(context, false) {}
+            descendants(panel).filterIsInstance<EditText>().single().setText("a1b2c3")
+            label(panel, R.string.add).performClick()
+            label(panel, R.string.add).performClick()
+            assertEquals("#A1B2C3", context.getPrefString(PreferKey.commentIndicatorCustomColors))
+            assertEquals("#A1B2C3", ThemeConfig.getCommentIndicatorColor(context, false))
+            assertNull(context.getPrefString(PreferKey.commentIndicatorCustomColorsNight))
+
+            val reopened = ReaderCommentColorPanel(context, false) {}
+            val swatch = descendants(reopened).single {
+                it.contentDescription == context.getString(R.string.theme_comment_indicator_saved_color, "#A1B2C3")
+            }
+            label(reopened, R.string.theme_color_follow_source).performClick()
+            descendants(reopened).single { it.contentDescription == swatch.contentDescription }.performClick()
+            assertEquals("#A1B2C3", ThemeConfig.getCommentIndicatorColor(context, false))
+            descendants(reopened).single { it.contentDescription == swatch.contentDescription }.performLongClick()
+            assertEquals("", context.getPrefString(PreferKey.commentIndicatorCustomColors))
+            assertEquals("#A1B2C3", ThemeConfig.getCommentIndicatorColor(context, false))
+        }
+    }
+
+    @Test
     fun invalidOrUnappliedInputDoesNotChangeSavedColor() {
         instrumentation.runOnMainSync {
             val panel = ReaderCommentColorPanel(context, true) {}
@@ -125,6 +157,8 @@ class TestReaderCommentColors {
             label(panel, R.string.theme_comment_indicator_apply).performClick()
             assertNotNull(input.error)
             assertEquals("#80B6FF", ThemeConfig.getCommentIndicatorColor(context, true))
+            label(panel, R.string.add).performClick()
+            assertNull(context.getPrefString(PreferKey.commentIndicatorCustomColorsNight))
             input.setText("#112233")
             label(panel, R.string.day).performClick()
             assertEquals("#80B6FF", ThemeConfig.getCommentIndicatorColor(context, true))

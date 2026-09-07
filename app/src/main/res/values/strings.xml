@@ -1852,6 +1852,9 @@
     <string name="theme_comment_indicator_preview">Inline bubble preview</string>
     <string name="theme_comment_indicator_hex">Comment bubble color value</string>
     <string name="theme_comment_indicator_apply">Apply</string>
+    <string name="theme_comment_indicator_add">Add to custom colors</string>
+    <string name="theme_comment_indicator_saved">My colors · Hold to remove</string>
+    <string name="theme_comment_indicator_saved_color">Custom color %1$s</string>
     <string name="theme_comment_indicator_description">Outline and number colors are saved separately for day and night, for all books. This preview is illustrative; the source controls the shape and count.</string>
     <string name="theme_color_comment_indicator_summary">Outline and number color of clickable inline count bubbles.</string>
     <string name="theme_color_follow_source">Use source color</string>

@@ -9,6 +9,7 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import android.widget.FrameLayout
+import android.widget.HorizontalScrollView
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -22,6 +23,7 @@ import io.wanjuan.app.utils.CommentIndicatorSvg
 import io.wanjuan.app.utils.SvgUtils
 import io.wanjuan.app.utils.postEvent
 import io.wanjuan.app.utils.putPrefString
+import io.wanjuan.app.utils.getPrefString
 import java.util.Locale
 import io.wanjuan.app.ui.book.read.config.ReaderUiStyle as Ui
 
@@ -113,6 +115,33 @@ class ReaderCommentColorPanel(
         }
         block(swatches, Ui.CONTROL_NORMAL)
 
+        val saved = savedColors()
+        if (saved.isNotEmpty()) {
+            block(label(context.getString(R.string.theme_comment_indicator_saved), Ui.TEXT_CAPTION, colors.secondaryTextColor), -2)
+            val savedRow = row()
+            saved.forEach { color ->
+                val tint = Color.parseColor(color)
+                savedRow.addView(label(if (parsed == tint) "\u2713" else "", Ui.TEXT_TITLE,
+                    if (ColorUtils.calculateLuminance(tint) > .45) Color.BLACK else Color.WHITE).apply {
+                    contentDescription = context.getString(R.string.theme_comment_indicator_saved_color, color)
+                    gravity = Gravity.CENTER
+                    isSelected = parsed == tint
+                    isFocusable = true
+                    background = Ui.rounded(context, tint, stroke = colors.stroke)
+                    setOnClickListener { save(color) }
+                    setOnLongClickListener {
+                        storeColors(savedColors().filterNot { it == color })
+                        render()
+                        true
+                    }
+                }, LayoutParams(dp(Ui.CONTROL_LARGE), dp(Ui.CONTROL_NORMAL)).apply { marginEnd = dp(Ui.GAP) })
+            }
+            block(HorizontalScrollView(context).apply {
+                isHorizontalScrollBarEnabled = false
+                addView(savedRow)
+            }, Ui.CONTROL_NORMAL)
+        }
+
         val custom = row()
         val input = EditText(context).apply {
             textSize = Ui.TEXT_BODY.toFloat()
@@ -139,24 +168,33 @@ class ReaderCommentColorPanel(
                 }
             }
         }
-        fun applyInput() {
+        fun applyInput(addToPalette: Boolean = false) {
             val hex = input.text.toString().trim().removePrefix("#")
             if (!hex.matches(Regex("[0-9a-fA-F]{6}"))) {
                 input.error = context.getString(R.string.color_format_error)
                 return
             }
-            save("#${hex.uppercase(Locale.ROOT)}")
+            val color = "#${hex.uppercase(Locale.ROOT)}"
+            if (addToPalette) storeColors((savedColors() + color).distinct())
+            save(color)
         }
         input.setOnEditorActionListener { _, action, _ ->
             if (action == EditorInfo.IME_ACTION_DONE) { applyInput(); true } else false
         }
         custom.addView(input, LayoutParams(0, dp(Ui.CONTROL_NORMAL), 1f))
+        custom.addView(label(context.getString(R.string.add), color = colors.accentTextColor).apply {
+            gravity = Gravity.CENTER
+            isFocusable = true
+            background = Ui.rounded(context, colors.panelStrong)
+            contentDescription = context.getString(R.string.theme_comment_indicator_add)
+            setOnClickListener { applyInput(addToPalette = true) }
+        }, LayoutParams(dp(56), dp(Ui.CONTROL_NORMAL)).apply { marginStart = dp(Ui.GAP) })
         custom.addView(label(context.getString(R.string.theme_comment_indicator_apply), color = Color.WHITE).apply {
             gravity = Gravity.CENTER
             isFocusable = true
             background = Ui.rounded(context, colors.accentColor)
             setOnClickListener { applyInput() }
-        }, LayoutParams(dp(72), dp(Ui.CONTROL_NORMAL)).apply { marginStart = dp(Ui.GAP) })
+        }, LayoutParams(dp(56), dp(Ui.CONTROL_NORMAL)).apply { marginStart = dp(Ui.GAP) })
         block(custom, Ui.CONTROL_NORMAL)
 
         block(label(context.getString(R.string.theme_color_follow_source), color = colors.accentTextColor).apply {
@@ -177,6 +215,13 @@ class ReaderCommentColorPanel(
         render()
         if (isNight == AppConfig.isNightTheme) postEvent(EventBus.UP_CONFIG, arrayListOf(9, 6))
     }
+
+    private val paletteKey get() = if (isNight) PreferKey.commentIndicatorCustomColorsNight else PreferKey.commentIndicatorCustomColors
+
+    private fun savedColors() = context.getPrefString(paletteKey).orEmpty().split(',')
+        .map { it.uppercase(Locale.ROOT) }.filter { it.matches(Regex("#[0-9A-F]{6}")) }.distinct()
+
+    private fun storeColors(values: List<String>) = context.putPrefString(paletteKey, values.joinToString(","))
 
     private fun dismissKeyboard() {
         (context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager)
