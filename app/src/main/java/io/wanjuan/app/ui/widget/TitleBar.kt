@@ -3,21 +3,17 @@ package io.wanjuan.app.ui.widget
 import android.content.Context
 import android.content.res.ColorStateList
 import android.graphics.Color
-import android.graphics.PorterDuff
-import android.graphics.PorterDuffColorFilter
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.Drawable
 import android.util.AttributeSet
 import android.view.Menu
 import android.view.View
-import android.widget.ImageView
 import androidx.annotation.ColorInt
 import androidx.annotation.StyleRes
 import androidx.appcompat.content.res.AppCompatResources
 import androidx.appcompat.widget.Toolbar
 import androidx.core.graphics.alpha
 import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.children
 import com.google.android.material.appbar.AppBarLayout
 import io.wanjuan.app.R
 import io.wanjuan.app.help.config.AppConfig
@@ -241,13 +237,6 @@ class TitleBar @JvmOverloads constructor(
     }
 
     fun setColorFilter(@ColorInt color: Int) {
-        val colorFilter = PorterDuffColorFilter(color, PorterDuff.Mode.SRC_ATOP)
-        toolbar.children.firstOrNull { it is ImageView }?.background?.colorFilter = colorFilter
-        toolbar.navigationIcon?.colorFilter = colorFilter
-        toolbar.overflowIcon?.colorFilter = colorFilter
-        toolbar.menu.children.forEach {
-            it.icon?.colorFilter = colorFilter
-        }
         toolbar.applyTopBarIconMetrics(color)
     }
 

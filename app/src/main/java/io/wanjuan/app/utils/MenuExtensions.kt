@@ -28,7 +28,7 @@ fun Menu.applyTint(context: Context, theme: Theme = Theme.Auto): Menu = this.let
     menu.forEach { item ->
         (item as MenuItemImpl).let { impl ->
             //overflow：展开的item
-            impl.icon?.setTintMutate(
+            impl.applyIconTint(
                 if (impl.requiresOverflow()) defaultTextColor else tintColor
             )
         }
@@ -52,7 +52,7 @@ fun Menu.applyOpenTint(context: Context, showIcon: Boolean = true) {
                 if (menuItems is ArrayList<*>) {
                     for (menuItem in menuItems) {
                         if (menuItem is MenuItem) {
-                            menuItem.icon?.setTintMutate(defaultTextColor)
+                            menuItem.applyIconTint(defaultTextColor)
                         }
                     }
                 }
@@ -61,7 +61,7 @@ fun Menu.applyOpenTint(context: Context, showIcon: Boolean = true) {
     } else if (this.javaClass.simpleName.equals("SubMenuBuilder", ignoreCase = true)) {
         val defaultTextColor = context.getCompatColor(R.color.primaryText)
         (this as? SubMenuBuilder)?.forEach { item: MenuItem ->
-            item.icon?.setTintMutate(defaultTextColor)
+            item.applyIconTint(defaultTextColor)
         }
     }
 }

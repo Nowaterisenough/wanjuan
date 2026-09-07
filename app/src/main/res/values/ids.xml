@@ -22,6 +22,7 @@
     <item name="text_watcher" type="id" />
     <item name="main_bottom_bar_space_decoration" type="id" />
     <item name="ui_title_typeface_role" type="id" />
+    <item name="top_bar_icon_tint" type="id" />
 
     <item name="reader_advanced_settings_host" type="id" />
 </resources>
