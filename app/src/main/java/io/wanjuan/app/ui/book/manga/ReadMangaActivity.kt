@@ -16,7 +16,6 @@ import android.view.animation.LinearInterpolator
 import android.widget.FrameLayout
 import androidx.activity.viewModels
 import androidx.appcompat.app.AlertDialog
-import androidx.core.view.ViewCompat
 import androidx.core.view.isGone
 import androidx.core.view.isVisible
 import androidx.core.view.updateLayoutParams
@@ -28,7 +27,6 @@ import com.bumptech.glide.Glide
 import com.bumptech.glide.integration.recyclerview.RecyclerViewPreloader
 import com.bumptech.glide.request.target.Target.SIZE_ORIGINAL
 import com.bumptech.glide.util.FixedPreloadSizeProvider
-import com.qmdeve.liquidglass.widget.LiquidGlassView
 import io.wanjuan.app.BuildConfig
 import io.wanjuan.app.R
 import io.wanjuan.app.base.VMBaseActivity
@@ -60,8 +58,8 @@ import io.wanjuan.app.ui.book.manga.entities.MangaPage
 import io.wanjuan.app.ui.book.manga.recyclerview.MangaAdapter
 import io.wanjuan.app.ui.book.manga.recyclerview.MangaLayoutManager
 import io.wanjuan.app.ui.book.manga.recyclerview.ScrollTimer
+import io.wanjuan.app.ui.book.read.config.ReaderSheetStyle
 import io.wanjuan.app.ui.book.read.MangaMenu
-import io.wanjuan.app.ui.book.read.ReaderBottomGlassStyle
 import io.wanjuan.app.ui.book.read.ReadBookActivity.Companion.RESULT_DELETED
 import io.wanjuan.app.ui.book.read.setMinimapChapterNavigationClickListener
 import io.wanjuan.app.ui.book.toc.TocActivityResult
@@ -111,7 +109,6 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
     private val mPagerSnapHelper: PagerSnapHelper by lazy {
         PagerSnapHelper()
     }
-    private val boundMangaMinimapGlassViewIds = hashSetOf<Int>()
     private var pendingMangaProgressMinimapLayoutSync = false
     private var committedMangaProgressMinimapRatio: Float? = null
     private var committedMangaProgressMinimapChapterIndex: Int? = null
@@ -463,86 +460,21 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
         }
     }
 
-    private fun setupMangaMinimapControlGlass() {
-        val glassViews = listOf(
-            binding.mangaProgressMinimapGlassView,
-            binding.mangaMinimapPreviousGlassView,
-            binding.mangaMinimapCurrentGlassView,
-            binding.mangaMinimapNextGlassView
-        )
-        if (!ViewCompat.isLaidOut(binding.webtoonFrame) || glassViews.any { !ViewCompat.isLaidOut(it) }) {
-            binding.mangaProgressMinimapPanel.post {
-                if (binding.mangaProgressMinimapPanel.isVisible) {
-                    setupMangaMinimapControlGlass()
-                }
-            }
-            return
+    private fun setupMangaMinimapAppearance() = binding.run {
+        val colors = ReaderSheetStyle.resolve(this@ReadMangaActivity)
+        mangaProgressMinimap.refreshPalette()
+        listOf(btnMangaMinimapPrevious, btnMangaMinimapCurrent, btnMangaMinimapNext).forEach { button ->
+            button.clipToOutline = false
+            button.background = ReaderSheetStyle.blockDrawable(colors.surface, colors.stroke)
+            button.elevation = 2f.dpToPx()
         }
-        val glassLevel = ReaderBottomGlassStyle.glassLevel()
-        val cornerRadius = 28f.dpToPx()
-        setupMangaMinimapTrackGlassView(
-            glassView = binding.mangaProgressMinimapGlassView,
-            glassLevel = glassLevel
-        )
-        setupMangaMinimapControlGlassView(
-            button = binding.btnMangaMinimapPrevious,
-            glassView = binding.mangaMinimapPreviousGlassView,
-            shellOverlay = binding.mangaMinimapPreviousShellOverlay,
-            glassLevel = glassLevel,
-            cornerRadius = cornerRadius
-        )
-        setupMangaMinimapControlGlassView(
-            button = binding.btnMangaMinimapCurrent,
-            glassView = binding.mangaMinimapCurrentGlassView,
-            shellOverlay = binding.mangaMinimapCurrentShellOverlay,
-            glassLevel = glassLevel,
-            cornerRadius = cornerRadius
-        )
-        setupMangaMinimapControlGlassView(
-            button = binding.btnMangaMinimapNext,
-            glassView = binding.mangaMinimapNextGlassView,
-            shellOverlay = binding.mangaMinimapNextShellOverlay,
-            glassLevel = glassLevel,
-            cornerRadius = cornerRadius
-        )
-    }
-
-    private fun setupMangaMinimapTrackGlassView(
-        glassView: LiquidGlassView,
-        glassLevel: Float
-    ) {
-        val shouldBind = !boundMangaMinimapGlassViewIds.contains(glassView.id)
-        if (ReaderBottomGlassStyle.configureLiquidGlass(
-            liquidGlassView = glassView,
-            target = binding.webtoonFrame,
-            cornerRadius = 0f,
-            bindTarget = shouldBind,
-            glassLevel = glassLevel
-        )) {
-            boundMangaMinimapGlassViewIds.add(glassView.id)
-        }
-    }
-
-    private fun setupMangaMinimapControlGlassView(
-        button: View,
-        glassView: LiquidGlassView,
-        shellOverlay: View,
-        glassLevel: Float,
-        cornerRadius: Float
-    ) {
-        button.clipToOutline = false
-        button.background = ReaderBottomGlassStyle.fallbackShell(this, glassLevel, cornerRadius)
-        shellOverlay.background = ReaderBottomGlassStyle.shell(this, glassLevel, cornerRadius)
-        val shouldBind = !boundMangaMinimapGlassViewIds.contains(glassView.id)
-        if (ReaderBottomGlassStyle.configureLiquidGlass(
-            liquidGlassView = glassView,
-            target = binding.webtoonFrame,
-            cornerRadius = cornerRadius,
-            bindTarget = shouldBind,
-            glassLevel = glassLevel
-        )) {
-            boundMangaMinimapGlassViewIds.add(glassView.id)
-        }
+        tvMangaMinimapPrevious.setTextColor(colors.textColor)
+        tvMangaMinimapNext.setTextColor(colors.textColor)
+        tvMangaMinimapCurrent.setTextColor(colors.textColor)
+        btnMangaMinimapPrevious.isEnabled = ReadManga.durChapterIndex > 0
+        btnMangaMinimapNext.isEnabled = ReadManga.durChapterIndex < ReadManga.chapterSize - 1
+        btnMangaMinimapPrevious.alpha = if (btnMangaMinimapPrevious.isEnabled) 1f else .45f
+        btnMangaMinimapNext.alpha = if (btnMangaMinimapNext.isEnabled) 1f else .45f
     }
 
     private fun openMangaCatalog() {
@@ -581,7 +513,7 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
             return
         }
         val preservePanelPosition = binding.mangaProgressMinimap.shouldPreservePanelPosition()
-        setupMangaMinimapControlGlass()
+        setupMangaMinimapAppearance()
         if (!preservePanelPosition && !constrainMangaProgressMinimapPanel()) {
             binding.mangaProgressMinimapPanel.gone()
         }
@@ -642,7 +574,7 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
         if (maxMinimapHeight < minimumMinimapHeight) {
             return false
         }
-        val minimapHeight = binding.mangaProgressMinimap.desiredHeightWithin(maxMinimapHeight)
+        val minimapHeight = binding.mangaProgressMinimap.desiredHeightWithin(maxMinimapHeight.coerceAtMost(220.dpToPx()))
         val panelHeight = minimapHeight + controlsTopMargin + controlsHeight
         binding.mangaProgressMinimap.setMaxAvailableHeight(maxMinimapHeight)
         binding.mangaProgressMinimapHost.updateLayoutParams<ViewGroup.LayoutParams> {

@@ -189,7 +189,7 @@ class ReadMenuWorkbench(
         if (undoConfig == null) captureUndo()
         refresh()
         callbacks.onReadMenuExpandedPanelVisibilityChanged(expanded)
-        // The minimap uses the final panel bounds after the expansion animation.
+        // Restore the minimap only after the collapsed dock has its final bounds.
         removeCallbacks(updatePanelVisibility)
         postDelayed(updatePanelVisibility, if (animate && !AppConfig.isEInkMode) 240L else 32L)
         if (next == Page.TOC) loadChapters()
@@ -440,7 +440,7 @@ class ReadMenuWorkbench(
 
         actionRow(body, "上一章") { ReadBook.moveToPrevChapter(upContent = true, toLast = false) }
         actionRow(body, "下一章") { ReadBook.moveToNextChapter(true) }
-        note(body, "拖动后松手跳转。右侧缩略条可直接定位本章内容。")
+        note(body, "拖动后松手跳转。收起面板后可使用右侧缩略条定位。")
     }
 
     private fun buildPanel() {

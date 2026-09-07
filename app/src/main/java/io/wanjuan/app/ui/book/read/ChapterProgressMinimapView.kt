@@ -13,8 +13,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
 import androidx.core.graphics.ColorUtils
-import io.wanjuan.app.help.config.AppConfig
-import io.wanjuan.app.ui.book.read.config.ReaderSheetStyle
+import io.wanjuan.app.ui.book.ProgressMinimapStyle
 import io.wanjuan.app.ui.book.ProgressMinimapDragCalculator
 import io.wanjuan.app.utils.dpToPx
 import kotlin.math.roundToInt
@@ -30,17 +29,7 @@ class ChapterProgressMinimapView @JvmOverloads constructor(
 
     private val trackRect = RectF()
     private val thumbRect = RectF()
-    private val outlinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        style = Paint.Style.STROKE
-        strokeWidth = 1f.dpToPx()
-    }
-    private val thumbPaint = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val trackPaint = Paint(Paint.ANTI_ALIAS_FLAG)
-    private var palette = ReaderSheetStyle.resolve(context)
-    private val thumbStrokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        style = Paint.Style.STROKE
-        strokeWidth = 1.4f.dpToPx()
-    }
+    private val minimapStyle = ProgressMinimapStyle(context)
     private val contentPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
         textSize = 3.2f.dpToPx()
         color = ColorUtils.setAlphaComponent(Color.WHITE, 88)
@@ -67,8 +56,8 @@ class ChapterProgressMinimapView @JvmOverloads constructor(
     }
 
     fun refreshPalette() {
-        palette = ReaderSheetStyle.resolve(context)
-        contentPaint.color = ColorUtils.setAlphaComponent(palette.textColor, 110)
+        minimapStyle.refreshPalette()
+        contentPaint.color = ColorUtils.setAlphaComponent(minimapStyle.palette.textColor, 110)
         invalidate()
     }
 
@@ -261,7 +250,7 @@ class ChapterProgressMinimapView @JvmOverloads constructor(
     }
 
     private fun updateTrackRect() {
-        val horizontalInset = 9f.dpToPx()
+        val horizontalInset = minimapStyle.horizontalInset
         trackRect.set(
             paddingLeft + horizontalInset,
             paddingTop.toFloat(),
@@ -271,10 +260,7 @@ class ChapterProgressMinimapView @JvmOverloads constructor(
     }
 
     private fun drawTrack(canvas: Canvas) {
-        trackPaint.color = palette.surface
-        outlinePaint.color = palette.stroke
-        canvas.drawRoundRect(trackRect, 8f.dpToPx(), 8f.dpToPx(), trackPaint)
-        canvas.drawRoundRect(trackRect, 8f.dpToPx(), 8f.dpToPx(), outlinePaint)
+        minimapStyle.drawTrack(canvas, trackRect)
     }
 
     private fun drawContent(canvas: Canvas) {
@@ -320,11 +306,7 @@ class ChapterProgressMinimapView @JvmOverloads constructor(
             trackRect.right - 2f.dpToPx(),
             top + thumbHeight
         )
-        val accent = if (AppConfig.isEInkMode) Color.BLACK else palette.accentColor
-        thumbPaint.color = ColorUtils.setAlphaComponent(accent, if (isPressed) 48 else 24)
-        canvas.drawRoundRect(thumbRect, 4f.dpToPx(), 4f.dpToPx(), thumbPaint)
-        thumbStrokePaint.color = accent
-        canvas.drawRoundRect(thumbRect, 4f.dpToPx(), 4f.dpToPx(), thumbStrokePaint)
+        minimapStyle.drawThumb(canvas, thumbRect, isPressed)
     }
 
     private fun thumbHeight(trackHeight: Float): Float {

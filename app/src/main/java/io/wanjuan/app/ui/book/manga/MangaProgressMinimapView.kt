@@ -2,7 +2,6 @@ package io.wanjuan.app.ui.book.manga
 
 import android.content.Context
 import android.graphics.Canvas
-import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.drawable.Drawable
@@ -16,6 +15,7 @@ import com.bumptech.glide.Priority
 import com.bumptech.glide.request.target.CustomTarget
 import com.bumptech.glide.request.transition.Transition
 import io.wanjuan.app.model.BookCover
+import io.wanjuan.app.ui.book.ProgressMinimapStyle
 import io.wanjuan.app.ui.book.ProgressMinimapDragCalculator
 import io.wanjuan.app.utils.dpToPx
 import kotlin.math.roundToInt
@@ -34,16 +34,8 @@ class MangaProgressMinimapView @JvmOverloads constructor(
     private val trackRect = RectF()
     private val thumbRect = RectF()
     private val pageRect = RectF()
-    private val outlinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        style = Paint.Style.STROKE
-        strokeWidth = 1f.dpToPx()
-    }
+    private val minimapStyle = ProgressMinimapStyle(context)
     private val pagePaint = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val thumbPaint = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val thumbStrokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        style = Paint.Style.STROKE
-        strokeWidth = 1.4f.dpToPx()
-    }
 
     private var pageCount: Int = 0
     private var progress: Int = 0
@@ -70,6 +62,11 @@ class MangaProgressMinimapView @JvmOverloads constructor(
     init {
         isClickable = true
         isFocusable = true
+    }
+
+    fun refreshPalette() {
+        minimapStyle.refreshPalette()
+        invalidate()
     }
 
     fun setMaxAvailableHeight(maxHeightPx: Int) {
@@ -388,7 +385,7 @@ class MangaProgressMinimapView @JvmOverloads constructor(
     }
 
     private fun updateTrackRect() {
-        val horizontalInset = 5f.dpToPx()
+        val horizontalInset = minimapStyle.horizontalInset
         trackRect.set(
             paddingLeft + horizontalInset,
             paddingTop.toFloat(),
@@ -398,13 +395,12 @@ class MangaProgressMinimapView @JvmOverloads constructor(
     }
 
     private fun drawTrack(canvas: Canvas) {
-        outlinePaint.color = ColorUtils.setAlphaComponent(Color.WHITE, 42)
-        canvas.drawRect(trackRect, outlinePaint)
+        minimapStyle.drawTrack(canvas, trackRect)
     }
 
     private fun drawPageStrip(canvas: Canvas) {
-        val contentInsetX = 7f.dpToPx()
-        val contentInsetY = 8f.dpToPx()
+        val contentInsetX = 3f.dpToPx()
+        val contentInsetY = 7f.dpToPx()
         val left = trackRect.left + contentInsetX
         val right = trackRect.right - contentInsetX
         val top = trackRect.top + contentInsetY
@@ -448,7 +444,7 @@ class MangaProgressMinimapView @JvmOverloads constructor(
             index % 2 == 0 -> 68
             else -> 50
         }
-        pagePaint.color = ColorUtils.setAlphaComponent(Color.WHITE, alpha)
+        pagePaint.color = ColorUtils.setAlphaComponent(minimapStyle.palette.textColor, alpha)
         canvas.drawRect(pageRect, pagePaint)
     }
 
@@ -463,10 +459,7 @@ class MangaProgressMinimapView @JvmOverloads constructor(
             trackRect.right - 2f.dpToPx(),
             top + thumbHeight
         )
-        thumbPaint.color = ColorUtils.setAlphaComponent(Color.WHITE, if (isPressed) 96 else 72)
-        canvas.drawRect(thumbRect, thumbPaint)
-        thumbStrokePaint.color = ColorUtils.setAlphaComponent(Color.WHITE, if (isPressed) 236 else 200)
-        canvas.drawRect(thumbRect, thumbStrokePaint)
+        minimapStyle.drawThumb(canvas, thumbRect, isPressed)
     }
 
     private fun thumbHeight(trackHeight: Float): Float {
@@ -705,7 +698,7 @@ class MangaProgressMinimapView @JvmOverloads constructor(
     }
 
     private fun thumbnailRequestWidth(): Int {
-        return (width.takeIf { it > 0 } ?: 56f.dpToPx().roundToInt()).coerceAtLeast(32)
+        return (width.takeIf { it > 0 } ?: 44f.dpToPx().roundToInt()).coerceAtLeast(32)
     }
 
     private fun thumbnailRequestHeight(): Int {

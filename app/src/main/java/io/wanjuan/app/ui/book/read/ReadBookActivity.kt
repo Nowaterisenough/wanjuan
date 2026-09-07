@@ -1242,10 +1242,7 @@ class ReadBookActivity : BaseReadBookActivity(),
         binding.readMenu.refreshProgress()
         val textChapter = ReadBook.curTextChapter
         val pageCount = textChapter?.pageSize ?: 0
-        val shouldShow = show
-        val compact = binding.readMenu.isExpandedPanelVisible
-        binding.btnChapterMinimapPrevious.gone(compact)
-        binding.btnChapterMinimapNext.gone(compact)
+        val shouldShow = show && !binding.readMenu.isExpandedPanelVisible
         if (show && textChapter != null) {
             binding.chapterProgressMinimap.updateChapter(
                 textChapter.getContent(),
@@ -1326,13 +1323,13 @@ class ReadBookActivity : BaseReadBookActivity(),
         val availableHeight = (bottomLimit - topLimit).coerceAtLeast(0)
         val controlsTopMargin = (binding.chapterProgressMinimapControls.layoutParams as? ViewGroup.MarginLayoutParams)
             ?.topMargin ?: 0
-        val controlsHeight = if (binding.readMenu.isExpandedPanelVisible) 24.dpToPx() else 116.dpToPx()
+        val controlsHeight = 116.dpToPx()
         val maxMinimapHeight = availableHeight - controlsTopMargin - controlsHeight
         val minimumMinimapHeight = 96.dpToPx()
         if (maxMinimapHeight < minimumMinimapHeight) {
             return false
         }
-        val desiredHeight = if (binding.readMenu.isExpandedPanelVisible) 160.dpToPx() else 220.dpToPx()
+        val desiredHeight = 220.dpToPx()
         val minimapHeight = desiredHeight.coerceAtMost(maxMinimapHeight)
         val panelHeight = minimapHeight + controlsTopMargin + controlsHeight
         binding.chapterProgressMinimapHost.updateLayoutParams<ViewGroup.LayoutParams> {

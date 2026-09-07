@@ -1472,7 +1472,7 @@ class TestReadMenuLayout {
         val preScrollBody = mangaActivity.substringAfter("setPreScrollListener { _, _, _, position ->")
             .substringBefore("binding.webtoonFrame.run")
         val bindBody = mangaActivity.substringAfter("private fun bindMangaProgressMinimap()")
-            .substringBefore("private fun setupMangaMinimapControlGlass()")
+            .substringBefore("private fun setupMangaMinimapAppearance()")
         val previewBody = mangaActivity.substringAfter("private fun previewMangaProgressMinimap(ratio: Float)")
             .substringBefore("private fun commitMangaProgressMinimap")
         val commitBody = mangaActivity.substringAfter("private fun commitMangaProgressMinimap(ratio: Float)")
@@ -1551,7 +1551,7 @@ class TestReadMenuLayout {
         val mangaActivity = repoFile("app/src/main/java/io/wanjuan/app/ui/book/manga/ReadMangaActivity.kt").readText()
         val minimapView = repoFile("app/src/main/java/io/wanjuan/app/ui/book/manga/MangaProgressMinimapView.kt").readText()
         val bindBody = mangaActivity.substringAfter("private fun bindMangaProgressMinimap()")
-            .substringBefore("private fun setupMangaMinimapControlGlass()")
+            .substringBefore("private fun setupMangaMinimapAppearance()")
 
         assertTrue(minimapView.contains("var onThumbnailReady: ((pageIndex: Int, imageUrl: String) -> Unit)? = null"))
         assertTrue(minimapView.contains("onThumbnailReady?.invoke(index, url)"))
@@ -1628,12 +1628,10 @@ class TestReadMenuLayout {
     }
 
     @Test
-    fun expandedReaderPanelKeepsMinimapWithinAvailableSpace() {
+    fun expandedReaderPanelHidesMinimapUntilCollapsed() {
         val readActivity = repoFile("app/src/main/java/io/wanjuan/app/ui/book/read/ReadBookActivity.kt").readText()
-        assertFalse(readActivity.contains("val shouldShow = show && !binding.readMenu.isExpandedPanelVisible"))
+        assertTrue(readActivity.contains("val shouldShow = show && !binding.readMenu.isExpandedPanelVisible"))
         assertTrue(readActivity.contains("binding.chapterProgressMinimapPanel.gone(!shouldShow || pageCount <= 1)"))
-        assertTrue(readActivity.contains("binding.btnChapterMinimapPrevious.gone(compact)"))
-        assertTrue(readActivity.contains("binding.btnChapterMinimapNext.gone(compact)"))
         assertTrue(readActivity.contains("desiredHeight.coerceAtMost(maxMinimapHeight)"))
     }
 
@@ -1698,7 +1696,7 @@ class TestReadMenuLayout {
         assertTrue(feedback.contains("MotionEvent.ACTION_CANCEL"))
         assertTrue(feedback.contains("applyMinimapChapterButtonPressedFeedback(label)"))
         assertTrue(feedback.contains("clearMinimapChapterButtonPressedFeedback(label)"))
-        assertTrue(feedback.contains("context.accentColor"))
+        assertTrue(feedback.contains("ReaderSheetStyle.resolve(context).accentColor"))
         assertTrue(feedback.contains("scaleX = MINIMAP_CHAPTER_BUTTON_PRESSED_SCALE"))
         assertTrue(feedback.contains("scaleY = MINIMAP_CHAPTER_BUTTON_PRESSED_SCALE"))
         assertTrue(feedback.contains("overlay.alpha = MINIMAP_CHAPTER_BUTTON_OVERLAY_MAX_ALPHA"))
@@ -1785,14 +1783,11 @@ class TestReadMenuLayout {
     }
 
     @Test
-    fun readerLiquidGlassViewsOnlySuppressUnsafeProgressMinimapRebuilds() {
+    fun readerMinimapsUseSharedChromeWithoutGlassViews() {
         val nativeMenuGlassViews = listOf(
             readMenuLayout() to "title_bar_glass_view",
             readMenuLayout() to "bottom_tab_glass_view",
             readMenuLayout() to "layout_margin_adjust_glass_view"
-        )
-        val safeProgressMinimapGlassViews = listOf(
-            mangaActivityLayout() to "manga_progress_minimap_glass_view"
         )
 
         nativeMenuGlassViews.forEach { (layout, id) ->
@@ -1805,12 +1800,10 @@ class TestReadMenuLayout {
             readActivityLayout().elementById("chapter_progress_minimap").tagName)
         assertFalse(repoFile("app/src/main/res/layout/activity_book_read.xml").readText()
             .contains("chapter_progress_minimap_glass_view"))
-        safeProgressMinimapGlassViews.forEach { (layout, id) ->
-            assertEquals(
-                "io.wanjuan.app.ui.widget.SafeLiquidGlassView",
-                layout.elementById(id).tagName
-            )
-        }
+        assertFalse(repoFile("app/src/main/res/layout/activity_manga.xml").readText()
+            .contains("manga_progress_minimap_glass_view"))
+        assertEquals("44dp", mangaActivityLayout().elementById("manga_progress_minimap").androidAttr("layout_width"))
+        assertEquals("44dp", readActivityLayout().elementById("chapter_progress_minimap").androidAttr("layout_width"))
     }
 
     @Test

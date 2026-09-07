@@ -8,8 +8,8 @@ import android.view.ViewGroup
 import android.view.animation.DecelerateInterpolator
 import android.widget.FrameLayout
 import android.widget.TextView
-import io.wanjuan.app.lib.theme.accentColor
-import io.wanjuan.app.utils.dpToPx
+import io.wanjuan.app.ui.book.read.config.ReaderSheetStyle
+import io.wanjuan.app.ui.book.read.config.ReaderUiStyle
 
 const val MINIMAP_CHAPTER_BUTTON_PRESSED_SCALE = 1.08f
 
@@ -100,7 +100,7 @@ private fun ViewGroup.findMinimapChapterButtonFeedbackOverlay(): View? {
 private fun View.minimapChapterButtonFeedbackBackground(): GradientDrawable {
     return GradientDrawable().apply {
         shape = GradientDrawable.RECTANGLE
-        cornerRadius = 28f.dpToPx()
-        setColor(context.accentColor)
+        cornerRadius = ReaderUiStyle.dp(context, ReaderUiStyle.RADIUS_CONTROL).toFloat()
+        setColor(ReaderSheetStyle.resolve(context).accentColor)
     }
 }
