@@ -76,6 +76,23 @@ class TestReaderCommentColors {
     }
 
     @Test
+    fun repaginationKeepsTheColorEditorAndItsUnappliedDraft() {
+        instrumentation.runOnMainSync {
+            val callback = Proxy.newProxyInstance(ReadMenu.CallBack::class.java.classLoader, arrayOf(ReadMenu.CallBack::class.java)) { _, _, _ -> null } as ReadMenu.CallBack
+            val menu = ReadMenuWorkbench(context, callback, {}, {}, {})
+            menu.show(ReadMenuWorkbench.Page.COMMENT_COLORS, false)
+            val input = descendants(menu).filterIsInstance<EditText>().single()
+            input.setText("#12AB")
+            input.setSelection(3)
+            menu.refreshBookInfo()
+            assertSame(input, descendants(menu).filterIsInstance<EditText>().single())
+            assertEquals("#12AB", input.text.toString())
+            assertEquals(3, input.selectionStart)
+            assertNull(ThemeConfig.getCommentIndicatorColor(context, false))
+        }
+    }
+
+    @Test
     fun presetsAndCustomColorsPersistIndependentlyAndSourceDefaultResetsOneMode() {
         instrumentation.runOnMainSync {
             val originalMode = AppConfig.isNightTheme

@@ -30,6 +30,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.View.MeasureSpec
 import android.view.ViewGroup
+import android.view.ViewTreeObserver
 import android.view.WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
 import android.view.animation.AccelerateDecelerateInterpolator
 import android.view.animation.Animation
@@ -49,6 +50,8 @@ import androidx.core.view.isGone
 import androidx.core.view.isVisible
 import androidx.core.view.doOnPreDraw
 import androidx.core.view.updateLayoutParams
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.jaredrummler.android.colorpicker.ColorPickerDialog
@@ -151,6 +154,19 @@ class ReadMenu @JvmOverloads constructor(
     private val callBack: CallBack get() = activity as CallBack
     private val binding = ViewReadMenuBinding.inflate(LayoutInflater.from(context), this, true)
     private var workbench: ReadMenuWorkbench? = null
+    private val keyboardVisibleFrame = Rect()
+    private val keyboardMenuLocation = IntArray(2)
+    private val keyboardLayoutListener = ViewTreeObserver.OnGlobalLayoutListener {
+        val imeVisible = ViewCompat.getRootWindowInsets(this)?.isVisible(WindowInsetsCompat.Type.ime()) == true
+        getWindowVisibleDisplayFrame(keyboardVisibleFrame)
+        getLocationOnScreen(keyboardMenuLocation)
+        // Use the remaining overlap so legacy resize and edge-to-edge windows both fit the IME.
+        val overlap = if (imeVisible) (keyboardMenuLocation[1] + height - keyboardVisibleFrame.bottom).coerceAtLeast(0) else 0
+        val params = binding.bottomMenu.layoutParams as ConstraintLayout.LayoutParams
+        if (params.bottomMargin != overlap) {
+            binding.bottomMenu.updateLayoutParams<ConstraintLayout.LayoutParams> { bottomMargin = overlap }
+        }
+    }
     private var isMenuOutAnimating = false
     private enum class BottomTab {
         Search,
@@ -497,6 +513,16 @@ class ReadMenu @JvmOverloads constructor(
         workbench?.show(page)
     }
 
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        viewTreeObserver.addOnGlobalLayoutListener(keyboardLayoutListener)
+    }
+
+    override fun onDetachedFromWindow() {
+        viewTreeObserver.removeOnGlobalLayoutListener(keyboardLayoutListener)
+        super.onDetachedFromWindow()
+    }
+
     fun showCurrentChapterList() {
         if (!isVisible) runMenuIn()
         workbench?.showCurrentChapter()
@@ -691,7 +717,8 @@ class ReadMenu @JvmOverloads constructor(
         }
         updateBrightnessValue()
         setScreenBrightness(AppConfig.readBrightness.toFloat())
-        workbench?.refresh()
+        // Window focus can return from an IME; keep the active editor and its draft intact.
+        if (workbench?.page == ReadMenuWorkbench.Page.MAIN) workbench?.refresh()
     }
 
     private fun updateBrightnessValue() = binding.run {
@@ -5484,7 +5511,7 @@ class ReadMenu @JvmOverloads constructor(
     }
 
     fun upBookView() {
-        workbench?.refresh()
+        workbench?.refreshBookInfo()
         binding.titleBar.title = null
         binding.titleBar.subtitle = null
         binding.tvChapterName.text = ReadBook.book?.name.orEmpty()

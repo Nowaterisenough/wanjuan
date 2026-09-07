@@ -215,6 +215,11 @@ class ReadMenuWorkbench(
         show(Page.TOC)
     }
 
+    fun refreshBookInfo() {
+        // IME resizing repaginates the book; the color editor has no chapter-dependent content.
+        if (page != Page.COMMENT_COLORS) refresh()
+    }
+
     fun refresh() {
         if (tracking) { pendingRefresh = true; return }
         pendingRefresh = false

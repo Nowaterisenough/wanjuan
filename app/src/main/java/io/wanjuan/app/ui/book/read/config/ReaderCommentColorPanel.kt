@@ -123,10 +123,21 @@ class ReaderCommentColorPanel(
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
             filters = arrayOf(InputFilter.LengthFilter(7))
             setSingleLine(true)
-            imeOptions = EditorInfo.IME_ACTION_DONE
+            imeOptions = EditorInfo.IME_ACTION_DONE or EditorInfo.IME_FLAG_NO_EXTRACT_UI or EditorInfo.IME_FLAG_NO_FULLSCREEN
+            isFocusableInTouchMode = true
+            showSoftInputOnFocus = true
             background = Ui.rounded(context, colors.panel, stroke = colors.stroke)
             setPadding(dp(12), 0, dp(12), 0)
             setText(parsed?.let(::hex).orEmpty())
+            setOnClickListener {
+                requestFocus()
+                post {
+                    if (isAttachedToWindow && hasFocus()) {
+                        val keyboard = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+                        keyboard.showSoftInput(this, 0)
+                    }
+                }
+            }
         }
         fun applyInput() {
             val hex = input.text.toString().trim().removePrefix("#")
