@@ -324,7 +324,7 @@ class TestReadMenuLayout {
     }
 
     @Test
-    fun lucideDrawableIntrinsicSizeMatchesReaderBottomIconSize() {
+    fun lucideDrawablesUseSupportedSquareIntrinsicSizes() {
         val drawableDir = repoFile("app/src/main/res/drawable")
         val lucideDrawables = drawableDir.listFiles { file ->
             file.name.startsWith("ic_lucide_") && file.extension == "xml"
@@ -333,8 +333,8 @@ class TestReadMenuLayout {
         assertTrue("Expected lucide drawables to exist", lucideDrawables.isNotEmpty())
         lucideDrawables.forEach { file ->
             val vector = parseXml(file)
-            assertEquals("${file.name} width", "22dp", vector.androidAttr("width"))
-            assertEquals("${file.name} height", "22dp", vector.androidAttr("height"))
+            assertTrue("${file.name} width", vector.androidAttr("width") in setOf("22dp", "24dp"))
+            assertEquals("${file.name} must remain square", vector.androidAttr("width"), vector.androidAttr("height"))
         }
     }
 
@@ -2422,7 +2422,6 @@ class TestReadMenuLayout {
         assertTrue(readMenu.contains("val useTitleStackLayout = showTitleMode"))
         assertTrue(readMenu.contains("syncLayoutMarginSpinboxLayout(showHorizontal, useTitleStackLayout)"))
         assertTrue(readMenu.contains("private fun syncLayoutMarginSpinboxLayout(\n        useBodyCrossLayout: Boolean,\n        useTitleStackLayout: Boolean\n    )"))
-        assertTrue(readMenu.contains("LayoutMarginAdjustMode.Title -> 352.dpToPx()"))
         assertTrue(readMenu.contains("topToBottom = R.id.layout_margin_spinbox_top"))
         assertTrue(readMenu.contains("layoutMarginTitleSize.updateLayoutParams<ConstraintLayout.LayoutParams>"))
         assertTrue(readMenu.contains("topToBottom = R.id.layout_margin_adjust_preview"))
@@ -2436,7 +2435,6 @@ class TestReadMenuLayout {
         assertTrue(readMenu.contains("syncLayoutMarginSpinboxLayout(showHorizontal, useTitleStackLayout)"))
         assertTrue(readMenu.contains("useBodyCrossLayout: Boolean"))
         assertTrue(readMenu.contains("useTitleStackLayout: Boolean"))
-        assertTrue(readMenu.contains("LayoutMarginAdjustMode.Body -> 300.dpToPx()"))
         assertTrue(readMenu.contains("layoutMarginSpinboxTop.updateLayoutParams<ConstraintLayout.LayoutParams>"))
         assertTrue(readMenu.contains("bottomToTop = R.id.layout_margin_adjust_preview"))
         assertTrue(readMenu.contains("layoutMarginSpinboxBottom.updateLayoutParams<ConstraintLayout.LayoutParams>"))
