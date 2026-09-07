@@ -58,7 +58,6 @@ import io.wanjuan.app.ui.book.manga.entities.MangaPage
 import io.wanjuan.app.ui.book.manga.recyclerview.MangaAdapter
 import io.wanjuan.app.ui.book.manga.recyclerview.MangaLayoutManager
 import io.wanjuan.app.ui.book.manga.recyclerview.ScrollTimer
-import io.wanjuan.app.ui.book.read.config.ReaderSheetStyle
 import io.wanjuan.app.ui.book.read.MangaMenu
 import io.wanjuan.app.ui.book.read.ReadBookActivity.Companion.RESULT_DELETED
 import io.wanjuan.app.ui.book.read.applyMinimapChapterNavigationStyle
@@ -454,12 +453,10 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
     }
 
     private fun setupMangaMinimapAppearance() = binding.run {
-        val colors = ReaderSheetStyle.resolve(this@ReadMangaActivity)
         mangaProgressMinimap.refreshPalette()
         btnMangaMinimapPrevious.applyMinimapChapterNavigationStyle(tvMangaMinimapPrevious)
         btnMangaMinimapCurrent.applyMinimapChapterNavigationStyle(tvMangaMinimapCurrent)
         btnMangaMinimapNext.applyMinimapChapterNavigationStyle(tvMangaMinimapNext)
-        tvMangaMinimapPosition.setTextColor(colors.secondaryTextColor)
         btnMangaMinimapPrevious.isEnabled = ReadManga.durChapterIndex > 0
         btnMangaMinimapNext.isEnabled = ReadManga.durChapterIndex < ReadManga.chapterSize - 1
         btnMangaMinimapPrevious.alpha = if (btnMangaMinimapPrevious.isEnabled) 1f else .45f
@@ -484,7 +481,7 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
         val pageCount = imageUrls.size
         val progressRatio = currentMangaScrollProgressRatio()
         val shouldShow = show && !binding.mangaMenu.isExpandedPanelVisible
-        updateMangaMinimapCurrentChapterButton(pageCount)
+        updateMangaMinimapCurrentChapterButton()
         if (show) {
             binding.mangaProgressMinimap.updatePages(
                 ReadManga.durChapterIndex,
@@ -563,9 +560,11 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
         val availableHeight = (bottomLimit - topLimit).coerceAtLeast(0)
         val controlsTopMargin = (binding.mangaProgressMinimapControls.layoutParams as? ViewGroup.MarginLayoutParams)
             ?.topMargin ?: 0
-        val controlsHeight = binding.mangaProgressMinimapControls.height
-            .takeIf { it > 0 }
-            ?: 140.dpToPx()
+        binding.mangaProgressMinimapControls.measure(
+            View.MeasureSpec.makeMeasureSpec(binding.mangaProgressMinimapPanel.width, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        )
+        val controlsHeight = binding.mangaProgressMinimapControls.measuredHeight
         val maxMinimapHeight = availableHeight - controlsTopMargin - controlsHeight
         val minimumMinimapHeight = 96.dpToPx()
         if (maxMinimapHeight < minimumMinimapHeight) {
@@ -616,10 +615,9 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
         return viewLocation[1] - rootLocation[1]
     }
 
-    private fun updateMangaMinimapCurrentChapterButton(pageCount: Int) {
+    private fun updateMangaMinimapCurrentChapterButton() {
         val chapterTitle = ReadManga.curMangaChapter?.chapter?.title.orEmpty()
         val chapterNumber = getString(R.string.reader_chapter_number, ReadManga.durChapterIndex + 1)
-        binding.tvMangaMinimapPosition.text = "${ReadManga.durChapterPos + 1} / $pageCount"
         binding.tvMangaMinimapCurrent.text = chapterNumber
         binding.btnMangaMinimapCurrent.contentDescription = if (chapterTitle.isBlank()) {
             chapterNumber

@@ -1221,14 +1221,10 @@ class ReadBookActivity : BaseReadBookActivity(),
     }
 
     private fun setupChapterMinimapAppearance() = binding.run {
-        val colors = io.wanjuan.app.ui.book.read.config.ReaderSheetStyle.resolve(this@ReadBookActivity)
         chapterProgressMinimap.refreshPalette()
         btnChapterMinimapPrevious.applyMinimapChapterNavigationStyle(tvChapterMinimapPrevious)
         btnChapterMinimapCurrent.applyMinimapChapterNavigationStyle(tvChapterMinimapCurrent)
         btnChapterMinimapNext.applyMinimapChapterNavigationStyle(tvChapterMinimapNext)
-        tvChapterMinimapPosition.setTextColor(colors.secondaryTextColor)
-        val pages = ReadBook.curTextChapter?.pageSize ?: 0
-        tvChapterMinimapPosition.text = "${ReadBook.durPageIndex + 1} / $pages"
         val chapterNumber = getString(R.string.reader_chapter_number, ReadBook.durChapterIndex + 1)
         tvChapterMinimapCurrent.text = chapterNumber
         btnChapterMinimapCurrent.contentDescription = chapterNumber
@@ -1323,7 +1319,11 @@ class ReadBookActivity : BaseReadBookActivity(),
         val availableHeight = (bottomLimit - topLimit).coerceAtLeast(0)
         val controlsTopMargin = (binding.chapterProgressMinimapControls.layoutParams as? ViewGroup.MarginLayoutParams)
             ?.topMargin ?: 0
-        val controlsHeight = 140.dpToPx()
+        binding.chapterProgressMinimapControls.measure(
+            View.MeasureSpec.makeMeasureSpec(binding.chapterProgressMinimapPanel.width, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        )
+        val controlsHeight = binding.chapterProgressMinimapControls.measuredHeight
         val maxMinimapHeight = availableHeight - controlsTopMargin - controlsHeight
         val minimumMinimapHeight = 96.dpToPx()
         if (maxMinimapHeight < minimumMinimapHeight) {

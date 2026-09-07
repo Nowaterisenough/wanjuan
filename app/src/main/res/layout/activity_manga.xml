@@ -75,13 +75,6 @@
             android:gravity="center"
             android:orientation="vertical">
 
-            <TextView
-                android:id="@+id/tv_manga_minimap_position"
-                android:layout_width="match_parent"
-                android:layout_height="24dp"
-                android:gravity="center"
-                android:textSize="12sp" />
-
             <FrameLayout
                 android:id="@+id/btn_manga_minimap_previous"
                 android:layout_width="68dp"
