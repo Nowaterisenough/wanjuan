@@ -728,7 +728,7 @@ class MangaProgressMinimapView @JvmOverloads constructor(
     }
 
     private companion object {
-        const val MINIMAP_MIN_HEIGHT_DP = 300f
+        const val MINIMAP_MIN_HEIGHT_DP = 360f
         const val MINIMAP_MAX_HEIGHT_DP = 620f
         const val MINIMAP_BASE_HEIGHT_DP = 180f
         const val MINIMAP_PAGE_HEIGHT_DP = 18f

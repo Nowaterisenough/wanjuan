@@ -16,6 +16,8 @@ import android.view.animation.LinearInterpolator
 import android.widget.FrameLayout
 import androidx.activity.viewModels
 import androidx.appcompat.app.AlertDialog
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isGone
 import androidx.core.view.isVisible
 import androidx.core.view.updateLayoutParams
@@ -554,7 +556,9 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
         val bottomLimit = minimapBottomLimit(
             root = root,
             bottomBar = binding.mangaMenu.findViewById(R.id.bottom_menu),
-            fallbackBottom = 80.dpToPx(),
+            fallbackBottom = ViewCompat.getRootWindowInsets(root)
+                ?.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
+                ?.bottom ?: 0,
             gap = gap
         )
         val availableHeight = (bottomLimit - topLimit).coerceAtLeast(0)
@@ -570,7 +574,8 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
         if (maxMinimapHeight < minimumMinimapHeight) {
             return false
         }
-        val minimapHeight = binding.mangaProgressMinimap.desiredHeightWithin(maxMinimapHeight.coerceAtMost(220.dpToPx()))
+        val desiredHeight = resources.getDimensionPixelSize(R.dimen.manga_minimap_max_height)
+        val minimapHeight = binding.mangaProgressMinimap.desiredHeightWithin(maxMinimapHeight.coerceAtMost(desiredHeight))
         val panelHeight = minimapHeight + controlsTopMargin + controlsHeight
         binding.mangaProgressMinimap.setMaxAvailableHeight(maxMinimapHeight)
         binding.mangaProgressMinimapHost.updateLayoutParams<ViewGroup.LayoutParams> {
