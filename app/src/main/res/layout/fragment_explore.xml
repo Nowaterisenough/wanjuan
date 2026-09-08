@@ -139,6 +139,13 @@
                     android:visibility="gone" />
 
                 <io.wanjuan.app.ui.widget.RoundedTagBarView
+                    android:id="@+id/rv_discover_subgroups"
+                    android:layout_width="match_parent"
+                    android:layout_height="@dimen/bookshelf_tag_bar_height"
+                    android:layout_marginTop="@dimen/bookshelf_tag_bar_margin_top"
+                    android:visibility="gone" />
+
+                <io.wanjuan.app.ui.widget.RoundedTagBarView
                     android:id="@+id/rv_discover_tags"
                     android:layout_width="match_parent"
                     android:layout_height="@dimen/bookshelf_tag_bar_height"

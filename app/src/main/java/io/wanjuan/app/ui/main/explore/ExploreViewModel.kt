@@ -21,6 +21,7 @@ class ExploreViewModel(application: Application) : BaseViewModel(application) {
     var page = 1
     var hasMore = true
     var majorGroup: String? = null
+    var subgroup: String? = null
     var tagIndex = -1
     var urlIndex = -1
     var modeLoaded = false

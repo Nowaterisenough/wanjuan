@@ -14,6 +14,7 @@ data class DiscoverTagItem(
     val text: String,
     val isButton: Boolean,
     val group: String? = null,
+    val subgroup: String? = null,
 )
 
 class DiscoverTagAdapter(
