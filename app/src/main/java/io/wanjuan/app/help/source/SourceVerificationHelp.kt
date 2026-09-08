@@ -123,6 +123,7 @@ object SourceVerificationHelp {
 
         var waitUserInput = false
         while (getResult(source.getKey()) == null) {
+            if (Thread.currentThread().isInterrupted) throw InterruptedException("Source verification cancelled")
             if (!waitUserInput && html == null) {
                 AppLog.putDebug("等待返回验证结果...")
                 waitUserInput = true
@@ -174,6 +175,7 @@ object SourceVerificationHelp {
                 null
             }
         }.onFailure {
+            if (it is InterruptedException || it is kotlinx.coroutines.CancellationException) throw it
             AppLog.putDebug("${source.getTag()} Cloudflare: 后台自动验证失败 ${it.localizedMessage}")
         }.getOrNull()
     }

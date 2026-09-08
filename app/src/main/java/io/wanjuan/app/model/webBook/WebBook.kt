@@ -11,6 +11,8 @@ import io.wanjuan.app.help.book.addType
 import io.wanjuan.app.help.book.removeAllBookType
 import io.wanjuan.app.help.coroutine.Coroutine
 import io.wanjuan.app.help.http.StrResponse
+import io.wanjuan.app.help.source.SourceResponseGuard
+import io.wanjuan.app.help.source.SourceVerificationHelp
 import io.wanjuan.app.help.source.getBookType
 import io.wanjuan.app.model.Debug
 import io.wanjuan.app.model.analyzeRule.AnalyzeRule
@@ -25,6 +27,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.sync.Semaphore
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.coroutines.CoroutineContext
@@ -78,7 +81,7 @@ object WebBook {
             coroutineContext = currentCoroutineContext()
         )
         val checkJs = bookSource.loginCheckJs
-        val res = kotlin.runCatching {
+        val response = kotlin.runCatching {
             analyzeUrl.getStrResponseAwait().let {
                 if (!checkJs.isNullOrBlank()) { //检测书源是否已登录
                     analyzeUrl.evalJS(checkJs, it) as StrResponse
@@ -102,6 +105,7 @@ object WebBook {
                 throw throwable
             }
         }
+        val res = verifySourceResponse(bookSource, analyzeUrl, response)
         checkRedirect(bookSource, res)
         return BookList.analyzeBookList(
             bookSource = bookSource,
@@ -149,7 +153,7 @@ object WebBook {
             infoMap = exploreInfoMap
         )
         val checkJs = bookSource.loginCheckJs
-        val res = kotlin.runCatching {
+        val response = kotlin.runCatching {
             analyzeUrl.getStrResponseAwait().let {
                 if (!checkJs.isNullOrBlank()) { //检测书源是否已登录
                     analyzeUrl.evalJS(checkJs, it) as StrResponse
@@ -173,6 +177,7 @@ object WebBook {
                 throw throwable
             }
         }
+        val res = verifySourceResponse(bookSource, analyzeUrl, response)
         checkRedirect(bookSource, res)
         return BookList.analyzeBookList(
             bookSource = bookSource,
@@ -224,7 +229,7 @@ object WebBook {
                 coroutineContext = currentCoroutineContext()
             )
             val checkJs = bookSource.loginCheckJs
-            val res = kotlin.runCatching {
+            val response = kotlin.runCatching {
                 analyzeUrl.getStrResponseAwait().let {
                     if (!checkJs.isNullOrBlank()) { //检测书源是否已登录
                         analyzeUrl.evalJS(checkJs, it) as StrResponse
@@ -248,6 +253,7 @@ object WebBook {
                     throw throwable
                 }
             }
+            val res = verifySourceResponse(bookSource, analyzeUrl, response)
             checkRedirect(bookSource, res)
             BookInfo.analyzeBookInfo(
                 bookSource = bookSource,
@@ -354,7 +360,7 @@ object WebBook {
                     coroutineContext = currentCoroutineContext()
                 )
                 val checkJs = bookSource.loginCheckJs
-                val res = kotlin.runCatching {
+                val response = kotlin.runCatching {
                     analyzeUrl.getStrResponseAwait().let {
                         if (!checkJs.isNullOrBlank()) { //检测书源是否已登录
                             analyzeUrl.evalJS(checkJs, it) as StrResponse
@@ -378,6 +384,7 @@ object WebBook {
                         throw throwable
                     }
                 }
+                val res = verifySourceResponse(bookSource, analyzeUrl, response)
                 checkRedirect(bookSource, res)
                 BookChapterList.analyzeChapterList(
                     bookSource = bookSource,
@@ -496,7 +503,7 @@ object WebBook {
                 coroutineContext = currentCoroutineContext()
             )
             val checkJs = bookSource.loginCheckJs
-            val res = kotlin.runCatching {
+            val response = kotlin.runCatching {
                 analyzeUrl.getStrResponseAwait(
                     jsStr = contentRule.webJs,
                     sourceRegex = contentRule.sourceRegex
@@ -523,6 +530,7 @@ object WebBook {
                     throw throwable
                 }
             }
+            val res = verifySourceResponse(bookSource, analyzeUrl, response)
             checkRedirect(bookSource, res)
             BookContent.analyzeContent(
                 bookSource = bookSource,
@@ -578,6 +586,21 @@ object WebBook {
             throw NoStackTraceException("未搜索到 $name($author) 书籍")
         }.onFailure {
             currentCoroutineContext().ensureActive()
+        }
+    }
+
+    private suspend fun verifySourceResponse(
+        source: BookSource,
+        request: AnalyzeUrl,
+        response: StrResponse
+    ): StrResponse = SourceResponseGuard.ensureContent(response) { url ->
+        runInterruptible(Dispatchers.IO) {
+            SourceVerificationHelp.getVerificationResult(
+                source, url, "Cloudflare", useBrowser = true,
+                refetchAfterSharedVerification = {
+                    request.getStrResponse().let { it.url to it.body.orEmpty() }
+                }
+            )
         }
     }
 

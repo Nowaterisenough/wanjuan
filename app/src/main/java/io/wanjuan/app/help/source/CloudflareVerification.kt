@@ -51,6 +51,15 @@ object CloudflareVerification {
             ) != null
     }
 
+    fun isBlockedBody(body: String?): Boolean {
+        if (body.isNullOrBlank()) return false
+        val document = Jsoup.parse(body)
+        return document.selectFirst("[data-translate=block_headline]") != null ||
+            document.select(".cf-error-code").any { it.text().trim() in blockedErrorCodes }
+    }
+
+    private val blockedErrorCodes = setOf("1006", "1007", "1008", "1009", "1010", "1012", "1020")
+
     private val challengeTitles = listOf(
         "Just a moment", "Checking your browser", "Attention Required",
         "Verify you are human", "Verifying you are human"
