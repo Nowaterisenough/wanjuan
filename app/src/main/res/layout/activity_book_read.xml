@@ -59,7 +59,7 @@
         <FrameLayout
             android:id="@+id/chapter_progress_minimap_host"
             android:layout_width="@dimen/reader_minimap_width"
-            android:layout_height="260dp"
+            android:layout_height="@dimen/reader_minimap_height"
             android:clipChildren="false"
             android:clipToOutline="false"
             android:clipToPadding="false">
@@ -67,7 +67,7 @@
             <io.wanjuan.app.ui.book.read.ChapterProgressMinimapView
                 android:id="@+id/chapter_progress_minimap"
                 android:layout_width="@dimen/reader_minimap_width"
-                android:layout_height="260dp"
+                android:layout_height="@dimen/reader_minimap_height"
                 android:clickable="true"
                 android:contentDescription="@string/chapter_progress_minimap"
                 android:focusable="true" />

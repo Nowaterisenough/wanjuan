@@ -1329,7 +1329,7 @@ class ReadBookActivity : BaseReadBookActivity(),
         if (maxMinimapHeight < minimumMinimapHeight) {
             return false
         }
-        val desiredHeight = 220.dpToPx()
+        val desiredHeight = resources.getDimensionPixelSize(R.dimen.reader_minimap_height)
         val minimapHeight = desiredHeight.coerceAtMost(maxMinimapHeight)
         val panelHeight = minimapHeight + controlsTopMargin + controlsHeight
         binding.chapterProgressMinimapHost.updateLayoutParams<ViewGroup.LayoutParams> {
