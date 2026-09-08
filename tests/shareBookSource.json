@@ -4851,7 +4851,7 @@
   {
     "bookSourceGroup": "R18视频",
     "bookSourceName": "好色TV",
-    "bookSourceType": 0,
+    "bookSourceType": 4,
     "bookSourceUrl": "https://hsex.icu/",
     "customButton": false,
     "customOrder": 90,
@@ -4861,7 +4861,7 @@
     "eventListener": false,
     "exploreUrl": "@js:\nlet list = [];\nconst push = (title, url, size) => list.push({\n    \"title\": title,\n    \"url\": url,\n    \"style\": {\n        \"layout_flexGrow\": 1,\n        \"layout_flexBasisPercent\": size\n    }\n});\n\npush(\"最新\", \"list-{{page}}.htm?sort=new\", 0.3);\npush(\"最热\", \"hot_list-{{page}}.htm\", 0.3);\npush(\"周榜\", \"top7_list-{{page}}.htm\", 0.3);\npush(\"月榜\", \"top_list-{{page}}.htm\", 0.3);\npush(\"5分钟+\", \"5min_list-{{page}}.htm\", 0.3);\npush(\"10分钟+\", \"long_list-{{page}}.htm\", 0.3);\n\nJSON.stringify(list);",
     "header": "{\"User-Agent\":\"Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Mobile Safari/537.36\"}",
-    "lastUpdateTime": 1779280624913,
+    "lastUpdateTime": 1788872423393,
     "respondTime": 4037,
     "ruleBookInfo": {
       "author": "//meta[@property=\"og:video:actor\"]/@content",
@@ -4871,7 +4871,7 @@
       "name": "//meta[@property=\"og:title\"]/@content"
     },
     "ruleContent": {
-      "content": "@js:\nlet html = String(result);\nlet m3u8 = \"\";\nlet m = html.match(/<source[^>]+id=[\"']video-source[\"'][^>]+src=[\"']([^\"']+)/i) || html.match(/<source[^>]+src=[\"']([^\"']+\\.m3u8[^\"']*)/i);\nif (m) {\n    m3u8 = m[1].replace(/&amp;/g, \"&\");\n    if (m3u8.startsWith(\"//\")) {\n        m3u8 = \"https:\" + m3u8;\n    } else if (m3u8.startsWith(\"/\")) {\n        m3u8 = source.getKey().replace(/\\/$/, \"\") + m3u8;\n    }\n}\n\nconst nxvav = \"https://api.nxvav.cn/api/m3u8/?url=\";\nif (m3u8) {\n    try {\n        java.startBrowserAwait(`${nxvav}${java.encodeURI(m3u8)}`, book.name);\n    } catch (err) {\n        m3u8;\n    }\n} else {\n    \"未获取到视频地址\";\n}"
+      "content": "@js:\nlet html = String(result);\nlet m3u8 = \"\";\nlet m = html.match(/<source[^>]+id=[\"']video-source[\"'][^>]+src=[\"']([^\"']+)/i) || html.match(/<source[^>]+src=[\"']([^\"']+\\.m3u8[^\"']*)/i);\nif (m) {\n    m3u8 = m[1].replace(/&amp;/g, \"&\");\n    if (m3u8.startsWith(\"//\")) {\n        m3u8 = \"https:\" + m3u8;\n    } else if (m3u8.startsWith(\"/\")) {\n        m3u8 = String(source.getKey()).replace(/\\/$/, \"\") + m3u8;\n    }\n}\n\nm3u8 || '未获取到视频地址';"
     },
     "ruleExplore": {
       "author": ".info a@text",
