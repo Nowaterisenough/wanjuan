@@ -53,13 +53,5 @@ inline fun <T> runScriptWithContext(context: CoroutineContext, block: () -> T): 
 }
 
 suspend inline fun <T> runScriptWithContext(block: () -> T): T {
-    val rhinoContext = Context.enter() as RhinoContext
-    val previousCoroutineContext = rhinoContext.coroutineContext
-    rhinoContext.coroutineContext = currentCoroutineContext().minusKey(ContinuationInterceptor)
-    try {
-        return block()
-    } finally {
-        rhinoContext.coroutineContext = previousCoroutineContext
-        Context.exit()
-    }
+    return runScriptWithContext(currentCoroutineContext(), block)
 }
