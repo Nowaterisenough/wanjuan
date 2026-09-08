@@ -2,7 +2,6 @@ package io.wanjuan.app.help.glide
 
 import com.bumptech.glide.Priority
 import com.bumptech.glide.load.DataSource
-import com.bumptech.glide.load.HttpException
 import com.bumptech.glide.load.Options
 import com.bumptech.glide.load.data.DataFetcher
 import com.bumptech.glide.load.model.GlideUrl
@@ -136,11 +135,16 @@ class OkHttpStreamFetcher(
 
     override fun onResponse(call: Call, response: Response) {
         responseBody = response.body
-        if (!response.isSuccessful) {
-            if (!manga) {
+        val responseError = try {
+            ImageResponseError.from(response)
+        } catch (error: IOException) {
+            error
+        }
+        if (responseError != null) {
+            if (!manga && response.code in setOf(404, 410)) {
                 failUrl.add(url.toStringUrl())
             }
-            callback?.onLoadFailed(HttpException(response.message, response.code))
+            callback?.onLoadFailed(responseError)
             return
         }
         if (ImageUtils.skipDecode(source, !manga)) {

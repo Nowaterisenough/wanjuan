@@ -25,6 +25,7 @@ import com.bumptech.glide.request.RequestListener
 import com.bumptech.glide.request.target.Target
 import io.wanjuan.app.help.glide.progress.ProgressManager
 import io.wanjuan.app.R
+import io.wanjuan.app.exception.SourceAccessException
 import io.wanjuan.app.model.BookCover
 import io.wanjuan.app.model.ReadManga
 import io.wanjuan.app.utils.printOnDebug
@@ -66,6 +67,8 @@ open class MangaVH<VB : ViewBinding>(val binding: VB, private val context: Conte
         mLoading.isVisible = true
         mRetry?.isGone = true
         mProgress.isVisible = true
+        mProgress.translationY = 0f
+        mProgress.setText(R.string.manga_image_connecting)
         ProgressManager.removeListener(imageUrl)
         ProgressManager.addListener(imageUrl) { _, percentage, bytesRead, totalBytes ->
             when {
@@ -97,7 +100,11 @@ open class MangaVH<VB : ViewBinding>(val binding: VB, private val context: Conte
                     mFlProgress.isVisible = true
                     mLoading.isGone = true
                     mRetry?.isVisible = true
-                    mProgress.isGone = true
+                    val accessError = e?.rootCauses?.filterIsInstance<SourceAccessException>()?.firstOrNull()
+                    mProgress.isVisible = accessError != null
+                    mProgress.text = accessError?.message
+                    mProgress.gravity = Gravity.CENTER
+                    mProgress.translationY = if (accessError != null) 56 * context.resources.displayMetrics.density else 0f
                     itemView.updateLayoutParams<ViewGroup.LayoutParams> {
                         height = ViewGroup.LayoutParams.MATCH_PARENT
                     }
