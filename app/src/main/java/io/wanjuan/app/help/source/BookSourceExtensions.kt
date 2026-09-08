@@ -1,6 +1,7 @@
 package io.wanjuan.app.help.source
 
 import androidx.annotation.Keep
+import com.script.rhino.RhinoScriptEngine
 import com.script.rhino.runScriptWithContext
 import io.wanjuan.app.constant.BookSourceType
 import io.wanjuan.app.constant.BookType
@@ -21,6 +22,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import org.mozilla.javascript.NativeArray
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -41,6 +43,7 @@ private fun BookSource.getExploreKindsKey(): String {
     ).joinToString("|")
     return MD5Utils.md5Encode(
         listOf(
+            "explore-kinds-v2",
             bookSourceUrl,
             exploreUrl.orEmpty(),
             jsLib.orEmpty(),
@@ -82,7 +85,7 @@ suspend fun BookSource.exploreKinds(): List<ExploreKind> {
                                 evalJS(exploreUrl.substring(4)) {
                                     put("java", exploreKindsJava)
                                     put("infoMap", exploreInfoMap)
-                                }?.toString()?.trim().orEmpty()
+                                }.toExploreKindsRule()
                             }.also { rule ->
                                 if (rule.isValidExploreKindsRule() && shouldCacheExploreKinds(rule)) {
                                     aCache.put(exploreKindsKey, rule)
@@ -100,7 +103,7 @@ suspend fun BookSource.exploreKinds(): List<ExploreKind> {
                                 evalJS(exploreUrl.substring(4, exploreUrl.lastIndexOf("<"))) {
                                     put("java", exploreKindsJava)
                                     put("infoMap", exploreInfoMap)
-                                }?.toString()?.trim().orEmpty()
+                                }.toExploreKindsRule()
                             }.also { rule ->
                                 if (rule.isValidExploreKindsRule() && shouldCacheExploreKinds(rule)) {
                                     aCache.put(exploreKindsKey, rule)
@@ -133,6 +136,14 @@ suspend fun BookSource.exploreKinds(): List<ExploreKind> {
         }
         return kinds
     }
+}
+
+internal fun Any?.toExploreKindsRule(): String = when (this) {
+    is NativeArray -> RhinoScriptEngine.eval("JSON.stringify(result)") {
+        put("result", this@toExploreKindsRule)
+    }?.toString().orEmpty()
+    is List<*> -> GSON.toJson(this)
+    else -> this?.toString()?.trim().orEmpty()
 }
 
 private fun String.isValidExploreKindsRule(): Boolean {
