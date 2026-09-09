@@ -4029,7 +4029,7 @@
     "enabledExplore": true,
     "eventListener": false,
     "exploreUrl": "热血::/sort/5_p{{page}}.html&&\n搞笑::/sort/6_p{{page}}.html&&\n玄幻::/sort/7_p{{page}}.html&&\n生活::/sort/8_p{{page}}.html&&\n恋爱::/sort/9_p{{page}}.html&&\n动作::/sort/10_p{{page}}.html&&\n科幻::/sort/11_p{{page}}.html&&\n战争::/sort/12_p{{page}}.html&&\n悬疑::/sort/13_p{{page}}.html&&\n恐怖::/sort/14_p{{page}}.html&&\n校园::/sort/15_p{{page}}.html&&\n历史::/sort/16_p{{page}}.html&&\n穿越::/sort/17_p{{page}}.html&&\n体育::/sort/19_p{{page}}.html&&\n都市::/sort/20_p{{page}}.html&&\n漫改::/sort/22_p{{page}}.html&&\n修真::/sort/53_p{{page}}.html&&\n霸总::/sort/62_p{{page}}.html&&\n古风::/sort/63_p{{page}}.html&&\n游戏::/sort/64_p{{page}}.html&&\n真人::/sort/65_p{{page}}.html&&\n武侠::/sort/66_p{{page}}.html&&",
-    "lastUpdateTime": 1732184856973,
+    "lastUpdateTime": 1788880445400,
     "respondTime": 180483,
     "ruleBookInfo": {
       "author": "class.author@text",
@@ -4038,7 +4038,7 @@
       "name": "h1.name@text"
     },
     "ruleContent": {
-      "content": "@js:\nhost='http://mhpic.zymkcdn.com/comic/';\noriginal=result.match(/dr_original:\"([^\"]+)\"/)[1];\nend=result.match(/end_var:(\\d+)/)[1];\n//画质\nhigh='.jpg-zymk.high.webp';\nlow='.jpg-zymk.low.webp';\nmiddle='.jpg-zymk.middle.webp';\n\nhtml='';\nfor(i=1;i<=end;i++){\nhtml+='<img src=\"'+host+original+i+high+'\">\\n'\n}\nhtml",
+      "content": "@js:\nvar price = result.match(/\\bprice:(\\d+)/);\nif (price && Number(price[1]) > 0) throw new Error('本章节需要购买，请在原站完成授权');\nvar sample = result.match(/baidutmpArr:'(\\[[^']*\\])'/);\nvar first = sample ? JSON.parse(sample[1])[0] : null;\nvar images = result.match(/chapter_image:\\{[^}]*high:\"([^\"]+)\"/);\nvar end = result.match(/\\bend_var:(\\d+)/);\nvar start = result.match(/\\bstart_var:(\\d+)/);\nif (!first || !images || !end) throw new Error('未找到公开章节图片配置');\nvar origin = first.match(/^https?:\\/\\/[^/]+\\/comic\\//)[0].replace(/^http:/, 'https:');\nvar options = {headers: {Referer: baseUrl}};\nvar html = [];\nfor (var i = start ? Number(start[1]) : 1; i <= Number(end[1]); i++) {\n    var image = origin + images[1].replace('$$', String(i));\n    html.push('<img src=\"' + image + ',' + JSON.stringify(options) + '\">');\n}\nhtml.join('\\n')",
       "imageStyle": "FULL"
     },
     "ruleExplore": {},
@@ -4619,7 +4619,7 @@
     "enabledExplore": true,
     "eventListener": false,
     "exploreUrl": "热血::/sort/5_p{{page}}.html&&\n搞笑::/sort/6_p{{page}}.html&&\n玄幻::/sort/7_p{{page}}.html&&\n生活::/sort/8_p{{page}}.html&&\n恋爱::/sort/9_p{{page}}.html&&\n动作::/sort/10_p{{page}}.html&&\n科幻::/sort/11_p{{page}}.html&&\n战争::/sort/12_p{{page}}.html&&\n悬疑::/sort/13_p{{page}}.html&&\n恐怖::/sort/14_p{{page}}.html&&\n校园::/sort/15_p{{page}}.html&&\n历史::/sort/16_p{{page}}.html&&\n穿越::/sort/17_p{{page}}.html&&\n体育::/sort/19_p{{page}}.html&&\n都市::/sort/20_p{{page}}.html&&\n漫改::/sort/22_p{{page}}.html&&\n修真::/sort/53_p{{page}}.html&&\n霸总::/sort/62_p{{page}}.html&&\n古风::/sort/63_p{{page}}.html&&\n游戏::/sort/64_p{{page}}.html&&\n真人::/sort/65_p{{page}}.html&&\n武侠::/sort/66_p{{page}}.html&&",
-    "lastUpdateTime": 1734944913615,
+    "lastUpdateTime": 1788880445400,
     "respondTime": 180113,
     "ruleBookInfo": {
       "author": "class.author@text",
@@ -4628,7 +4628,7 @@
       "name": "h1.name@text"
     },
     "ruleContent": {
-      "content": "@js:\nhost='http://mhpic.zymkcdn.com/comic/';\noriginal=result.match(/dr_original:\"([^\"]+)\"/)[1];\nend=result.match(/end_var:(\\d+)/)[1];\n//画质\nhigh='.jpg-zymk.high.webp';\nlow='.jpg-zymk.low.webp';\nmiddle='.jpg-zymk.middle.webp';\n\nhtml='';\nfor(i=1;i<=end;i++){\nhtml+='<img src=\"'+host+original+i+high+'\">\\n'\n}\nhtml",
+      "content": "@js:\nvar price = result.match(/\\bprice:(\\d+)/);\nif (price && Number(price[1]) > 0) throw new Error('本章节需要购买，请在原站完成授权');\nvar sample = result.match(/baidutmpArr:'(\\[[^']*\\])'/);\nvar first = sample ? JSON.parse(sample[1])[0] : null;\nvar images = result.match(/chapter_image:\\{[^}]*high:\"([^\"]+)\"/);\nvar end = result.match(/\\bend_var:(\\d+)/);\nvar start = result.match(/\\bstart_var:(\\d+)/);\nif (!first || !images || !end) throw new Error('未找到公开章节图片配置');\nvar origin = first.match(/^https?:\\/\\/[^/]+\\/comic\\//)[0].replace(/^http:/, 'https:');\nvar options = {headers: {Referer: baseUrl}};\nvar html = [];\nfor (var i = start ? Number(start[1]) : 1; i <= Number(end[1]); i++) {\n    var image = origin + images[1].replace('$$', String(i));\n    html.push('<img src=\"' + image + ',' + JSON.stringify(options) + '\">');\n}\nhtml.join('\\n')",
       "imageStyle": "FULL"
     },
     "ruleExplore": {},

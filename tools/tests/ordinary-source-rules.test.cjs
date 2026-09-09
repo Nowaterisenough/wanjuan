@@ -36,3 +36,15 @@ test('desktop comic decoder restores all nonce fragments', () => {
   assert.ok(html.includes('https://cdn.example/page.jpg,'));
   assert.throws(() => vm.runInNewContext(source.ruleContent.content.slice(4), { result: '<html>login required</html>' }));
 });
+
+test('comic CDN comes from public page configuration and paid chapters are refused', () => {
+  for (const name of ['知音漫客 ZYMK', '知音漫客 ZYMK备用']) {
+    const script = samples.find(item => item.bookSourceName === name).ruleContent.content.slice(4);
+    const page = `price:0,start_var:1,end_var:2,chapter_image:{high:"Book/$$.webp"},baidutmpArr:'["http://new-cdn.example/comic/Book/1.webp"]'`;
+    const html = vm.runInNewContext(script, { result: page, baseUrl: 'https://reader.example/free' });
+    assert.ok(html.includes('https://new-cdn.example/comic/Book/1.webp,'));
+    assert.ok(html.includes('https://new-cdn.example/comic/Book/2.webp,'));
+    assert.equal((html.match(/<img /g) || []).length, 2);
+    assert.throws(() => vm.runInNewContext(script, { result: page.replace('price:0', 'price:1') }));
+  }
+});
