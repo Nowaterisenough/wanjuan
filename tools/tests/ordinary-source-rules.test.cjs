@@ -111,3 +111,18 @@ test('mobile chapter rules fetch all public image batches and reject denied resp
     assert.throws(() => vm.runInNewContext(rule, context), /Login required/);
   }
 });
+
+test('signed chapter endpoints request fresh responses without changing authorization fields', () => {
+  for (const name of ['漫客栈', '漫客栈备用']) {
+    const url = samples.find(s => s.bookSourceName === name).ruleToc.chapterUrl;
+    const options = JSON.parse(url.slice(url.indexOf(',') + 1));
+    const endpoint = 'https://reader.example/content?sign=fixture&uid=1';
+    for (const now of [1000, 2000]) {
+      assert.equal(vm.runInNewContext(options.js, { result: endpoint, Date: { now: () => now } }),
+        endpoint + '&_=' + now);
+    }
+    assert.ok(!url.includes('{{Date.now()}}'));
+    assert.ok(url.includes('&sign='));
+    assert.ok(url.includes('&uid='));
+  }
+});
