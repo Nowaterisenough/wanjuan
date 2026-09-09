@@ -1998,7 +1998,7 @@
     "bookSourceComment": "",
     "bookSourceGroup": "正版",
     "bookSourceName": "腾讯漫画",
-    "bookSourceType": 0,
+    "bookSourceType": 2,
     "bookSourceUrl": "https://m.ac.qq.com",
     "bookUrlPattern": "",
     "customButton": false,
@@ -2007,36 +2007,48 @@
     "enabledCookieJar": false,
     "enabledExplore": true,
     "eventListener": false,
-    "exploreUrl": "条漫::https://m.ac.qq.com/category/listAll?type=tm&rank=upt&pageSize=30&page={{page}}\n独家::https://m.ac.qq.com/category/listAll?type=dj&rank=upt&pageSize=30&page={{page}}\n完结::https://m.ac.qq.com/category/listAll?type=wj&rank=upt&pageSize=30&page={{page}}\n日漫::https://m.ac.qq.com/category/listAll?type=rm&rank=upt&pageSize=30&page={{page}}\n恐怖::https://m.ac.qq.com/category/listAll?type=kb&rank=pgv&pageSize=30&page={{page}}\n妖怪::https://m.ac.qq.com/category/listAll?type=yg&rank=pgv&pageSize=30&page={{page}}\n恋爱::https://m.ac.qq.com/category/listAll?type=na&rank=pgv&pageSize=30&page={{page}}\n玄幻::https://m.ac.qq.com/category/listAll?type=xh&rank=pgv&pageSize=30&page={{page}}\n热血::https://m.ac.qq.com/category/listAll?type=rx&rank=pgv&pageSize=30&page={{page}}\n悬疑::https://m.ac.qq.com/category/listAll?type=xy&rank=pgv&pageSize=30&page={{page}}\n彩虹::https://m.ac.qq.com/category/listAll?type=dm&rank=pgv&pageSize=30&page={{page}}\n少女::https://m.ac.qq.com/category/listAll?type=sv&rank=pgv&pageSize=30&page={{page}}\n韩漫::https://m.ac.qq.com/category/listAll?type=hm&rank=pgv&pageSize=30&page={{page}}\n科幻::https://m.ac.qq.com/category/listAll?type=kh&rank=pgv&pageSize=30&page={{page}}\n逗比::https://m.ac.qq.com/category/listAll?type=db&rank=pgv&pageSize=30&page={{page}}\n校园::https://m.ac.qq.com/category/listAll?type=qcxy&rank=pgv&pageSize=30&page={{page}}\n都市::https://m.ac.qq.com/category/listAll?type=ds&rank=pgv&pageSize=30&page={{page}}\n治愈::https://m.ac.qq.com/category/listAll?type=zy&rank=pgv&pageSize=30&page={{page}}\n飙升榜::https://m.ac.qq.com/rank/index?type=rise&pageSize=10&page={{page}}\n畅销榜::https://m.ac.qq.com/rank/index?type=pay&pageSize=10&page={{page}}\n新作榜::https://m.ac.qq.com/rank/index?type=new&pageSize=10&page={{page}}\n真香榜::https://m.ac.qq.com/rank/index?type=hot&pageSize=10&page={{page}}",
-    "lastUpdateTime": 0,
+    "exploreUrl": "全部::https://ac.qq.com/Comic/all/page/{{page}}\n免费漫画::https://ac.qq.com/Comic/all/vip/1/page/{{page}}\n恋爱::https://ac.qq.com/Comic/all/theme/105/page/{{page}}\n玄幻::https://ac.qq.com/Comic/all/theme/101/page/{{page}}\n异能::https://ac.qq.com/Comic/all/theme/103/page/{{page}}\n恐怖::https://ac.qq.com/Comic/all/theme/110/page/{{page}}\n剧情::https://ac.qq.com/Comic/all/theme/106/page/{{page}}\n科幻::https://ac.qq.com/Comic/all/theme/108/page/{{page}}\n悬疑::https://ac.qq.com/Comic/all/theme/112/page/{{page}}\n奇幻::https://ac.qq.com/Comic/all/theme/102/page/{{page}}\n冒险::https://ac.qq.com/Comic/all/theme/104/page/{{page}}\n犯罪::https://ac.qq.com/Comic/all/theme/111/page/{{page}}\n动作::https://ac.qq.com/Comic/all/theme/109/page/{{page}}\n日常::https://ac.qq.com/Comic/all/theme/113/page/{{page}}\n竞技::https://ac.qq.com/Comic/all/theme/114/page/{{page}}\n武侠::https://ac.qq.com/Comic/all/theme/115/page/{{page}}\n历史::https://ac.qq.com/Comic/all/theme/116/page/{{page}}\n战争::https://ac.qq.com/Comic/all/theme/117/page/{{page}}\n连载中::https://ac.qq.com/Comic/all/finish/1/page/{{page}}\n已完结::https://ac.qq.com/Comic/all/finish/2/page/{{page}}",
+    "lastUpdateTime": 1788880445400,
     "loginUrl": "",
     "respondTime": 1671,
     "ruleBookInfo": {
-      "author": "class.head-info-author@text##作者：",
-      "intro": "class.head-info-desc@text",
-      "lastChapter": "class.mod-chapter-title@tag.span.0@text##，",
-      "name": "class.head-title-tags@h1@text"
+      "name": ".works-intro-title@text",
+      "author": ".works-intro-digi .first@text##作者：",
+      "coverUrl": ".works-cover img@src",
+      "intro": ".works-intro-short@text",
+      "kind": ".works-intro-status@text"
     },
     "ruleContent": {
-      "content": "@js:\ndata=result.match(/data:\\s*'(.*?)'/)[1];\nnonce=result.match(/<script>window.*?=(.*?)<\\/script>/)[1];\nnonce=eval(nonce);\nvar N = String(nonce).match(/\\d+\\w+/);\njlen=N.length;\nwhile(jlen){\njlen -= 1;\njlocate = parseInt(N[jlen].match(/(\\d+)/)[0]) &255;\njstr = N[jlen].replace(/\\d+/g,'');\ndata=data.substring(0,parseInt(jlocate))+data.substring(parseInt(jlocate)+jstr.length,data.length)}\npiclist=eval(java.base64Decode(data).match(/\"picture\":(\\[{\".*\\])/)[1]);\nhtml='';\nfor(i in piclist){\nhtml += '<img src=\"'+piclist[i].url+'\">\\n'\n}\nhtml",
       "imageStyle": "FULL",
-      "nextContentUrl": ""
+      "content": "@js:\nvar encoded = result.match(/var DATA\\s*=\\s*'([^']+)'/);\nif (!encoded) throw new Error('未找到章节数据');\nvar nonceRules = result.match(/window\\[[^\\]]+\\]\\s*=\\s*[^;]+;/g) || [];\nvar document = {getElementsByTagName: function () { return [true]; }};\nvar payload = null;\nfor (var n = nonceRules.length - 1; n >= 0; n--) {\n    try {\n        var nonce = String(eval(nonceRules[n].replace(/^[^=]*=/, '')));\n        var pieces = nonce.match(/\\d+[a-zA-Z]+/g) || [];\n        var data = encoded[1].split('');\n        while (pieces.length) {\n            var piece = pieces.pop();\n            data.splice(parseInt(piece, 10) & 255, piece.replace(/\\d+/g, '').length);\n        }\n        var decoded = JSON.parse(java.base64Decode(data.join('')));\n        if (Array.isArray(decoded.picture)) { payload = decoded; break; }\n    } catch (error) {}\n}\nif (!payload || !payload.picture.length) throw new Error('无可读图片，页面可能已变化或需要登录购买');\nvar options = {headers: {Referer: baseUrl}};\npayload.picture.map(function (picture) {\n    return '<img src=\"' + picture.url + ',' + JSON.stringify(options) + '\">';\n}).join('\\n')"
     },
-    "ruleExplore": {},
+    "ruleExplore": {
+      "bookList": ".ret-search-list > li",
+      "bookUrl": ".ret-works-title a@href",
+      "name": ".ret-works-title a@text",
+      "author": ".ret-works-author@text",
+      "coverUrl": ".ret-works-cover img@data-original",
+      "intro": ".ret-works-decs@text",
+      "kind": ".ret-works-tags@text",
+      "lastChapter": ".mod-cover-list-text@text"
+    },
     "ruleSearch": {
-      "bookList": "id.lst_searchResult@tag.li||id.list_update@tag.li||class.comic-link",
-      "bookUrl": "class.comic-link@href",
-      "coverUrl": "class.comic-cover@tag.img@src",
-      "kind": "class.comic-tag@text",
-      "lastChapter": "class.chapter@text||class.comic-update@text##更新",
-      "name": "class.comic-title@text"
+      "bookList": ".ret-search-list > li",
+      "bookUrl": ".ret-works-title a@href",
+      "name": ".ret-works-title a@text",
+      "author": ".ret-works-author@text",
+      "coverUrl": ".ret-works-cover img@data-original",
+      "intro": ".ret-works-decs@text",
+      "kind": ".ret-works-tags@text",
+      "lastChapter": ".mod-cover-list-text@text"
     },
     "ruleToc": {
-      "chapterList": "@css:.chapter-wrap-list.normal>li",
-      "chapterName": "tag.a@class&&tag.a@text@js:result.replace(/chapter-link/g,'').replace(/\\s/g,'').replace(/lock/g,'💲')",
-      "chapterUrl": "tag.a@href"
+      "chapterList": ".works-chapter-list .works-chapter-item",
+      "chapterName": "a@text",
+      "chapterUrl": "a@href",
+      "isVip": ".ui-icon-pay@text"
     },
-    "searchUrl": "https://m.ac.qq.com/search/result?word={{key}}",
+    "searchUrl": "https://ac.qq.com/Comic/searchList/search/{{key}}/page/{{page}}",
     "weight": 0
   },
   {
