@@ -1,11 +1,37 @@
 """Temporarily route an emulator audit through a measured HTTP proxy relay."""
 from contextlib import contextmanager
 import select
+import shlex
 import socket
 import socketserver
 import subprocess
 import threading
 from urllib.parse import urlparse
+
+
+PROXY_KEYS = ("http_proxy", "global_http_proxy_host", "global_http_proxy_port",
+              "global_http_proxy_exclusion_list", "global_proxy_pac_url")
+
+
+def snapshot_proxy(adb):
+    settings = subprocess.check_output(adb + ["shell", "settings", "list", "global"], text=True)
+    values = dict(line.split("=", 1) for line in settings.splitlines() if "=" in line)
+    return {key: values.get(key) for key in PROXY_KEYS}
+
+
+def restore_proxy(adb, previous):
+    # Deleting http_proxy alone leaves Android's parsed host/port and live proxy behind.
+    effective = previous["http_proxy"]
+    if effective is None:
+        host = previous["global_http_proxy_host"] or ""
+        port = previous["global_http_proxy_port"] or "0"
+        exclusion = previous["global_http_proxy_exclusion_list"] or ""
+        effective = f"{host}:{port}" + (f",{exclusion}" if exclusion else "")
+    subprocess.run(adb + ["shell", "settings", "put", "global", "http_proxy", shlex.quote(effective)],
+                   check=True, capture_output=True)
+    for key, value in previous.items():
+        command = ["delete", "global", key] if value is None else ["put", "global", key, shlex.quote(value)]
+        subprocess.run(adb + ["shell", "settings", *command], check=True, capture_output=True)
 
 
 class ProxyRelay(socketserver.ThreadingTCPServer):
@@ -65,9 +91,7 @@ def emulator_proxy(adb, upstream):
     if not upstream:
         yield None, None
         return
-    previous = subprocess.check_output(
-        adb + ["shell", "settings", "get", "global", "http_proxy"], text=True
-    ).strip()
+    previous = snapshot_proxy(adb)
     with ProxyRelay(upstream) as relay:
         port = relay.server_address[1]
         mapping = f"tcp:{port}"
@@ -84,10 +108,7 @@ def emulator_proxy(adb, upstream):
                           "transport": "adb reverse + measured TCP relay"}
         finally:
             try:
-                command = ["delete", "global", "http_proxy"] if previous == "null" else [
-                    "put", "global", "http_proxy", previous]
-                subprocess.run(adb + ["shell", "settings", *command], check=True,
-                               capture_output=True)
+                restore_proxy(adb, previous)
             finally:
                 if forwarded:
                     subprocess.run(adb + ["reverse", "--remove", mapping], check=True,

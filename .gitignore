@@ -34,3 +34,5 @@ docs/superpowers/
 .claude/
 CLAUDE.md
 tests/
+!tools/tests/
+__pycache__/
