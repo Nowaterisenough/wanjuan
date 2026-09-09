@@ -3903,7 +3903,7 @@
     "eventListener": false,
     "exploreUrl": "全部::https://xapi.xinmanhua.net/search/catalog?keyword=all&ischarge=2&isfinish=2&order=0&page={{page}}\n治愈::https://xapi.xinmanhua.net/search/catalog?keyword=治愈&page={{page}}\n日常::https://xapi.xinmanhua.net/search/catalog?keyword=日常&page={{page}}\n都市::https://xapi.xinmanhua.net/search/catalog?keyword=都市&page={{page}}\n悬疑::https://xapi.xinmanhua.net/search/catalog?keyword=悬疑&page={{page}}\n科幻::https://xapi.xinmanhua.net/search/catalog?keyword=科幻&page={{page}}\n奇幻::https://xapi.xinmanhua.net/search/catalog?keyword=奇幻&page={{page}}\n热血::https://xapi.xinmanhua.net/search/catalog?keyword=热血&page={{page}}\n武侠::https://xapi.xinmanhua.net/search/catalog?keyword=武侠&page={{page}}\n古风::https://xapi.xinmanhua.net/search/catalog?keyword=古风&page={{page}}\n恋爱::https://xapi.xinmanhua.net/search/catalog?keyword=恋爱&page={{page}}\n少年::https://xapi.xinmanhua.net/search/catalog?keyword=少年&page={{page}}\n日漫::https://xapi.xinmanhua.net/search/catalog?keyword=日漫&page={{page}}\n原创::https://xapi.xinmanhua.net/search/catalog?keyword=原创&page={{page}}",
     "header": "{\n  \"User-Agent\": \"okhttp/3.10.0\"\n}",
-    "lastUpdateTime": 1720291343809,
+    "lastUpdateTime": 1788880445400,
     "loginUrl": "",
     "respondTime": 181006,
     "ruleBookInfo": {
@@ -3912,7 +3912,8 @@
     "ruleContent": {
       "content": "$.data[*].attributes.url\n@js:list=result.split('\\n');\nlist.map(x=>'<img src=\"'+x+'\">').join('\\n')",
       "imageStyle": "FULL",
-      "webJs": ""
+      "webJs": "",
+      "imageDecode": "var offset = 80;\nif (result.length > offset + 3 && (result[offset] & 255) === 255 && (result[offset + 1] & 255) === 216 && (result[offset + 2] & 255) === 255) {\n    Packages.java.util.Arrays.copyOfRange(result, offset, result.length);\n} else {\n    result;\n}"
     },
     "ruleExplore": {},
     "ruleSearch": {
@@ -3925,9 +3926,10 @@
       "name": "@JSon:$.attributes.title"
     },
     "ruleToc": {
-      "chapterList": "$.included.*",
+      "chapterList": "$.included[?(@.type == 'chapters')]",
       "chapterName": "$.attributes.title&&$.attributes.intro",
-      "chapterUrl": "https://xapi.xinmanhua.net/chapters/{$.id}/qualitywebs"
+      "chapterUrl": "https://xapi.xinmanhua.net/chapters/{$.id}/qualitywebs",
+      "isVip": "$.attributes.ischarge"
     },
     "searchUrl": "https://xapi.xinmanhua.net/search/selfdefine,{\n  \"method\": \"POST\",\n  \"body\": \"keyword={{key}}&page={{page}}\"\n}",
     "weight": 0
@@ -3947,7 +3949,7 @@
     "eventListener": false,
     "exploreUrl": "全部::https://xapi.xinmanhua.net/search/catalog?keyword=all&ischarge=2&isfinish=2&order=0&page={{page}}\n治愈::https://xapi.xinmanhua.net/search/catalog?keyword=治愈&page={{page}}\n日常::https://xapi.xinmanhua.net/search/catalog?keyword=日常&page={{page}}\n都市::https://xapi.xinmanhua.net/search/catalog?keyword=都市&page={{page}}\n悬疑::https://xapi.xinmanhua.net/search/catalog?keyword=悬疑&page={{page}}\n科幻::https://xapi.xinmanhua.net/search/catalog?keyword=科幻&page={{page}}\n奇幻::https://xapi.xinmanhua.net/search/catalog?keyword=奇幻&page={{page}}\n热血::https://xapi.xinmanhua.net/search/catalog?keyword=热血&page={{page}}\n武侠::https://xapi.xinmanhua.net/search/catalog?keyword=武侠&page={{page}}\n古风::https://xapi.xinmanhua.net/search/catalog?keyword=古风&page={{page}}\n恋爱::https://xapi.xinmanhua.net/search/catalog?keyword=恋爱&page={{page}}\n少年::https://xapi.xinmanhua.net/search/catalog?keyword=少年&page={{page}}\n日漫::https://xapi.xinmanhua.net/search/catalog?keyword=日漫&page={{page}}\n原创::https://xapi.xinmanhua.net/search/catalog?keyword=原创&page={{page}}",
     "header": "{\n  \"User-Agent\": \"okhttp/3.10.0\"\n}",
-    "lastUpdateTime": 1734944720585,
+    "lastUpdateTime": 1788880445400,
     "loginUrl": "",
     "respondTime": 180910,
     "ruleBookInfo": {
@@ -3956,7 +3958,8 @@
     "ruleContent": {
       "content": "$.data[*].attributes.url\n@js:list=result.split('\\n');\nlist.map(x=>'<img src=\"'+x+'\">').join('\\n')",
       "imageStyle": "FULL",
-      "webJs": ""
+      "webJs": "",
+      "imageDecode": "var offset = 80;\nif (result.length > offset + 3 && (result[offset] & 255) === 255 && (result[offset + 1] & 255) === 216 && (result[offset + 2] & 255) === 255) {\n    Packages.java.util.Arrays.copyOfRange(result, offset, result.length);\n} else {\n    result;\n}"
     },
     "ruleExplore": {},
     "ruleSearch": {
@@ -3969,9 +3972,10 @@
       "name": "@JSon:$.attributes.title"
     },
     "ruleToc": {
-      "chapterList": "$.included.*",
+      "chapterList": "$.included[?(@.type == 'chapters')]",
       "chapterName": "$.attributes.title&&$.attributes.intro",
-      "chapterUrl": "https://xapi.xinmanhua.net/chapters/{$.id}/qualitywebs"
+      "chapterUrl": "https://xapi.xinmanhua.net/chapters/{$.id}/qualitywebs",
+      "isVip": "$.attributes.ischarge"
     },
     "searchUrl": "https://xapi.xinmanhua.net/search/selfdefine,{\n  \"method\": \"POST\",\n  \"body\": \"keyword={{key}}&page={{page}}\"\n}",
     "weight": 0
