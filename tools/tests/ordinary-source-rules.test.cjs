@@ -86,3 +86,28 @@ test('public image AES decoding uses the prefixed IV', () => {
   });
   assert.deepEqual(decoded, clear);
 });
+
+test('mobile chapter rules fetch all public image batches and reject denied responses', () => {
+  for (const name of ['野蛮漫画', '漫神 MHKami', '永远漫画', '永远漫画 YYDSMH']) {
+    const rule = samples.find(s => s.bookSourceName === name).ruleContent.content.slice(4);
+    const calls = [];
+    const context = {
+      result: '<html>fixture</html>', baseUrl: 'https://reader.example/chapter/1',
+      org: { jsoup: { Jsoup: { parse: () => ({ select: selector => selector.includes('img-box')
+        ? { size: () => 0 }
+        : { size: () => 12, first: () => ({ attr: key => key === 'data-aid' ? '2' : '1' }) } }) } } },
+      java: { ajax: request => {
+        const options = JSON.parse(request.slice(request.indexOf(',') + 1));
+        const offset = Number(new URLSearchParams(options.body).get('offset'));
+        calls.push(offset);
+        return JSON.stringify({ code: 1, data: { pic: Array.from({ length: Math.min(10, 12 - offset) },
+          (_, i) => ({ pic: `https://cdn.example/${offset + i}.jpg` })) } });
+      } },
+    };
+    const html = vm.runInNewContext(rule, context);
+    assert.deepEqual(calls, [0, 10]);
+    assert.equal((html.match(/<img /g) || []).length, 12);
+    context.java.ajax = () => JSON.stringify({ code: 0, msg: 'Login required' });
+    assert.throws(() => vm.runInNewContext(rule, context), /Login required/);
+  }
+});
