@@ -2470,11 +2470,11 @@
     "enabledCookieJar": false,
     "enabledExplore": true,
     "eventListener": false,
-    "lastUpdateTime": 0,
+    "lastUpdateTime": 1788880445400,
     "respondTime": 3322,
     "ruleBookInfo": {},
     "ruleContent": {
-      "content": "@js:\neval(result.match(/(eval\\(.+?\\}\\)\\))/)[1]);\npiclist=cInfo.fs;\nserver = \"http://images.720rs.com\";\npiclist.map(u=>\"<img src=\\\"\"+server+u+\"\\\">\").join(\"\\n\")"
+      "content": "@js:\neval(result.match(/(eval\\(.+?\\}\\)\\))/)[1]);\nvar server = \"http://images.720rs.com\";\nvar options = {headers: {Referer: baseUrl}};\ncInfo.fs.map(function (path) {\n    var image = /^https?:\\/\\//i.test(path) ? path\n        : path.indexOf(\"//\") === 0 ? \"https:\" + path\n        : server + \"/\" + path.replace(/^\\//, \"\");\n    return '<img src=\"' + image + \",\" + JSON.stringify(options) + '\">';\n}).join(\"\\n\")"
     },
     "ruleSearch": {
       "author": "class.tags.2@a@text",
