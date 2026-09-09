@@ -7,6 +7,15 @@ const vm = require('node:vm');
 const samples = JSON.parse(readFileSync(resolve(__dirname, '../../tests/shareBookSource.json'), 'utf8'));
 const bundled = JSON.parse(readFileSync(resolve(__dirname, '../../app/src/main/assets/defaultData/bookSources.json'), 'utf8'));
 
+test('removed unavailable sources are absent from both active catalogs', () => {
+  const removed = new Set([
+    '酷看漫画 Kukk', '望书阁', '漫画鱼', 'FQXS123小说', '酷看漫画 Kukk Haxc',
+    'ManhuaUS英文', '好看漫画', 'MangaOnlineTeam英文', '消消乐听书',
+  ]);
+  assert.deepEqual([...samples, ...bundled].filter(source => removed.has(source.bookSourceName)), []);
+  assert.deepEqual(bundled, []);
+});
+
 test('comic image rules preserve absolute URLs and resolve relative paths', () => {
   const source = samples.find(item => item.bookSourceName === '国漫吧');
   const urls = ['https://cdn.example/1.jpg', 'http://cdn.example/2.jpg', '//cdn.example/3.jpg', '/Manhua/4.jpg'];

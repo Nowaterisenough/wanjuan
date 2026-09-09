@@ -1359,60 +1359,6 @@
     "weight": 0
   },
   {
-    "bookSourceComment": "// Error: 发现失效, 搜索失效",
-    "bookSourceGroup": "漫画,发现失效,搜索失效",
-    "bookSourceName": "酷看漫画 Kukk",
-    "bookSourceType": 0,
-    "bookSourceUrl": "https://www.kukk.net",
-    "customButton": false,
-    "customOrder": 86,
-    "enabled": true,
-    "enabledCookieJar": true,
-    "enabledExplore": true,
-    "eventListener": false,
-    "exploreUrl": "连载::/booklist/?end=0&page={{page}}\n完结::/booklist?end=1&page={{page}}\n更新::/update?page={{page}}",
-    "header": "{\n  \"User-Agent\": \"Mozilla/5.0 (Linux; Android 8.1.0; JKM-AL00b Build/HUAWEIJKM-AL00b; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/66.0.3359.126 MQQBrowser/6.2 TBS/044807 Mobile Safari/537.36\"\n}",
-    "lastUpdateTime": 1735148516540,
-    "respondTime": 180957,
-    "ruleBookInfo": {
-      "author": "class.detail-main-info-author.1@a@text",
-      "coverUrl": "tag.img@data-original",
-      "intro": "class.detail-desc@text",
-      "kind": "class.detail-main-info-class@a@text",
-      "lastChapter": "class.detail-list-select@tag.li.-1@tag.a@text",
-      "name": "class.normal-top-title@text",
-      "wordCount": "class.detail-main-info-author.2@a@text"
-    },
-    "ruleContent": {
-      "content": ".lazy@html##src=.*\\\"@js:result.replace(/data-original/g,\"src\")",
-      "imageStyle": "FULL"
-    },
-    "ruleExplore": {
-      "author": "class.book-list-info-bottom-item@text",
-      "bookList": "class.manga-list-2@li",
-      "bookUrl": "tag.a@href",
-      "coverUrl": "tag.img@data-original",
-      "intro": "class.book-list-info-des@text",
-      "kind": "tag.span.1@text",
-      "lastChapter": "tag.p.1@text",
-      "name": "tag.a.1@text"
-    },
-    "ruleSearch": {
-      "bookList": "class.book-list@li",
-      "bookUrl": "tag.a@href",
-      "coverUrl": "tag.img@data-original",
-      "intro": "tag.p.1@text",
-      "name": "tag.p.0@text"
-    },
-    "ruleToc": {
-      "chapterList": "#detail-list-select a",
-      "chapterName": "text",
-      "chapterUrl": "href"
-    },
-    "searchUrl": "https://www.kukk.net/search,{\n\"charset\": \"\",\n\"method\": \"POST\",\n\"body\": \"keyword={{key}}\"\n}",
-    "weight": 0
-  },
-  {
     "bookSourceComment": "// Error: Please check the syntax of your xpath expr or commit a Issue. InputMismatchException: ",
     "bookSourceGroup": "图源,搜索失效,网站失效",
     "bookSourceName": "Hitomi",
@@ -1891,63 +1837,6 @@
     "weight": 0
   },
   {
-    "bookSourceComment": "// Error: 搜索失效",
-    "bookSourceGroup": "小说,搜索失效",
-    "bookSourceName": "望书阁",
-    "bookSourceType": 0,
-    "bookSourceUrl": "http://wap.wangshuge.info",
-    "bookUrlPattern": "http://wap.wangshuge.info/book-\\d+/",
-    "customButton": false,
-    "customOrder": 18,
-    "enabled": true,
-    "enabledCookieJar": true,
-    "enabledExplore": true,
-    "eventListener": false,
-    "exploreUrl": "玄幻魔法::/sort/1-{{page}}.html\n武侠修真::/sort/2-{{page}}.html\n都市言情::/sort/3-{{page}}.html\n历史军事::/sort/4-{{page}}.html\n网游动漫::/sort/5-{{page}}.html\n科幻小说::/sort/6-{{page}}.html\n侦探推理::/sort/7-{{page}}.html\n恐怖灵异::/sort/8-{{page}}.html\n同人小说::/sort/9-{{page}}.html\n其他类型::/sort/10-{{page}}.html\n全本小说::/top/full-{{page}}.html",
-    "header": "{\"User-Agent\": \"Mozilla/5.0 (Linux; Android 9) Mobile Safari/537.36\"}",
-    "lastUpdateTime": 1693623801972,
-    "respondTime": 190124,
-    "ruleBookInfo": {
-      "author": "@get:{a}",
-      "coverUrl": "@get:{c}",
-      "init": "@put:{n:\"[property$=book_name]@content\",\n\ta:\"[property$=author]@content\",\nk:\"[property~=category|status|update_time]@content\",\nl:\"[property$=latest_chapter_name]@content\",\ni:\"[property$=description]@content\",\nc:\"[property$=image]@content\"}",
-      "intro": "@get:{i}",
-      "kind": "@get:{k}",
-      "lastChapter": "@get:{l}",
-      "name": "@get:{n}"
-    },
-    "ruleContent": {
-      "content": "#nr1@html",
-      "nextContentUrl": "text.下一页@href"
-    },
-    "ruleExplore": {
-      "author": "p@ownText##.*\\/",
-      "bookList": ".line",
-      "bookUrl": "a@href",
-      "coverUrl": "a@href\n@js:\nvar id=result.match(/\\d+/);\nvar iid=parseInt(id/1000);\n`http://www.wangshuge.info/files/article/image/${iid}/${id}/${id}s.jpg`",
-      "kind": "p@ownText##\\[|\\].+",
-      "name": "a@text"
-    },
-    "ruleSearch": {
-      "author": "p.-2@text",
-      "bookList": ".block",
-      "bookUrl": "h2 a@href",
-      "checkKeyWord": "剑来",
-      "coverUrl": "img@src",
-      "kind": "p.-3@text##分类：",
-      "lastChapter": "a.-1@text",
-      "name": "h2@text"
-    },
-    "ruleToc": {
-      "chapterList": ".chapter.1@li a",
-      "chapterName": "text",
-      "chapterUrl": "href",
-      "nextTocUrl": "option@value||text.下一页@href"
-    },
-    "searchUrl": "/search.php,{\n  \"body\": \"searchkey={{key}}\",\n  \"method\": \"POST\"\n}",
-    "weight": 0
-  },
-  {
     "bookSourceComment": "",
     "bookSourceGroup": "正版",
     "bookSourceName": "漫客栈",
@@ -2384,48 +2273,6 @@
       "chapterUrl": "href##$##,{\"webView\": true}"
     },
     "searchUrl": "/index.php/search?key={{key}}",
-    "weight": 0
-  },
-  {
-    "bookSourceComment": "// Error: connection closed\n\nby天天的鸟蛋蛋\n同模板：https://www.haoduoman.com\nwebView解密 ",
-    "bookSourceGroup": "漫画,网站失效",
-    "bookSourceName": "漫画鱼",
-    "bookSourceType": 2,
-    "bookSourceUrl": "https://www.manhuayu8.com",
-    "customButton": false,
-    "customOrder": 33,
-    "enabled": true,
-    "enabledCookieJar": true,
-    "enabledExplore": true,
-    "eventListener": false,
-    "lastUpdateTime": 1747513055422,
-    "respondTime": 180736,
-    "ruleBookInfo": {
-      "author": ".author.0@text",
-      "coverUrl": ".metas-image@img@src",
-      "intro": ".metas-desc@p@text",
-      "kind": ".has-text-success@text&&.author@a@text&&.has-text-danger@text",
-      "lastChapter": ".newchapter@a@text",
-      "name": ".metas-title@text"
-    },
-    "ruleContent": {
-      "content": ".chapter-image@data-original\n<js>\ndata = result.split('\\n').filter(url => url.trim() !== '');imgTags = data.map(item => `<img src=\"${item}\">`) .join('\\n');                      \nimgTags; \n  </js>"
-    },
-    "ruleSearch": {
-      "bookList": ".columns@.column",
-      "bookUrl": ".title@href",
-      "coverUrl": ".image@data-original",
-      "intro": "ul@li.-1@a@text##.*：",
-      "kind": "ul@li.0@text&&ul@li.2:3@a@text##.*：",
-      "lastChapter": "ul@li.1@a@text",
-      "name": ".title@text"
-    },
-    "ruleToc": {
-      "chapterList": ".comic-chapters@li@a",
-      "chapterName": "text",
-      "chapterUrl": "href##$##,{\n  \"webView\": true\n}"
-    },
-    "searchUrl": "/search?q={{key}}&page={{page}}",
     "weight": 0
   },
   {
@@ -3008,54 +2855,6 @@
     "weight": 0
   },
   {
-    "bookSourceComment": "// Error: 搜索正文失效\n\n一个同名网站",
-    "bookSourceGroup": "小说,搜索正文失效",
-    "bookSourceName": "FQXS123小说",
-    "bookSourceType": 0,
-    "bookSourceUrl": "祝大家天天开心",
-    "customButton": false,
-    "customOrder": 48,
-    "enabled": true,
-    "enabledCookieJar": true,
-    "enabledExplore": true,
-    "eventListener": false,
-    "lastUpdateTime": 1723798321517,
-    "respondTime": 183487,
-    "ruleBookInfo": {
-      "author": "class.small@span.0@text##作者：",
-      "coverUrl": "img@src",
-      "intro": "class.intro@text",
-      "kind": "class.small@span.1@text##状态：",
-      "lastChapter": "class.last@a@text",
-      "name": "h1@text",
-      "wordCount": ""
-    },
-    "ruleContent": {
-      "content": "id.chaptercontent@html",
-      "nextContentUrl": "text.下一章@href",
-      "replaceRegex": "##[请收藏点击『』].*"
-    },
-    "ruleExplore": {
-      "name": ""
-    },
-    "ruleSearch": {
-      "author": "class.author@text",
-      "bookList": "class.bookbox",
-      "bookUrl": "class.bookimg@a@href",
-      "checkKeyWord": "我不是戏神",
-      "coverUrl": "img@src",
-      "intro": "class.uptime@text",
-      "name": "class.bookname@text"
-    },
-    "ruleToc": {
-      "chapterList": "class.listmain@dl@dd!10",
-      "chapterName": "dd@text",
-      "chapterUrl": "dd@a@href"
-    },
-    "searchUrl": "https://www.fqxs123.cc/s?q={{key}},{\n  \"webView\": true\n}",
-    "weight": 0
-  },
-  {
     "bookSourceGroup": "R18小说,搜索链接规则为空",
     "bookSourceName": "PO18脸红",
     "bookSourceType": 0,
@@ -3506,60 +3305,6 @@
     "weight": 0
   },
   {
-    "bookSourceComment": "// Error: 发现失效, 搜索失效",
-    "bookSourceGroup": "漫画,发现失效,搜索失效",
-    "bookSourceName": "酷看漫画 Kukk Haxc",
-    "bookSourceType": 0,
-    "bookSourceUrl": "https://www.kukk.net#♤Haxc",
-    "customButton": false,
-    "customOrder": 59,
-    "enabled": true,
-    "enabledCookieJar": false,
-    "enabledExplore": true,
-    "eventListener": false,
-    "exploreUrl": "连载::/booklist/?end=0&page={{page}}\n完结::/booklist?end=1&page={{page}}\n更新::/update?page={{page}}\n﻿恋爱::/booklist?page={{page}}&tag=恋爱\n少年::/booklist?page={{page}}&tag=少年\n古风::/booklist?page={{page}}&tag=古风\n奇幻::/booklist?page={{page}}&tag=奇幻\n搞笑::/booklist?page={{page}}&tag=搞笑\n校园::/booklist?page={{page}}&tag=校园\n都市::/booklist?page={{page}}&tag=都市\n治愈::/booklist?page={{page}}&tag=治愈\n悬疑::/booklist?page={{page}}&tag=悬疑\n励志::/booklist?page={{page}}&tag=励志\n热血::/booklist?page={{page}}&tag=热血\n冒险::/booklist?page={{page}}&tag=冒险\n后宫::/booklist?page={{page}}&tag=后宫\n穿越::/booklist?page={{page}}&tag=穿越\n百合::/booklist?page={{page}}&tag=百合\n推理::/booklist?page={{page}}&tag=推理\n萌系::/booklist?page={{page}}&tag=萌系\n职场::/booklist?page={{page}}&tag=职场\n魔幻::/booklist?page={{page}}&tag=魔幻\n生活::/booklist?page={{page}}&tag=生活\n科幻::/booklist?page={{page}}&tag=科幻\n机战::/booklist?page={{page}}&tag=机战\n战争::/booklist?page={{page}}&tag=战争\n美食::/booklist?page={{page}}&tag=美食\n轻小说::/booklist?page={{page}}&tag=轻小说",
-    "header": "{\n  \"User-Agent\": \"Mozilla/5.0 (Linux; Android 8.1.0; JKM-AL00b Build/HUAWEIJKM-AL00b; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/66.0.3359.126 MQQBrowser/6.2 TBS/044807 Mobile Safari/537.36\"\n}",
-    "lastUpdateTime": 1725651128733,
-    "respondTime": 181008,
-    "ruleBookInfo": {
-      "author": "class.detail-main-info-author.1@a@text",
-      "coverUrl": "tag.img@data-original",
-      "intro": "class.detail-desc@text",
-      "kind": "class.detail-main-info-class@a@text",
-      "lastChapter": "class.detail-list-select@tag.li.-1@tag.a@text",
-      "name": "class.normal-top-title@text",
-      "wordCount": "class.detail-main-info-author.2@a@text"
-    },
-    "ruleContent": {
-      "content": ".lazy@html##src=.*\\\"@js:result.replace(/data-original/g,\"src\")",
-      "imageStyle": "FULL"
-    },
-    "ruleExplore": {
-      "author": "class.book-list-info-bottom-item@text",
-      "bookList": "class.manga-list-2@li",
-      "bookUrl": "tag.a@href",
-      "coverUrl": "tag.img@data-original",
-      "intro": "class.book-list-info-des@text",
-      "kind": "tag.span.1@text",
-      "lastChapter": "tag.p.1@text",
-      "name": "tag.a.1@text"
-    },
-    "ruleSearch": {
-      "bookList": "class.book-list@li",
-      "bookUrl": "tag.a@href",
-      "coverUrl": "tag.img@data-original",
-      "intro": "tag.p.1@text",
-      "name": "tag.p.0@text"
-    },
-    "ruleToc": {
-      "chapterList": "#detail-list-select a",
-      "chapterName": "text",
-      "chapterUrl": "href"
-    },
-    "searchUrl": "https://www.kukk.net/search,{\n\"charset\": \"\",\n\"method\": \"POST\",\n\"body\": \"keyword={{key}}\"\n}",
-    "weight": 0
-  },
-  {
     "bookSourceComment": "// Error: 搜索失效",
     "bookSourceGroup": "漫画,搜索失效",
     "bookSourceName": "彩绘漫画",
@@ -3983,46 +3728,6 @@
   },
   {
     "bookSourceComment": "// Error: 搜索失效",
-    "bookSourceGroup": "漫画,搜索失效",
-    "bookSourceName": "ManhuaUS英文",
-    "bookSourceType": 2,
-    "bookSourceUrl": "https://manhuaus.com/",
-    "customButton": false,
-    "customOrder": 70,
-    "enabled": true,
-    "enabledCookieJar": true,
-    "enabledExplore": true,
-    "eventListener": false,
-    "lastUpdateTime": 1734946450919,
-    "respondTime": 180419,
-    "ruleBookInfo": {
-      "coverUrl": "",
-      "intro": "class.summary__content show-more@text",
-      "name": "class.post-title@h1@text"
-    },
-    "ruleContent": {
-      "content": "class.reading-content@class.page-break no-gaps@img@html",
-      "replaceRegex": ""
-    },
-    "ruleExplore": {},
-    "ruleSearch": {
-      "bookList": "class.c-tabs-item@class.row c-tabs-item__content",
-      "bookUrl": ".h4@a@href",
-      "checkKeyWord": "god",
-      "coverUrl": "class.col-4 col-md-2@class.tab-thumb c-image-hover@a@img@data-src",
-      "kind": "class.summary-content@text",
-      "name": ".h4@a@text"
-    },
-    "ruleToc": {
-      "chapterList": "-class.wp-manga-chapter    ",
-      "chapterName": "a@text",
-      "chapterUrl": "a@href"
-    },
-    "searchUrl": "https://manhuaus.com/?s={{key}}&post_type=wp-manga&post_type=wp-manga",
-    "weight": 0
-  },
-  {
-    "bookSourceComment": "// Error: 搜索失效",
     "bookSourceGroup": "正版,搜索失效",
     "bookSourceName": "知音漫客 ZYMK",
     "bookSourceType": 2,
@@ -4108,58 +3813,6 @@
       "chapterUrl": "https://m.kanman.com/api/getchapterinfov2?product_id=1&productname=kmh&platformname=wap&comic_id=@get:{bid}&chapter_newid={{$.chapter_newid}}&isWebp=1&quality=low"
     },
     "searchUrl": "https://m.kanman.com/api/serachcomic/?product_id=1&productname=kmh&platformname=wap&serachKey={{key}}&topNumber=10",
-    "weight": 0
-  },
-  {
-    "bookSourceComment": "// Error: Expected to find an object with property ['data'] in path $ but found 'java.lang.String'. This is not a json object according to the JsonProvider: 'a7.k'.",
-    "bookSourceGroup": "漫画,网站失效",
-    "bookSourceName": "好看漫画",
-    "bookSourceType": 2,
-    "bookSourceUrl": "https://www.9comic.cn/",
-    "customButton": false,
-    "customOrder": 73,
-    "enabled": true,
-    "enabledCookieJar": false,
-    "enabledExplore": true,
-    "eventListener": false,
-    "exploreUrl": "[{\"title\":\"都市\",\"url\":\"/comic22/book/list?cateid=1&end=0&free=0&sort=0&p={{page}}&n=21\",\"style\":{\"layout_flexGrow\":1,\"layout_flexBasisPercent\":0.29}},{\"title\":\"恋爱\",\"url\":\"/comic22/book/list?cateid=2&end=0&free=0&sort=0&p={{page}}&n=21\",\"style\":{\"layout_flexGrow\":1,\"layout_flexBasisPercent\":0.29}},{\"title\":\"爆笑\",\"url\":\"/comic22/book/list?cateid=3&end=0&free=0&sort=0&p={{page}}&n=21\",\"style\":{\"layout_flexGrow\":1,\"layout_flexBasisPercent\":0.29}},{\"title\":\"热血\",\"url\":\"/comic22/book/list?cateid=4&end=0&free=0&sort=0&p={{page}}&n=21\",\"style\":{\"layout_flexGrow\":1,\"layout_flexBasisPercent\":0.29}},{\"title\":\"悬疑\",\"url\":\"/comic22/book/list?cateid=5&end=0&free=0&sort=0&p={{page}}&n=21\",\"style\":{\"layout_flexGrow\":1,\"layout_flexBasisPercent\":0.29}},{\"title\":\"古风\",\"url\":\"/comic22/book/list?cateid=6&end=0&free=0&sort=0&p={{page}}&n=21\",\"style\":{\"layout_flexGrow\":1,\"layout_flexBasisPercent\":0.29}},{\"title\":\"校园\",\"url\":\"/comic22/book/list?cateid=7&end=0&free=0&sort=0&p={{page}}&n=21\",\"style\":{\"layout_flexGrow\":1,\"layout_flexBasisPercent\":0.29}},{\"title\":\"搞笑\",\"url\":\"/comic22/book/list?cateid=9&end=0&free=0&sort=0&p={{page}}&n=21\",\"style\":{\"layout_flexGrow\":1,\"layout_flexBasisPercent\":0.29}},{\"title\":\"玄幻\",\"url\":\"/comic22/book/list?cateid=10&end=0&free=0&sort=0&p={{page}}&n=21\",\"style\":{\"layout_flexGrow\":1,\"layout_flexBasisPercent\":0.29}},{\"title\":\"励志\",\"url\":\"/comic22/book/list?cateid=11&end=0&free=0&sort=0&p={{page}}&n=21\",\"style\":{\"layout_flexGrow\":1,\"layout_flexBasisPercent\":0.29}},{\"title\":\"恐怖\",\"url\":\"/comic22/book/list?cateid=13&end=0&free=0&sort=0&p={{page}}&n=21\",\"style\":{\"layout_flexGrow\":1,\"layout_flexBasisPercent\":0.29}},{\"title\":\"冒险\",\"url\":\"/comic22/book/list?cateid=14&end=0&free=0&sort=0&p={{page}}&n=21\",\"style\":{\"layout_flexGrow\":1,\"layout_flexBasisPercent\":0.29}},{\"title\":\"儿童\",\"url\":\"/comic22/book/list?cateid=15&end=0&free=0&sort=0&p={{page}}&n=21\",\"style\":{\"layout_flexGrow\":0,\"layout_flexBasisPercent\":0.29}}]",
-    "lastUpdateTime": 1734946416702,
-    "respondTime": 180482,
-    "ruleBookInfo": {
-      "author": "$.author",
-      "coverUrl": "$.pic",
-      "init": "$.data",
-      "intro": "$.info",
-      "kind": "$.tag",
-      "lastChapter": "$.lastchapter",
-      "name": "$.title",
-      "tocUrl": "https://www.9comic.cn/comic22/book/listChapter?imei=aanid10d10df686793008&id={{$.id}}&p=1&n=10000"
-    },
-    "ruleContent": {
-      "content": "@js:\nvar options = {\n\"headers\": {\"Referer\": baseUrl}\n}\njava.getStringList(\"$.data..url\").toArray().map\n(id=>'<img src=\"'+id+'\" >').join(\"\\n\")"
-    },
-    "ruleExplore": {
-      "bookList": ""
-    },
-    "ruleSearch": {
-      "author": "$.author",
-      "bookList": "$..list[*]||$.data[*]",
-      "bookUrl": "https://www.9comic.cn/comic22/book/show?id={{$.id}}&imei=aanid10d10df686793008",
-      "coverUrl": "$.pic",
-      "intro": "$.info",
-      "kind": "$.tag",
-      "lastChapter": "$.lastchapter",
-      "name": "$.title"
-    },
-    "ruleToc": {
-      "chapterList": "$.data[*]",
-      "chapterName": "$.name",
-      "chapterUrl": "https://www.9comic.cn/comic22/book/showChapter?id={{$.id}}&imei=aanid10d10df686793008",
-      "isPay": "",
-      "isVip": "",
-      "updateTime": "{{java.timeFormat(java.getString('$.createtime'))}}"
-    },
-    "searchUrl": "https://www.9comic.cn/comic22/so/comic?keyword={{key}}&p=&ver=2.0",
     "weight": 0
   },
   {
@@ -4268,47 +3921,6 @@
     },
     "searchUrl": "https://api-cdn.kaimanhua.com/comic-api/v1/comic/getsortlist?search_key={{key}}&orderby=shoucang&page={{page}}&pagesize=20&young_mode=0&client-type=android&productname=qmmh&client-channel=xiaomi&platformname=android&client-version=1.4.8",
     "variableComment": "",
-    "weight": 0
-  },
-  {
-    "bookSourceComment": "// Error: 搜索失效",
-    "bookSourceGroup": "漫画,搜索失效",
-    "bookSourceName": "MangaOnlineTeam英文",
-    "bookSourceType": 2,
-    "bookSourceUrl": "https://mangaonlineteam.com/",
-    "customButton": false,
-    "customOrder": 76,
-    "enabled": true,
-    "enabledCookieJar": true,
-    "enabledExplore": true,
-    "eventListener": false,
-    "lastUpdateTime": 1731588453421,
-    "respondTime": 180713,
-    "ruleBookInfo": {
-      "intro": ".summary__content show-more@h4@text",
-      "name": ".post-title@h1@text"
-    },
-    "ruleContent": {
-      "content": "class.page-break @img@html",
-      "replaceRegex": "##\">\\n##,{'headers':{'referer':'{{source.getKey()}}'}}$0",
-      "webJs": ""
-    },
-    "ruleExplore": {},
-    "ruleSearch": {
-      "bookList": "class.c-tabs-item@class.row c-tabs-item__content",
-      "bookUrl": ".h4@a@href",
-      "checkKeyWord": "god",
-      "coverUrl": "class.tab-thumb c-image-hover@img@data-src",
-      "kind": "class.summary-content@text",
-      "name": ".h4@a@text",
-      "wordCount": ""
-    },
-    "ruleToc": {
-      "chapterList": "-class.main version-chap no-volumn@tag.li",
-      "chapterName": "a@text",
-      "chapterUrl": "a@href"
-    },
-    "searchUrl": "https://mangaonlineteam.com/?s=god&post_type=wp-manga",
     "weight": 0
   },
   {

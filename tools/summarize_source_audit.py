@@ -171,7 +171,7 @@ def main():
         f"原报告包含 {metadata.get('sourceChecks', len(rows))} 轮逐源检查；本次另纳入 {len(proxy_rows)} 轮代理复测及 {repair_checks} 轮修复验证。", "",
         f"测试开始时间：{checked_at}（本机时区）。测试版本：{tested_build.get('versionName', '见构建记录')} / {tested_build.get('versionCode', '')}。", "",
         "## 测试口径", "",
-        "- 范围：仓库 tests/shareBookSource.json 的 97 个样本，以及应用内置的 1 个听书源，按书源 URL 去重。",
+        "- 范围：仓库 tests/shareBookSource.json 的样本及应用内置书源，按书源 URL 去重；总数以本次 metadata.json 为准。",
         "- 使用安装在模拟器上的签名 Release 测试构建，直接调用应用的分类/搜索、详情、目录、正文和图片解密/下载流程。",
         "- 测试构建 debuggable=false；为运行 instrumentation 关闭混淆，任务完成后恢复安装正常混淆的签名 Release。",
         "- 首轮每源最多尝试两个直接分类入口与搜索；每个入口最多两本书；每本抽查前两章，图片抽查首页与中间页。取得完整通过样本后停止该源的后续入口尝试。需要交互配置的分类不自动点击。",
