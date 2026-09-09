@@ -126,3 +126,11 @@ test('signed chapter endpoints request fresh responses without changing authoriz
     assert.ok(url.includes('&uid='));
   }
 });
+
+test('comic search avoids HTTP redirects while preserving source identity', () => {
+  for (const name of ['看漫画吧', '看漫画 Kanman HTML']) {
+    const source = samples.find(s => s.bookSourceName === name);
+    assert.ok(source.searchUrl.startsWith('https://m.kanman.com/'));
+    assert.ok(source.bookSourceUrl);
+  }
+});
