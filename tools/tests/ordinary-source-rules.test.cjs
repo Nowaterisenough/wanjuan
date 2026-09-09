@@ -63,3 +63,26 @@ test('image header decoding only removes the known wrapper before a JPEG signatu
     }
   }
 });
+
+test('public image AES decoding uses the prefixed IV', () => {
+  const crypto = require('node:crypto');
+  const rule = samples.find(s => s.bookSourceName === '51漫画').ruleContent.imageDecode;
+  const key = Buffer.from('NlgrYjYuRT5ic1hifSs9Tg==', 'base64');
+  const iv = Buffer.alloc(16, 17);
+  const clear = Buffer.from('RIFF fixture WEBP payload');
+  const cipher = crypto.createCipheriv('aes-128-cbc', key, iv);
+  const encrypted = Buffer.concat([iv, cipher.update(clear), cipher.final()]);
+  const decoded = vm.runInNewContext(rule, {
+    result: encrypted,
+    Packages: { java: { util: { Arrays: { copyOfRange: (b, start, end) => b.subarray(start, end) } } } },
+    java: {
+      base64DecodeToByteArray: s => Buffer.from(s, 'base64'),
+      createSymmetricCrypto: (mode, actualKey, actualIv) => ({ decrypt: bytes => {
+        assert.equal(mode, 'AES/CBC/PKCS5Padding');
+        const decipher = crypto.createDecipheriv('aes-128-cbc', actualKey, actualIv);
+        return Buffer.concat([decipher.update(bytes), decipher.final()]);
+      } }),
+    },
+  });
+  assert.deepEqual(decoded, clear);
+});
