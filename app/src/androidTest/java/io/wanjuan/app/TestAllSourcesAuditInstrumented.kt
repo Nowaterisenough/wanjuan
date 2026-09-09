@@ -85,6 +85,7 @@ class TestAllSourcesAuditInstrumented {
         val args = InstrumentationRegistry.getArguments()
         val index = args.getString("sourceIndex")?.toIntOrNull()
         assumeTrue("Live audit requires sourceIndex", index != null)
+        checkNotNull(index)
         restore()
         val samples = instrumentation.context.assets.open("shareBookSource.json").use {
             GSON.fromJsonArray<BookSource>(it).getOrThrow()
@@ -93,7 +94,9 @@ class TestAllSourcesAuditInstrumented {
             GSON.fromJsonArray<BookSource>(it).getOrThrow()
         }
         val sources = (samples + defaults).distinctBy { it.bookSourceUrl }
-        val source = sources[index!!]
+        val source = args.getString("sourceFile")?.let {
+            GSON.fromJson(File(it).readText(), BookSource::class.java)
+        } ?: sources[index]
         reportFile = File(output, "%03d.json".format(index))
         report.putAll(mapOf("index" to index, "source" to source.bookSourceName,
             "origin" to if (index < samples.size) "sample" else "bundled",
@@ -130,7 +133,7 @@ class TestAllSourcesAuditInstrumented {
                 })
                 val categoryReport = linkedMapOf<String, Any?>()
                 report["discovery"] = categoryReport
-                if (!source.exploreUrl.isNullOrBlank()) {
+                if (args.getString("searchOnly") != "true" && !source.exploreUrl.isNullOrBlank()) {
                     stage(categoryReport, "categories")
                     try {
                         val kinds = withTimeout(25_000L) { source.exploreKinds() }
@@ -213,7 +216,7 @@ class TestAllSourcesAuditInstrumented {
         val samples = arrayListOf<MutableMap<String, Any?>>()
         result["chapterSamples"] = samples
         for (chapter in chapters.take(2)) {
-            val sample = linkedMapOf<String, Any?>("chapterIndex" to chapter.index)
+            val sample = linkedMapOf<String, Any?>("chapterIndex" to chapter.index, "chapterUrl" to chapter.url)
             samples.add(sample)
             try {
                 stage(sample, "content")

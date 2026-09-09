@@ -10,6 +10,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import tempfile
 import time
 
 from source_audit_proxy import emulator_proxy
@@ -29,6 +30,8 @@ def main():
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--entry-pattern")
     parser.add_argument("--keyword")
+    parser.add_argument("--search-only", action="store_true", help="Audit search results without discovery entries")
+    parser.add_argument("--live-rules", action="store_true", help="Test current repository rules instead of APK asset snapshots")
     parser.add_argument("--proxy", help="HTTP proxy used temporarily for the entire emulator audit")
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
@@ -47,7 +50,7 @@ def main():
         return adb + ["shell", "am", "instrument", "-w", "-r", "-e", "class", TEST_CLASS + "#" + method,
                       *extra, "io.wanjuan.app.test/androidx.test.runner.AndroidJUnitRunner"]
 
-    with emulator_proxy(adb, args.proxy) as (relay, proxy_info):
+    with tempfile.TemporaryDirectory(prefix="wanjuan-audit-rule-") as fixture_dir, emulator_proxy(adb, args.proxy) as (relay, proxy_info):
         metadata["network"] = proxy_info or {"mode": "system-default"}
         (args.output / "metadata.json").write_text(json.dumps(metadata, indent=2))
         try:
@@ -63,6 +66,14 @@ def main():
                 # Delete only this diagnostic's stale report, so a crash cannot be mistaken for a prior pass.
                 subprocess.run(adb + ["shell", "rm", "-f", f"{REMOTE}/{index:03d}.json"], check=True, capture_output=True)
                 extra = ["-e", "sourceIndex", str(index), "-e", "sourceTimeout", str((args.timeout - 15) * 1000)]
+                if args.live_rules:
+                    fixture = Path(fixture_dir) / "source.json"
+                    fixture.write_text(json.dumps(source, ensure_ascii=False))
+                    subprocess.run(adb + ["shell", "mkdir", "-p", REMOTE], check=True, capture_output=True)
+                    subprocess.run(adb + ["push", str(fixture), f"{REMOTE}/input-source.json"], check=True, capture_output=True)
+                    extra += ["-e", "sourceFile", f"{REMOTE}/input-source.json"]
+                if args.search_only:
+                    extra += ["-e", "searchOnly", "true"]
                 if args.entry_pattern:
                     import shlex
                     extra += ["-e", "entryPattern", shlex.quote(args.entry_pattern)]
@@ -93,13 +104,18 @@ def main():
                 report["hostElapsedSeconds"] = round(time.monotonic() - started, 1)
                 report["hostTimedOut"] = timed_out
                 report["instrumentationCompleted"] = "OK (1 test)" in transcript
+                report["rulesOrigin"] = "repository" if args.live_rules else "apk-assets"
                 if timed_out or report.get("status") == "running":
                     report["status"] = "timeout" if timed_out else "process_failed"
                 destination.write_text(json.dumps(report, ensure_ascii=False, indent=2))
                 print(f"END   {index:03d} {report['status']} {report['hostElapsedSeconds']}s stage={report.get('activeStage', '-')}", flush=True)
+                if not timed_out and not report["instrumentationCompleted"]:
+                    raise RuntimeError(f"Instrumentation failed for source {index}; inspect its transcript before continuing")
         finally:
             cleanup = subprocess.run(instrument("restoreAuditSource"), capture_output=True, text=True, timeout=30)
             (args.output / "cleanup.txt").write_text(cleanup.stdout + cleanup.stderr)
+            if args.live_rules:
+                subprocess.run(adb + ["shell", "rm", "-f", f"{REMOTE}/input-source.json"], check=True, capture_output=True)
             if "OK (1 test)" not in cleanup.stdout:
                 raise RuntimeError("Audit source restoration did not complete; inspect cleanup.txt")
 
