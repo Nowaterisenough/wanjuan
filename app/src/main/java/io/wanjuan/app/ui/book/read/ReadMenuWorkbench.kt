@@ -181,7 +181,11 @@ class ReadMenuWorkbench(
                     .setDuration(220).excludeTarget(navigationDivider, true))
         }
         page = next
-        if (next != Page.TOC) locateChapterAfterLoad = false
+        locateChapterAfterLoad = next == Page.TOC
+        if (next == Page.TOC) {
+            showBookmarks = false
+            chapterQuery = ""
+        }
         if (next in appearancePages) lastAppearance = next
         if (currentBookUrl != ReadBook.book?.bookUrl) {
             currentBookUrl = ReadBook.book?.bookUrl
@@ -209,9 +213,6 @@ class ReadMenuWorkbench(
     fun goBack() = show(if (page in detailPages) parentPage() else Page.MAIN)
 
     fun showCurrentChapter() {
-        showBookmarks = false
-        chapterQuery = ""
-        locateChapterAfterLoad = true
         show(Page.TOC)
     }
 
