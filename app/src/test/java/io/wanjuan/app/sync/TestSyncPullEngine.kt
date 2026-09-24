@@ -62,6 +62,48 @@ class TestSyncPullEngine {
     }
 
     @Test
+    fun transientDownloadFailureIsRetriedBeforeMarkingBookFailed() = runBlocking {
+        val remote = TestFakeSyncRemoteStore().apply {
+            put("books/book-a.json", "200|device-b|hash-remote", 10L)
+            downloadFailures = 1
+        }
+        val handler = TextPullHandler()
+        val result = SyncResult.Mutable()
+
+        SyncPullEngine(remote, MemoryPullStore(), listOf(handler)).pullAll(result)
+
+        assertEquals(2, remote.downloads)
+        assertEquals(0, result.failed)
+        assertEquals(1, handler.applied)
+    }
+
+    @Test
+    fun unchangedRemotePayloadIsReappliedWhenLocalBookIsMissing() = runBlocking {
+        val remote = TestFakeSyncRemoteStore().apply {
+            put("books/book-a.json", "200|device-b|hash-remote", 10L)
+        }
+        val store = MemoryPullStore().apply {
+            putApplied("book", "book-a", SyncVersion(200L, "device-b"), "hash-remote")
+        }
+        val handler = TextPullHandler(localObjectPresent = false)
+
+        SyncPullEngine(remote, store, listOf(handler)).pullAll(SyncResult.Mutable())
+
+        assertEquals(1, handler.applied)
+    }
+
+    @Test
+    fun remoteIdentityUsesPathWhenDisplayNameIsIncorrect() {
+        val file = SyncRemoteFile(
+            path = "books/book-a.json",
+            displayName = "book-b.json",
+            lastModifiedAt = 10L
+        )
+
+        assertEquals("book-a", file.jsonId())
+    }
+
+    @Test
     fun newerRemoteObjectAppliesAndDiscardsLocalOutbox() = runBlocking {
         val remote = TestFakeSyncRemoteStore().apply {
             put("books/book-a.json", "300|device-b|hash-remote", 10L)
@@ -140,7 +182,8 @@ class TestSyncPullEngine {
     }
 
     private class TextPullHandler(
-        override val usesModifiedTimeMarker: Boolean = true
+        override val usesModifiedTimeMarker: Boolean = true,
+        private val localObjectPresent: Boolean = true
     ) : SyncPullHandler {
         var applied = 0
         override val directories: List<String> = listOf("books")
@@ -149,6 +192,8 @@ class TestSyncPullEngine {
             return file.displayName.removeSuffix(".json").takeIf { it.isNotEmpty() }
                 ?.let { SyncIdentity("book", it) }
         }
+
+        override fun isLocalObjectPresent(identity: SyncIdentity): Boolean = localObjectPresent
 
         override fun parse(file: SyncRemoteFile, json: String): SyncRemoteCandidate {
             val parts = json.split('|')
@@ -209,6 +254,21 @@ class TestSyncPullEngine {
                 localUpdatedByDeviceId = version.deviceId
             )
             if (hasOutbox) outbox += objectType to objectId
+        }
+
+        fun putApplied(
+            objectType: String,
+            objectId: String,
+            version: SyncVersion,
+            hash: String
+        ) {
+            metadata[objectType to objectId] = SyncMetadata(
+                objectType = objectType,
+                objectId = objectId,
+                remoteUpdatedAt = version.timestamp,
+                remoteUpdatedByDeviceId = version.deviceId,
+                lastSyncedHash = hash
+            )
         }
 
         fun hasOutbox(objectType: String, objectId: String): Boolean =

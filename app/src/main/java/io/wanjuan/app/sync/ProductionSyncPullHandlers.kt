@@ -110,6 +110,7 @@ fun bookSyncPullHandler(bookshelfCoordinator: BookshelfSyncCoordinator): SyncPul
         version = BookSyncMerge::version,
         contentHash = SyncPayloadHash::book,
         mergesComponents = true,
+        localObjectPresent = bookshelfCoordinator::hasBook,
         apply = bookshelfCoordinator::applyRemoteBook
     )
 
@@ -120,6 +121,7 @@ private inline fun <reified T> entityHandler(
     crossinline version: (T) -> SyncVersion,
     crossinline contentHash: (T) -> String,
     mergesComponents: Boolean = false,
+    crossinline localObjectPresent: (String) -> Boolean = { true },
     crossinline apply: (T) -> SyncApplyOutcome
 ): SyncPullHandler = object : SyncPullHandler {
     override val mergesComponents = mergesComponents
@@ -128,6 +130,9 @@ private inline fun <reified T> entityHandler(
 
     override fun identity(file: SyncRemoteFile): SyncIdentity? =
         file.jsonId()?.let { SyncIdentity(objectType, it) }
+
+    override fun isLocalObjectPresent(identity: SyncIdentity): Boolean =
+        localObjectPresent(identity.objectId)
 
     override fun parse(file: SyncRemoteFile, json: String): SyncRemoteCandidate {
         val payload = GSON.fromJsonObject<T>(json).getOrThrow()
@@ -192,7 +197,7 @@ private class SyncOrderPullHandler(
 ) : SyncPullHandler {
     override val directories: List<String> = listOf("order")
 
-    override fun identity(file: SyncRemoteFile): SyncIdentity? = when (file.displayName) {
+    override fun identity(file: SyncRemoteFile): SyncIdentity? = when (file.fileName()) {
         "bookGroups.json" -> SyncIdentity(SyncObjectType.BookGroupOrder, "bookGroups")
         "bookshelf.json" -> SyncIdentity(SyncObjectType.BookshelfOrder, "bookshelf")
         "bookSources.json" -> SyncIdentity(SyncObjectType.BookSourceOrder, "bookSources")
@@ -228,8 +233,11 @@ private class SyncOrderPullHandler(
     }
 }
 
-private fun SyncRemoteFile.jsonId(): String? =
-    displayName.takeIf { it.endsWith(".json") }
+internal fun SyncRemoteFile.fileName(): String =
+    path.replace('\\', '/').trimEnd('/').substringAfterLast('/')
+
+internal fun SyncRemoteFile.jsonId(): String? =
+    fileName().takeIf { it.endsWith(".json") }
         ?.removeSuffix(".json")
         ?.takeIf { it.isNotBlank() }
 

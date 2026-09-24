@@ -10,6 +10,7 @@ import io.wanjuan.app.sync.remote.SyncRemoteFile
 import io.wanjuan.app.sync.remote.SyncRemoteStore
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 
 data class SyncIdentity(
@@ -47,6 +48,12 @@ interface SyncPullHandler {
 
     fun identity(file: SyncRemoteFile): SyncIdentity?
 
+    /**
+     * A persisted marker is only safe to skip when the corresponding local object still exists.
+     * Handlers for objects that are not represented locally can keep the default behavior.
+     */
+    fun isLocalObjectPresent(identity: SyncIdentity): Boolean = true
+
     fun parse(file: SyncRemoteFile, json: String): SyncRemoteCandidate
 
     fun applyRemote(candidate: SyncRemoteCandidate): SyncApplyOutcome
@@ -66,6 +73,11 @@ class SyncPullEngine(
     private val pullStore: SyncPullStore,
     private val handlers: List<SyncPullHandler>
 ) {
+
+    private companion object {
+        private const val MAX_PULL_ATTEMPTS = 2
+        private const val PULL_RETRY_DELAY_MILLIS = 100L
+    }
 
     suspend fun pullAll(result: SyncResult.Mutable) {
         for (handler in handlers) {
@@ -91,6 +103,7 @@ class SyncPullEngine(
         }
         val metadata = pullStore.metadata(identity)
         if (handler.usesModifiedTimeMarker &&
+            handler.isLocalObjectPresent(identity) &&
             file.lastModifiedAt > 0L &&
             metadata?.remoteFileModifiedAt == file.lastModifiedAt
         ) {
@@ -99,18 +112,12 @@ class SyncPullEngine(
         }
 
         try {
-            val json = requireNotNull(remoteStore.downloadJson(file.path)) {
-                "Remote file is missing: ${file.path}"
-            }
-            result.downloaded += 1
-            val candidate = handler.parse(file, json)
-            require(candidate.identity == identity) {
-                "Remote identity changed while parsing ${file.path}"
-            }
+            val candidate = downloadAndParse(handler, file, identity, result)
 
             pullStore.runInTransaction {
                 val current = pullStore.metadata(identity)
-                val alreadyApplied = current?.lastSyncedHash == candidate.contentHash && when {
+                val alreadyApplied = handler.isLocalObjectPresent(identity) &&
+                    current?.lastSyncedHash == candidate.contentHash && when {
                     candidate.objectVersion != null ->
                         current.currentObjectVersion() == candidate.objectVersion
                     candidate.deleteVersion != null ->
@@ -155,6 +162,41 @@ class SyncPullEngine(
             currentCoroutineContext().ensureActive()
             result.fail(e.localizedMessage ?: e.javaClass.simpleName)
         }
+    }
+
+    private suspend fun downloadAndParse(
+        handler: SyncPullHandler,
+        file: SyncRemoteFile,
+        identity: SyncIdentity,
+        result: SyncResult.Mutable
+    ): SyncRemoteCandidate {
+        var downloaded = false
+        var lastError: Exception? = null
+        repeat(MAX_PULL_ATTEMPTS) { attempt ->
+            try {
+                val json = requireNotNull(remoteStore.downloadJson(file.path)) {
+                    "Remote file is missing: ${file.path}"
+                }
+                if (!downloaded) {
+                    result.downloaded += 1
+                    downloaded = true
+                }
+                val candidate = handler.parse(file, json)
+                require(candidate.identity == identity) {
+                    "Remote identity changed while parsing ${file.path}"
+                }
+                return candidate
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                lastError = e
+                if (attempt + 1 < MAX_PULL_ATTEMPTS) {
+                    currentCoroutineContext().ensureActive()
+                    delay(PULL_RETRY_DELAY_MILLIS)
+                }
+            }
+        }
+        throw requireNotNull(lastError)
     }
 
     private fun SyncMetadata?.currentObjectVersion(): SyncVersion? {

@@ -93,6 +93,9 @@ class BookshelfSyncCoordinator(
 ) {
     private val bookState = BookSyncState(db, clock, deviceIdProvider, groupCoordinator)
 
+    fun hasBook(bookSyncId: String): Boolean =
+        db.bookDao.all.any { SyncIds.bookId(it) == bookSyncId }
+
     fun enqueueBookDelete(book: Book) {
         val id = SyncIds.bookId(book)
         val deletedAt = clock.now()

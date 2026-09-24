@@ -111,7 +111,14 @@ class WebDavSyncClient(
     override suspend fun list(relativeDir: String): List<SyncRemoteFile> {
         val authorization = requireAuthorization()
         val directory = relativeDir.trim('/').takeIf { it.isNotEmpty() }
-        return WebDav(resolve(relativeDir, asDirectory = true), authorization).listFiles().map { file ->
+        val resource = WebDav(resolve(relativeDir, asDirectory = true), authorization)
+        // Some WebDAV servers occasionally return a partial Depth: 1 response. Merge two
+        // consecutive snapshots so a transiently missing entry cannot silently lose a book.
+        val files = buildList {
+            addAll(resource.listFiles())
+            addAll(resource.listFiles())
+        }.associateBy { syncRemotePath(directory.orEmpty(), it.urlName) }.values
+        return files.map { file ->
             SyncRemoteFile(
                 path = syncRemotePath(directory.orEmpty(), file.urlName),
                 displayName = file.displayName,

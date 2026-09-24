@@ -8,6 +8,7 @@ class TestFakeSyncRemoteStore : SyncRemoteStore {
 
     val entries = linkedMapOf<String, Entry>()
     var downloads = 0
+    var downloadFailures = 0
     var failUploads = false
 
     fun put(path: String, json: String, lastModifiedAt: Long) {
@@ -33,6 +34,10 @@ class TestFakeSyncRemoteStore : SyncRemoteStore {
 
     override suspend fun downloadJson(relativePath: String): String? {
         downloads += 1
+        if (downloadFailures > 0) {
+            downloadFailures -= 1
+            error("download failed")
+        }
         return entries[relativePath]?.json
     }
 
