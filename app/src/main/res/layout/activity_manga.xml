@@ -5,17 +5,38 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <io.wanjuan.app.ui.book.manga.recyclerview.WebtoonFrame
-        android:id="@+id/webtoon_frame"
+    <LinearLayout
+        android:id="@+id/manga_columns_container"
         android:layout_width="match_parent"
-        android:layout_height="match_parent">
+        android:layout_height="match_parent"
+        android:orientation="horizontal">
 
-        <io.wanjuan.app.ui.book.manga.recyclerview.WebtoonRecyclerView
-            android:id="@+id/recycler_view"
+        <io.wanjuan.app.ui.book.manga.recyclerview.WebtoonFrame
+            android:id="@+id/webtoon_frame"
             android:layout_width="match_parent"
-            android:layout_height="match_parent" />
+            android:layout_height="match_parent">
 
-    </io.wanjuan.app.ui.book.manga.recyclerview.WebtoonFrame>
+            <io.wanjuan.app.ui.book.manga.recyclerview.WebtoonRecyclerView
+                android:id="@+id/recycler_view"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
+
+        </io.wanjuan.app.ui.book.manga.recyclerview.WebtoonFrame>
+
+        <io.wanjuan.app.ui.book.manga.recyclerview.WebtoonFrame
+            android:id="@+id/webtoon_frame_double_right"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:visibility="gone">
+
+            <io.wanjuan.app.ui.book.manga.recyclerview.WebtoonRecyclerView
+                android:id="@+id/recycler_view_double_right"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
+
+        </io.wanjuan.app.ui.book.manga.recyclerview.WebtoonFrame>
+
+    </LinearLayout>
 
     <io.wanjuan.app.ui.widget.ReaderInfoBarView
         android:id="@+id/infobar"
@@ -145,6 +166,31 @@
                     android:includeFontPadding="false"
                     android:maxLines="1"
                     android:text="@string/next_chapter"
+                    android:textColor="@color/white"
+                    android:textSize="12sp" />
+
+            </FrameLayout>
+
+            <FrameLayout
+                android:id="@+id/btn_manga_double_column"
+                android:layout_width="@dimen/reader_minimap_width"
+                android:layout_height="36dp"
+                android:layout_marginTop="4dp"
+                android:clickable="true"
+                android:clipChildren="false"
+                android:clipToOutline="false"
+                android:clipToPadding="false"
+                android:contentDescription="@string/manga_double_column"
+                android:focusable="true"
+                android:visibility="gone">
+
+                <TextView
+                    android:id="@+id/tv_manga_double_column"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:gravity="center"
+                    android:includeFontPadding="false"
+                    android:maxLines="1"
                     android:textColor="@color/white"
                     android:textSize="12sp" />
 

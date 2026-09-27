@@ -29,6 +29,7 @@ import io.wanjuan.app.exception.SourceAccessException
 import io.wanjuan.app.model.BookCover
 import io.wanjuan.app.model.ReadManga
 import io.wanjuan.app.utils.printOnDebug
+import io.wanjuan.app.utils.dpToPx
 
 open class MangaVH<VB : ViewBinding>(val binding: VB, private val context: Context) :
     RecyclerView.ViewHolder(binding.root) {
@@ -59,16 +60,32 @@ open class MangaVH<VB : ViewBinding>(val binding: VB, private val context: Conte
     fun loadImageWithRetry(
         imageUrl: String,
         isHorizontal: Boolean,
+        isDoubleColumn: Boolean,
         isLastImage: Boolean,
         transformation: Transformation<Bitmap>?,
         onImageReady: (() -> Unit)? = null,
     ) {
+        fun applyDoubleColumnItemLayout(loading: Boolean) {
+            itemView.updateLayoutParams<ViewGroup.LayoutParams> {
+                height = ViewGroup.LayoutParams.WRAP_CONTENT
+            }
+            itemView.minimumHeight = if (loading) 96.dpToPx() else 0
+            mImage.updateLayoutParams<FrameLayout.LayoutParams> {
+                height = ViewGroup.LayoutParams.WRAP_CONTENT
+                gravity = Gravity.NO_GRAVITY
+            }
+            mImage.scaleType = ImageView.ScaleType.FIT_CENTER
+        }
+
         mFlProgress.isVisible = true
         mLoading.isVisible = true
         mRetry?.isGone = true
         mProgress.isVisible = true
         mProgress.translationY = 0f
         mProgress.setText(R.string.manga_image_connecting)
+        if (isDoubleColumn) {
+            applyDoubleColumnItemLayout(loading = true)
+        }
         ProgressManager.removeListener(imageUrl)
         ProgressManager.addListener(imageUrl) { _, percentage, bytesRead, totalBytes ->
             when {
@@ -105,8 +122,12 @@ open class MangaVH<VB : ViewBinding>(val binding: VB, private val context: Conte
                     mProgress.text = accessError?.message
                     mProgress.gravity = Gravity.CENTER
                     mProgress.translationY = if (accessError != null) 56 * context.resources.displayMetrics.density else 0f
-                    itemView.updateLayoutParams<ViewGroup.LayoutParams> {
-                        height = ViewGroup.LayoutParams.MATCH_PARENT
+                    if (isDoubleColumn) {
+                        applyDoubleColumnItemLayout(loading = true)
+                    } else {
+                        itemView.updateLayoutParams<ViewGroup.LayoutParams> {
+                            height = ViewGroup.LayoutParams.MATCH_PARENT
+                        }
                     }
                     return false
                 }
@@ -120,7 +141,9 @@ open class MangaVH<VB : ViewBinding>(val binding: VB, private val context: Conte
                 ): Boolean {
                     ProgressManager.removeListener(imageUrl)
                     mFlProgress.isGone = true
-                    if (!isHorizontal) {
+                    if (isDoubleColumn) {
+                        applyDoubleColumnItemLayout(loading = false)
+                    } else if (!isHorizontal) {
                         itemView.updateLayoutParams<ViewGroup.LayoutParams> {
                             height = ViewGroup.LayoutParams.WRAP_CONTENT
                         }

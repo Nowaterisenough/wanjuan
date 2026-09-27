@@ -12,6 +12,7 @@ import android.view.animation.DecelerateInterpolator
 import androidx.core.animation.doOnEnd
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import androidx.recyclerview.widget.StaggeredGridLayoutManager
 import io.wanjuan.app.utils.findCenterViewPosition
 import kotlin.math.abs
 
@@ -61,9 +62,20 @@ class WebtoonRecyclerView @JvmOverloads constructor(
 
     override fun onScrolled(dx: Int, dy: Int) {
         super.onScrolled(dx, dy)
-        val layoutManager = layoutManager as LinearLayoutManager
-        lastVisibleItemPosition = layoutManager.findLastVisibleItemPosition()
-        firstVisibleItemPosition = layoutManager.findFirstVisibleItemPosition()
+        val layoutManager = layoutManager
+        when (layoutManager) {
+            is LinearLayoutManager -> {
+                lastVisibleItemPosition = layoutManager.findLastVisibleItemPosition()
+                firstVisibleItemPosition = layoutManager.findFirstVisibleItemPosition()
+            }
+
+            is StaggeredGridLayoutManager -> {
+                lastVisibleItemPosition = layoutManager.findLastVisibleItemPositions(null)
+                    .filter { it != NO_POSITION }.maxOrNull() ?: NO_POSITION
+                firstVisibleItemPosition = layoutManager.findFirstVisibleItemPositions(null)
+                    .filter { it != NO_POSITION }.minOrNull() ?: NO_POSITION
+            }
+        }
 
         val position = findCenterViewPosition()
         if (position != NO_POSITION) {

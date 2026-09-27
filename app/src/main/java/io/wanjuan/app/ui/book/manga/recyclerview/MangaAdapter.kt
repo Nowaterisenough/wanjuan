@@ -48,6 +48,7 @@ class MangaAdapter(private val context: Context) :
     }
 
     var isHorizontal = false
+    var isDoubleColumn = false
     var onPageImageReady: ((MangaPage) -> Unit)? = null
 
     private val mDiffCallback: DiffUtil.ItemCallback<Any> = object : DiffUtil.ItemCallback<Any>() {
@@ -112,6 +113,7 @@ class MangaAdapter(private val context: Context) :
             loadImageWithRetry(
                 item.mImageUrl,
                 isHorizontal,
+                isDoubleColumn,
                 isLastImage,
                 mTransformation,
             ) {

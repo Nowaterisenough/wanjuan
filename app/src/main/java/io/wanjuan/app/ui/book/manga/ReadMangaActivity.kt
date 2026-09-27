@@ -14,6 +14,7 @@ import android.view.ViewGroup
 import android.view.WindowManager
 import android.view.animation.LinearInterpolator
 import android.widget.FrameLayout
+import android.widget.LinearLayout
 import androidx.activity.viewModels
 import androidx.appcompat.app.AlertDialog
 import androidx.core.view.ViewCompat
@@ -25,10 +26,9 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.PagerSnapHelper
 import androidx.recyclerview.widget.RecyclerView
+import androidx.recyclerview.widget.StaggeredGridLayoutManager
+import androidx.viewbinding.ViewBinding
 import com.bumptech.glide.Glide
-import com.bumptech.glide.integration.recyclerview.RecyclerViewPreloader
-import com.bumptech.glide.request.target.Target.SIZE_ORIGINAL
-import com.bumptech.glide.util.FixedPreloadSizeProvider
 import io.wanjuan.app.BuildConfig
 import io.wanjuan.app.R
 import io.wanjuan.app.base.VMBaseActivity
@@ -76,6 +76,7 @@ import io.wanjuan.app.utils.findCenterViewPosition
 import io.wanjuan.app.utils.fromJsonObject
 import io.wanjuan.app.utils.getCompatColor
 import io.wanjuan.app.utils.gone
+import io.wanjuan.app.utils.isPad
 import io.wanjuan.app.utils.observeEvent
 import io.wanjuan.app.utils.showDialogFragment
 import io.wanjuan.app.utils.startActivity
@@ -101,9 +102,14 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
     private val mAdapter: MangaAdapter by lazy {
         MangaAdapter(this)
     }
-
-    private val mSizeProvider by lazy {
-        FixedPreloadSizeProvider<Any>(resources.displayMetrics.widthPixels, SIZE_ORIGINAL)
+    private val mDoubleLeftAdapter: MangaAdapter by lazy {
+        MangaAdapter(this)
+    }
+    private val mDoubleRightAdapter: MangaAdapter by lazy {
+        MangaAdapter(this)
+    }
+    private val mDoubleRightLayoutManager by lazy {
+        MangaLayoutManager(this)
     }
 
     private val mPagerSnapHelper: PagerSnapHelper by lazy {
@@ -118,13 +124,16 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
 
     private var mMenu: Menu? = null
 
-    private var mRecyclerViewPreloader: RecyclerViewPreloader<Any>? = null
-
     private val networkChangedListener by lazy {
         NetworkChangedListener(this)
     }
 
     private var justInitData: Boolean = false
+    private var doubleColumnEnabled = false
+    private var doubleColumnSyncing = false
+    private var doubleColumnPairSyncScheduled = false
+    private var doubleColumnPairSource: RecyclerView? = null
+    private var mangaPreloadListener: RecyclerView.OnScrollListener? = null
     private var syncDialog: AlertDialog? = null
     private val mScrollTimer by lazy {
         ScrollTimer(this, binding.recyclerView, lifecycleScope).apply {
@@ -163,7 +172,9 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
     private val mangaPageAnim: Int?
         get() = ReadManga.book?.config?.mangaPageAnim
     private val mangaHorizontalScroll: Boolean
-        get() = when (mangaPageAnim) {
+        get() = if (doubleColumnEnabled) {
+            false
+        } else when (mangaPageAnim) {
             PageAnim.coverPageAnim,
             PageAnim.linkedCoverPageAnim,
             PageAnim.slidePageAnim,
@@ -218,9 +229,12 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
             ReadManga.loadOrUpContent()
         }
         binding.pbLoading.isVisible = !AppConfig.isEInkMode
-        mAdapter.addFooterView {
+        val loadMoreFooter: (ViewGroup) -> ViewBinding = {
             ViewLoadMoreBinding.bind(loadMoreView)
         }
+        mAdapter.addFooterView(loadMoreFooter)
+        // The left stream owns the chapter loader while the right stream stays a pure page flow.
+        mDoubleLeftAdapter.addFooterView(loadMoreFooter)
         loadMoreView.setOnClickListener {
             if (!loadMoreView.isLoading && ReadManga.hasNextChapter) {
                 loadMoreView.startLoad()
@@ -236,7 +250,7 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
     override fun observeLiveBus() {
         observeEvent<MangaFooterConfig>(EventBus.UP_MANGA_CONFIG) {
             mMangaFooterConfig = it
-            val item = mAdapter.getItem(binding.recyclerView.findCenterViewPosition())
+            val item = activeMangaAdapter().getItem(binding.recyclerView.findCenterViewPosition())
             upInfoBar(item)
         }
     }
@@ -245,18 +259,19 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
         val mangaColorFilter =
             GSON.fromJsonObject<MangaColorFilterConfig>(AppConfig.mangaColorFilter).getOrNull()
                 ?: MangaColorFilterConfig()
-        mAdapter.run {
-            setMangaImageColorFilter(mangaColorFilter)
-            enableMangaEInk(AppConfig.enableMangaEInk, AppConfig.mangaEInkThreshold)
-            enableGray(AppConfig.enableMangaGray)
-            onPageImageReady = ::onMangaPageImageReady
+        listOf(mAdapter, mDoubleLeftAdapter, mDoubleRightAdapter).forEach { adapter ->
+            adapter.setMangaImageColorFilter(mangaColorFilter)
+            adapter.enableMangaEInk(AppConfig.enableMangaEInk, AppConfig.mangaEInkThreshold)
+            adapter.enableGray(AppConfig.enableMangaGray)
+            adapter.onPageImageReady = ::onMangaPageImageReady
         }
         setHorizontalScroll(mangaHorizontalScroll)
         binding.recyclerView.run {
             adapter = mAdapter
             itemAnimator = null
             layoutManager = mLayoutManager
-            setHasFixedSize(true)
+            // Each image keeps its aspect ratio, so item heights are resolved after loading.
+            setHasFixedSize(false)
             setDisableClickScroll(mangaDisableClickScroll)
             setDisableMangaScale(mangaDisableScale)
             setRecyclerViewPreloader(AppConfig.mangaPreDownloadNum)
@@ -269,8 +284,13 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
                 false
             }
             setPreScrollListener { _, _, _, position ->
-                if (mAdapter.isNotEmpty()) {
-                    val item = mAdapter.getItem(position)
+                val activeAdapter = activeMangaAdapter()
+                if (activeAdapter.isNotEmpty()) {
+                    val item = if (doubleColumnEnabled) {
+                        currentVisibleMangaPage() ?: activeAdapter.getItem(position)
+                    } else {
+                        activeAdapter.getItem(position)
+                    }
                     if (item is BaseMangaPage) {
                         if ((binding.mangaProgressMinimap.isDraggingProgress() ||
                                 committedMangaProgressMinimapRatio() != null) &&
@@ -297,18 +317,276 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
                 }
             }
         }
-        binding.webtoonFrame.run {
-            onTouchMiddle {
+        binding.recyclerViewDoubleRight.run {
+            adapter = mDoubleRightAdapter
+            itemAnimator = null
+            layoutManager = mDoubleRightLayoutManager
+            setHasFixedSize(false)
+            setDisableClickScroll(mangaDisableClickScroll)
+            disableMangaScale = mangaDisableScale
+        }
+        binding.recyclerView.addOnScrollListener(doubleColumnLeftScrollListener)
+        binding.recyclerViewDoubleRight.addOnScrollListener(doubleColumnRightScrollListener)
+        fun setupWebtoonFrame(frame: io.wanjuan.app.ui.book.manga.recyclerview.WebtoonFrame) {
+            frame.onTouchMiddle {
                 if (!binding.mangaMenu.isVisible && !loadingViewVisible) {
                     binding.mangaMenu.runMenuIn()
                 }
             }
-            onNextPage {
+            frame.onNextPage {
                 scrollToNext()
             }
-            onPrevPage {
+            frame.onPrevPage {
                 scrollToPrev()
             }
+        }
+        setupWebtoonFrame(binding.webtoonFrame)
+        setupWebtoonFrame(binding.webtoonFrameDoubleRight)
+    }
+
+    private fun activeMangaAdapter(): MangaAdapter {
+        return if (doubleColumnEnabled) mDoubleLeftAdapter else mAdapter
+    }
+
+    private inline fun forEachMangaAdapter(block: MangaAdapter.() -> Unit) {
+        mAdapter.block()
+        mDoubleLeftAdapter.block()
+        mDoubleRightAdapter.block()
+    }
+
+    private fun submitDoubleColumnLists(items: List<Any>, onCommitted: (() -> Unit)? = null) {
+        if (onCommitted == null) {
+            mDoubleLeftAdapter.submitList(items)
+            mDoubleRightAdapter.submitList(items)
+            return
+        }
+        var committedColumns = 0
+        val columnCommitted = {
+            committedColumns++
+            if (committedColumns == 2) onCommitted()
+        }
+        mDoubleLeftAdapter.submitList(items, columnCommitted)
+        mDoubleRightAdapter.submitList(items, columnCommitted)
+    }
+
+    private val doubleColumnLeftScrollListener = object : RecyclerView.OnScrollListener() {
+        override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
+            syncDoubleColumnScroll(recyclerView, binding.recyclerViewDoubleRight, dy)
+            syncDoubleColumnPair(recyclerView)
+        }
+
+        override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
+            if (newState == RecyclerView.SCROLL_STATE_DRAGGING) {
+                doubleColumnPairSource = recyclerView
+            } else if (newState == RecyclerView.SCROLL_STATE_IDLE &&
+                doubleColumnPairSource === recyclerView
+            ) {
+                scheduleDoubleColumnPairSync(recyclerView, allowPositionJump = true)
+            }
+        }
+    }
+
+    private val doubleColumnRightScrollListener = object : RecyclerView.OnScrollListener() {
+        override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
+            syncDoubleColumnScroll(recyclerView, binding.recyclerView, dy)
+            syncDoubleColumnPair(recyclerView)
+        }
+
+        override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
+            if (newState == RecyclerView.SCROLL_STATE_DRAGGING) {
+                doubleColumnPairSource = recyclerView
+            } else if (newState == RecyclerView.SCROLL_STATE_IDLE &&
+                doubleColumnPairSource === recyclerView
+            ) {
+                scheduleDoubleColumnPairSync(recyclerView, allowPositionJump = true)
+            }
+        }
+    }
+
+    private companion object {
+        private const val DOUBLE_COLUMN_ALIGNMENT_TOLERANCE_PX = 2
+    }
+
+    private data class DoubleColumnScrollAnchor(
+        val page: MangaPage,
+        val adapterPosition: Int,
+        val offsetPx: Int,
+    )
+
+    private fun firstVisibleDoubleColumnPage(recyclerView: RecyclerView): DoubleColumnScrollAnchor? {
+        val layoutManager = recyclerView.layoutManager as? LinearLayoutManager ?: return null
+        val firstPosition = layoutManager.findFirstVisibleItemPosition()
+        val lastPosition = layoutManager.findLastVisibleItemPosition()
+        if (firstPosition == RecyclerView.NO_POSITION || lastPosition == RecyclerView.NO_POSITION) {
+            return null
+        }
+        val adapter = if (recyclerView === binding.recyclerViewDoubleRight) {
+            mDoubleRightAdapter
+        } else {
+            mDoubleLeftAdapter
+        }
+        for (position in firstPosition..lastPosition) {
+            val page = adapter.getItem(position) as? MangaPage ?: continue
+            val view = layoutManager.findViewByPosition(position) ?: continue
+            val offsetPx = layoutManager.getDecoratedTop(view) - recyclerView.paddingTop
+            return DoubleColumnScrollAnchor(page, position, offsetPx)
+        }
+        return null
+    }
+
+    private fun adjacentMangaPage(page: MangaPage, direction: Int): MangaPage? {
+        val items = mAdapter.getItems()
+        val pagePosition = items.indexOfFirst { item ->
+            item is MangaPage &&
+                    item.chapterIndex == page.chapterIndex &&
+                    item.index == page.index
+        }
+        if (pagePosition < 0) {
+            return null
+        }
+        var position = pagePosition + direction
+        while (position in items.indices) {
+            (items[position] as? MangaPage)?.let { return it }
+            position += direction
+        }
+        return null
+    }
+
+    private fun leftColumnPageFor(page: MangaPage): MangaPage? {
+        if (adapterPositionForDoubleColumnPage(mDoubleLeftAdapter, page) >= 0) {
+            return page
+        }
+        return adjacentMangaPage(page, -1)?.takeIf {
+            adapterPositionForDoubleColumnPage(mDoubleLeftAdapter, it) >= 0
+        }
+    }
+
+    private fun adapterPositionForDoubleColumnPage(
+        adapter: MangaAdapter,
+        page: MangaPage,
+    ): Int {
+        return adapter.getItems().indexOfFirst { item ->
+            item is MangaPage &&
+                    item.chapterIndex == page.chapterIndex &&
+                    item.index == page.index
+        }
+    }
+
+    private fun syncDoubleColumnScroll(source: RecyclerView, target: RecyclerView, dy: Int) {
+        if (!doubleColumnEnabled || doubleColumnSyncing || dy == 0) {
+            return
+        }
+        doubleColumnSyncing = true
+        try {
+            // Both columns contain the complete continuous stream. Keep their physical scroll
+            // delta equal while the pair anchor below maintains the one-viewport offset.
+            target.scrollBy(0, dy)
+        } finally {
+            doubleColumnSyncing = false
+        }
+    }
+
+    private fun syncDoubleColumnPair(source: RecyclerView, allowPositionJump: Boolean = false) {
+        if (!doubleColumnEnabled || doubleColumnSyncing || source.height <= 0) {
+            return
+        }
+        val sourceAnchor = firstVisibleDoubleColumnPage(source) ?: return
+        val target = if (source === binding.recyclerView) {
+            binding.recyclerViewDoubleRight
+        } else {
+            binding.recyclerView
+        }
+        val targetAdapter = if (target === binding.recyclerViewDoubleRight) {
+            mDoubleRightAdapter
+        } else {
+            mDoubleLeftAdapter
+        }
+        val targetPage = sourceAnchor.page
+        val targetPosition = adapterPositionForDoubleColumnPage(targetAdapter, targetPage)
+        if (targetPosition < 0) {
+            return
+        }
+        val targetLayoutManager = target.layoutManager as? LinearLayoutManager ?: return
+        val viewportHeight = (source.height - source.paddingTop - source.paddingBottom)
+            .coerceAtLeast(0)
+        val targetOffset = sourceAnchor.offsetPx + if (source === binding.recyclerView) {
+            -viewportHeight
+        } else {
+            viewportHeight
+        }
+        val targetView = targetLayoutManager.findViewByPosition(targetPosition)
+        if (targetView != null) {
+            val currentTargetTop = targetLayoutManager.getDecoratedTop(targetView)
+            val desiredTargetTop = target.paddingTop + targetOffset
+            val correction = currentTargetTop - desiredTargetTop
+            if (kotlin.math.abs(correction) <= DOUBLE_COLUMN_ALIGNMENT_TOLERANCE_PX) {
+                return
+            }
+            doubleColumnSyncing = true
+            try {
+                // Correct only the residual distance so an idle transition does not re-layout the column.
+                target.scrollBy(0, correction)
+            } finally {
+                doubleColumnSyncing = false
+            }
+        } else if (allowPositionJump) {
+            doubleColumnSyncing = true
+            try {
+                targetLayoutManager.scrollToPositionWithOffset(
+                    targetPosition,
+                    targetOffset,
+                )
+            } finally {
+                doubleColumnSyncing = false
+            }
+        }
+    }
+
+    private fun scheduleDoubleColumnPairSync(
+        source: RecyclerView = binding.recyclerView,
+        allowPositionJump: Boolean = false,
+    ) {
+        if (!doubleColumnEnabled || doubleColumnPairSyncScheduled) {
+            return
+        }
+        doubleColumnPairSyncScheduled = true
+        binding.recyclerView.post {
+            doubleColumnPairSyncScheduled = false
+            if (doubleColumnEnabled) {
+                syncDoubleColumnPair(source, allowPositionJump)
+            }
+        }
+    }
+
+    private fun activeAdapterPositionForPage(
+        page: MangaPage,
+        pageIndex: Int = page.index,
+        adapter: MangaAdapter = activeMangaAdapter(),
+    ): Int {
+        val targetPage = if (doubleColumnEnabled && adapter === mDoubleLeftAdapter) {
+            leftColumnPageFor(page.copy(index = pageIndex))
+        } else {
+            page.copy(index = pageIndex)
+        }
+        return adapter.getItems().indexOfFirst { item ->
+            item is MangaPage && item.chapterIndex == page.chapterIndex && item.index == pageIndex
+        }.takeIf { it >= 0 }
+            ?: targetPage?.let { adapterPositionForDoubleColumnPage(adapter, it) }
+            ?: -1
+    }
+
+    private fun scrollToMangaPagePosition(fullAdapterPosition: Int) {
+        val page = mAdapter.getItem(fullAdapterPosition) as? MangaPage
+        val targetPosition = if (doubleColumnEnabled && page != null) {
+            leftColumnPageFor(page)?.let {
+                adapterPositionForDoubleColumnPage(mDoubleLeftAdapter, it)
+            }?.takeIf { it >= 0 } ?: 0
+        } else {
+            fullAdapterPosition
+        }
+        mLayoutManager.scrollToPositionWithOffset(targetPosition, 0)
+        if (doubleColumnEnabled && page != null) {
+            scheduleDoubleColumnPairSync(allowPositionJump = true)
         }
     }
 
@@ -340,6 +618,7 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
         loadMoreView.gone()
         clearCommittedMangaProgressMinimapRatio()
         mAdapter.submitList(emptyList())
+        submitDoubleColumnLists(emptyList())
     }
 
     override fun upContent() {
@@ -353,24 +632,27 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
             val nextFinish = data.nextFinish
             mAdapter.submitList(list) {
                 if (!ReadManga.isCurrentContent(data)) return@submitList
-                if (loadingViewVisible && curFinish) {
-                    val currentPage = list.getOrNull(pos) ?: return@submitList
-                    binding.infobar.isVisible = true
-                    upInfoBar(currentPage)
-                    mLayoutManager.scrollToPositionWithOffset(pos, 0)
-                    binding.flLoading.isGone = true
-                    loadMoreView.visible()
-                    updateMangaProgressMinimap()
-                    binding.mangaMenu.upBookView()
-                }
+                submitDoubleColumnLists(list) {
+                    if (!ReadManga.isCurrentContent(data)) return@submitDoubleColumnLists
+                    if (loadingViewVisible && curFinish) {
+                        val currentPage = list.getOrNull(pos) ?: return@submitDoubleColumnLists
+                        binding.infobar.isVisible = true
+                        upInfoBar(currentPage)
+                        scrollToMangaPagePosition(pos)
+                        binding.flLoading.isGone = true
+                        loadMoreView.visible()
+                        updateMangaProgressMinimap()
+                        binding.mangaMenu.upBookView()
+                    }
 
-                if (curFinish) {
-                    if (!ReadManga.hasNextChapter) {
-                        loadMoreView.noMore("暂无章节了！")
-                    } else if (nextFinish) {
-                        loadMoreView.stopLoad()
-                    } else {
-                        loadMoreView.startLoad()
+                    if (curFinish) {
+                        if (!ReadManga.hasNextChapter) {
+                            loadMoreView.noMore("暂无章节了！")
+                        } else if (nextFinish) {
+                            loadMoreView.stopLoad()
+                        } else {
+                            loadMoreView.startLoad()
+                        }
                     }
                 }
             }
@@ -452,6 +734,9 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
             clearCommittedMangaProgressMinimapRatio()
             ReadManga.moveToNextChapter(true)
         }
+        binding.btnMangaDoubleColumn.setOnClickListener {
+            setDoubleColumnLayout(!doubleColumnEnabled, save = true)
+        }
     }
 
     private fun setupMangaMinimapAppearance() = binding.run {
@@ -463,6 +748,18 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
         btnMangaMinimapNext.isEnabled = ReadManga.durChapterIndex < ReadManga.chapterSize - 1
         btnMangaMinimapPrevious.alpha = if (btnMangaMinimapPrevious.isEnabled) 1f else .45f
         btnMangaMinimapNext.alpha = if (btnMangaMinimapNext.isEnabled) 1f else .45f
+        btnMangaDoubleColumn.isVisible = isPad
+        if (isPad) {
+            btnMangaDoubleColumn.applyMinimapChapterNavigationStyle(tvMangaDoubleColumn)
+            tvMangaDoubleColumn.setText(
+                if (doubleColumnEnabled) R.string.manga_single_column
+                else R.string.manga_double_column
+            )
+            btnMangaDoubleColumn.contentDescription = getString(
+                if (doubleColumnEnabled) R.string.manga_single_column
+                else R.string.manga_double_column
+            )
+        }
     }
 
     private fun openMangaCatalog() {
@@ -681,14 +978,16 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
         if (pageCount <= 0) {
             return null
         }
+        val scrollPageCount = progressPageCount(pageCount)
         val progress = ratio.coerceIn(0f, 1f)
-        val scaledProgress = (progress * pageCount).coerceIn(0f, pageCount.toFloat())
-        val pageIndex = if (scaledProgress >= pageCount) {
-            pageCount - 1
+        val scaledProgress = (progress * scrollPageCount).coerceIn(0f, scrollPageCount.toFloat())
+        val scrollPageIndex = if (scaledProgress >= scrollPageCount) {
+            scrollPageCount - 1
         } else {
-            floor(scaledProgress).toInt().coerceIn(0, pageCount - 1)
+            floor(scaledProgress).toInt().coerceIn(0, scrollPageCount - 1)
         }
-        val pageOffsetRatio = (scaledProgress - pageIndex).coerceIn(0f, 1f)
+        val pageIndex = scrollPageIndex
+        val pageOffsetRatio = (scaledProgress - scrollPageIndex).coerceIn(0f, 1f)
         val pageScrollSize = mangaPageScrollSizeForPage(pageIndex)
         val offsetPx = (pageScrollSize * pageOffsetRatio).roundToInt()
             .coerceIn(0, pageScrollSize)
@@ -725,16 +1024,21 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
             currentMangaImageUrls(),
         ) ?: return
         binding.mangaProgressMinimap.markBodyImageReady(key)
+        if (doubleColumnEnabled) {
+            // Image dimensions can settle at different times in the two streams.
+            scheduleDoubleColumnPairSync(doubleColumnPairSource ?: binding.recyclerView)
+        }
     }
 
     private fun reloadMangaProgressPage(pageIndex: Int) {
         val itemPos = adapterPositionForMangaPage(pageIndex)
-        if (itemPos > -1 && mAdapter.getItem(itemPos) is MangaPage) {
+        val adapter = activeMangaAdapter()
+        if (itemPos > -1 && adapter.getItem(itemPos) is MangaPage) {
             val holder = binding.recyclerView.findViewHolderForAdapterPosition(itemPos) as? MangaAdapter.PageViewHolder
             if (holder?.binding?.flProgress?.isVisible == false) {
                 return
             }
-            mAdapter.notifyItemChanged(itemPos)
+            adapter.notifyItemChanged(itemPos)
         }
     }
 
@@ -769,14 +1073,20 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
     private fun scrollToMangaChapterEnd(): Boolean {
         val endBoundaryPosition = adapterPositionAfterCurrentMangaChapter(ReadManga.durChapterIndex)
         if (endBoundaryPosition != null) {
-            mLayoutManager.scrollToPositionWithOffset(endBoundaryPosition, currentMangaScrollExtent())
+            val activePosition = activeAdapterPositionForFullItem(endBoundaryPosition)
+            if (activePosition >= 0) {
+                mLayoutManager.scrollToPositionWithOffset(activePosition, currentMangaScrollExtent())
+            }
             return true
         }
         val lastChapterPosition = adapterPositionForLastCurrentMangaChapterItem(ReadManga.durChapterIndex)
         if (lastChapterPosition <= -1) {
             return false
         }
-        mLayoutManager.scrollToPositionWithOffset(lastChapterPosition, 0)
+        val activePosition = activeAdapterPositionForFullItem(lastChapterPosition)
+        if (activePosition >= 0) {
+            mLayoutManager.scrollToPositionWithOffset(activePosition, 0)
+        }
         return true
     }
 
@@ -787,7 +1097,7 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
             return null
         }
         currentMangaChapterScrollProgressRatio()?.let { return it }
-        return pageProgressRatio(pageCount, ReadManga.durChapterPos)
+        return pageProgressRatio(progressPageCount(pageCount), progressPageIndex(ReadManga.durChapterPos))
     }
 
     private fun currentMangaChapterScrollProgressRatio(): Float? {
@@ -798,7 +1108,9 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
         val visiblePage = firstVisibleCurrentMangaPage() ?: return null
         val pageScrollSize = mangaPageScrollSize(visiblePage.view)
         val pageOffset = (-mangaPageScrollStart(visiblePage.view)).coerceIn(0, pageScrollSize)
-        return ((visiblePage.page.index + pageOffset / pageScrollSize.toFloat()) / pageCount)
+        val visiblePageCount = progressPageCount(pageCount)
+        val visiblePageIndex = progressPageIndex(visiblePage.page.index)
+        return ((visiblePageIndex + pageOffset / pageScrollSize.toFloat()) / visiblePageCount)
             .coerceIn(0f, 1f)
     }
 
@@ -807,6 +1119,26 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
             0f
         } else {
             progress.coerceIn(0, pageCount - 1) / pageCount.toFloat()
+        }
+    }
+
+    private fun progressPageCount(pageCount: Int): Int {
+        return pageCount
+    }
+
+    private fun progressPageIndex(pageIndex: Int): Int {
+        return pageIndex
+    }
+
+    private fun activeAdapterPositionForFullItem(fullPosition: Int): Int {
+        val item = mAdapter.getItem(fullPosition) ?: return -1
+        return activeMangaAdapter().getItems().indexOfFirst { candidate ->
+            when {
+                item is MangaPage && candidate is MangaPage ->
+                    item.chapterIndex == candidate.chapterIndex && item.index == candidate.index
+
+                else -> item == candidate
+            }
         }
     }
 
@@ -874,8 +1206,12 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
     }
 
     private fun currentVisibleMangaPage(): MangaPage? {
+        if (doubleColumnEnabled) {
+            firstVisibleCurrentMangaPage()?.page?.let { return it }
+        }
         val centerPosition = binding.recyclerView.findCenterViewPosition()
-        (mAdapter.getItem(centerPosition) as? MangaPage)
+        val activeAdapter = activeMangaAdapter()
+        (activeAdapter.getItem(centerPosition) as? MangaPage)
             ?.takeIf { it.chapterIndex == ReadManga.durChapterIndex }
             ?.let { return it }
 
@@ -888,7 +1224,7 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
             return null
         }
         return (firstVisiblePosition..lastVisiblePosition).asSequence()
-            .mapNotNull { mAdapter.getItem(it) as? MangaPage }
+            .mapNotNull { activeAdapter.getItem(it) as? MangaPage }
             .firstOrNull { it.chapterIndex == ReadManga.durChapterIndex }
     }
 
@@ -899,7 +1235,7 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
             if (adapterPosition == RecyclerView.NO_POSITION) {
                 continue
             }
-            val page = (mAdapter.getItem(adapterPosition) as? MangaPage)
+            val page = (activeMangaAdapter().getItem(adapterPosition) as? MangaPage)
                 ?.takeIf { it.chapterIndex == ReadManga.durChapterIndex }
                 ?: continue
             return VisibleMangaPage(page, child)
@@ -941,6 +1277,15 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
 
     private fun adapterPositionForMangaPage(index: Int): Int {
         val durChapterIndex = ReadManga.durChapterIndex
+        if (doubleColumnEnabled) {
+            val page = currentMangaPageAt(index) ?: return -1
+            val leftPage = leftColumnPageFor(page) ?: return -1
+            return activeMangaAdapter().getItems().indexOfFirst { item ->
+                item is MangaPage &&
+                        item.chapterIndex == leftPage.chapterIndex &&
+                        item.index == leftPage.index
+            }
+        }
         return mAdapter.getItems().fastBinarySearch {
             val page = it as? BaseMangaPage ?: error("unknown item type")
             val chapterDelta = page.chapterIndex - durChapterIndex
@@ -1081,7 +1426,7 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
     }
 
     override fun updateColorFilter(config: MangaColorFilterConfig) {
-        mAdapter.setMangaImageColorFilter(config)
+        forEachMangaAdapter { setMangaImageColorFilter(config) }
         updateWindowBrightness(config.l)
     }
 
@@ -1197,6 +1542,9 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
 
             R.id.menu_enable_horizontal_scroll -> {
                 item.isChecked = !item.isChecked
+                if (doubleColumnEnabled) {
+                    setDoubleColumnLayout(false, save = true)
+                }
                 updateBookMangaReadConfig {
                     mangaPageAnim = null
                     mangaHorizontalScroll = item.isChecked
@@ -1204,7 +1552,7 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
                 mMenu?.findItem(R.id.menu_disable_horizontal_page_snap)?.isVisible =
                     item.isChecked && !mangaDisablePageAnim
                 setHorizontalScroll(item.isChecked)
-                mAdapter.notifyDataSetChanged()
+                activeMangaAdapter().notifyDataSetChanged()
             }
 
             R.id.menu_manga_color_filter -> {
@@ -1239,7 +1587,9 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
             R.id.menu_epaper_manga -> {
                 if (AppConfig.enableMangaEInk) {
                     AppConfig.enableMangaEInk = false
-                    mAdapter.enableMangaEInk(false, AppConfig.mangaEInkThreshold)
+                    forEachMangaAdapter {
+                        enableMangaEInk(false, AppConfig.mangaEInkThreshold)
+                    }
                     mMenu?.let { upMenu(it) }
                 } else {
                     showDialogFragment(MangaEpaperDialog(enableOnConfirm = true))
@@ -1269,7 +1619,7 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
                 mMenu?.findItem(R.id.menu_epaper_manga)?.isChecked = false
                 AppConfig.enableMangaEInk = false
                 mMenu?.findItem(R.id.menu_epaper_manga_setting)?.isVisible = false
-                mAdapter.enableGray(item.isChecked)
+                forEachMangaAdapter { enableGray(item.isChecked) }
             }
         }
         return super.onCompatOptionsItemSelected(item)
@@ -1334,13 +1684,49 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
     }
 
     private fun setRecyclerViewPreloader(maxPreload: Int) {
-        if (mRecyclerViewPreloader != null) {
-            binding.recyclerView.removeOnScrollListener(mRecyclerViewPreloader!!)
+        mangaPreloadListener?.let { binding.recyclerView.removeOnScrollListener(it) }
+        if (maxPreload <= 0) {
+            mangaPreloadListener = null
+            return
         }
-        mRecyclerViewPreloader = RecyclerViewPreloader(
-            Glide.with(this), mAdapter, mSizeProvider, maxPreload
-        )
-        binding.recyclerView.addOnScrollListener(mRecyclerViewPreloader!!)
+        mangaPreloadListener = object : RecyclerView.OnScrollListener() {
+            override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
+                val layoutManager = recyclerView.layoutManager ?: return
+                val (first, last) = when (layoutManager) {
+                    is LinearLayoutManager -> {
+                        layoutManager.findFirstVisibleItemPosition() to
+                                layoutManager.findLastVisibleItemPosition()
+                    }
+
+                    is StaggeredGridLayoutManager -> {
+                        val firstVisible = layoutManager.findFirstVisibleItemPositions(null)
+                            .filter { it != RecyclerView.NO_POSITION }.minOrNull()
+                            ?: return
+                        val lastVisible = layoutManager.findLastVisibleItemPositions(null)
+                            .filter { it != RecyclerView.NO_POSITION }.maxOrNull()
+                            ?: return
+                        firstVisible to lastVisible
+                    }
+
+                    else -> return
+                }
+                if (first == RecyclerView.NO_POSITION || last == RecyclerView.NO_POSITION) {
+                    return
+                }
+                val forward = if (layoutManager.canScrollVertically()) dy >= 0 else dx >= 0
+                val positions = if (forward) {
+                    (last + 1)..(last + maxPreload)
+                } else {
+                    (first - maxPreload until first).reversed()
+                }
+                positions.forEach { position ->
+                    if (position < 0) return@forEach
+                    activeMangaAdapter().getPreloadItems(position).forEach { item ->
+                        activeMangaAdapter().getPreloadRequestBuilder(item)?.preload()
+                    }
+                }
+            }
+        }.also(binding.recyclerView::addOnScrollListener)
     }
 
     private fun setHorizontalScroll(enable: Boolean) {
@@ -1357,6 +1743,77 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
         } else {
             mPagerSnapHelper.attachToRecyclerView(null)
             mLayoutManager.orientation = LinearLayoutManager.VERTICAL
+        }
+    }
+
+    private fun setDoubleColumnContainer(enabled: Boolean) {
+        val leftParams = binding.webtoonFrame.layoutParams as LinearLayout.LayoutParams
+        val rightParams = binding.webtoonFrameDoubleRight.layoutParams as LinearLayout.LayoutParams
+        if (enabled) {
+            leftParams.width = 0
+            leftParams.weight = 1f
+            rightParams.width = 0
+            rightParams.weight = 1f
+            binding.webtoonFrameDoubleRight.isVisible = true
+        } else {
+            leftParams.width = LinearLayout.LayoutParams.MATCH_PARENT
+            leftParams.weight = 0f
+            rightParams.width = 0
+            rightParams.weight = 0f
+            binding.webtoonFrameDoubleRight.isGone = true
+        }
+        binding.webtoonFrame.layoutParams = leftParams
+        binding.webtoonFrameDoubleRight.layoutParams = rightParams
+    }
+
+    private fun setDoubleColumnLayout(enabled: Boolean, save: Boolean) {
+        val shouldEnable = enabled && isPad
+        val currentPage = currentVisibleMangaPage()
+        doubleColumnEnabled = shouldEnable
+        if (shouldEnable) {
+            mDoubleLeftAdapter.isHorizontal = false
+            mDoubleRightAdapter.isHorizontal = false
+            mDoubleLeftAdapter.isDoubleColumn = true
+            mDoubleRightAdapter.isDoubleColumn = true
+            binding.recyclerView.adapter = mDoubleLeftAdapter
+            mPagerSnapHelper.attachToRecyclerView(null)
+            mLayoutManager.orientation = LinearLayoutManager.VERTICAL
+            mDoubleRightLayoutManager.orientation = LinearLayoutManager.VERTICAL
+            setDoubleColumnContainer(true)
+        } else {
+            mDoubleLeftAdapter.isDoubleColumn = false
+            mDoubleRightAdapter.isDoubleColumn = false
+            mAdapter.isDoubleColumn = false
+            binding.recyclerView.adapter = mAdapter
+            setDoubleColumnContainer(false)
+            setHorizontalScroll(mangaHorizontalScroll)
+        }
+        activeMangaAdapter().notifyDataSetChanged()
+        if (shouldEnable) {
+            mDoubleRightAdapter.notifyDataSetChanged()
+        } else {
+            mAdapter.notifyDataSetChanged()
+        }
+        if (save) {
+            ReadManga.book?.let { book ->
+                book.config.mangaDoubleColumn = shouldEnable
+                lifecycleScope.launch(IO) { book.save() }
+            }
+        }
+        if (binding.mangaMenu.isVisible) {
+            setupMangaMinimapAppearance()
+        }
+        val targetFullPosition = currentPage?.let { page ->
+            mAdapter.getItems().indexOfFirst { item ->
+                item is MangaPage && item.chapterIndex == page.chapterIndex && item.index == page.index
+            }
+        } ?: -1
+        if (targetFullPosition >= 0) {
+            binding.recyclerView.post {
+                scrollToMangaPagePosition(targetFullPosition)
+            }
+        } else if (shouldEnable) {
+            scheduleDoubleColumnPairSync()
         }
     }
 
@@ -1420,7 +1877,10 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
     }
 
     private fun applyBookMangaReadConfig() {
-        setHorizontalScroll(mangaHorizontalScroll)
+        setDoubleColumnLayout(
+            enabled = isPad && ReadManga.book?.config?.mangaDoubleColumn == true,
+            save = false,
+        )
         setDisableClickScroll(mangaDisableClickScroll)
         setDisableMangaScale(mangaDisableScale)
         mScrollTimer.setSpeed(mangaAutoPageSpeed)
@@ -1437,14 +1897,18 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
 
     private fun setDisableMangaScale(disable: Boolean) {
         binding.webtoonFrame.disableMangaScale = disable
+        binding.webtoonFrameDoubleRight.disableMangaScale = disable
         binding.recyclerView.disableMangaScale = disable
+        binding.recyclerViewDoubleRight.disableMangaScale = disable
         if (disable) {
             binding.recyclerView.resetZoom()
+            binding.recyclerViewDoubleRight.resetZoom()
         }
     }
 
     private fun setDisableClickScroll(disable: Boolean) {
         binding.webtoonFrame.disabledClickScroll = disable
+        binding.webtoonFrameDoubleRight.disabledClickScroll = disable
     }
 
     private fun upLayoutInDisplayCutoutMode() {
@@ -1554,21 +2018,17 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
     }
 
     override fun previewEpaper(enable: Boolean, value: Int) {
-        if (enable) {
-            mAdapter.enableMangaEInk(true, value)
-        } else {
-            mAdapter.enableMangaEInk(false, value)
-        }
+        forEachMangaAdapter { enableMangaEInk(enable, value) }
     }
 
     override fun restoreEpaper(enable: Boolean, value: Int) {
-        mAdapter.enableMangaEInk(enable, value)
+        forEachMangaAdapter { enableMangaEInk(enable, value) }
     }
 
     override fun enableEpaper(value: Int) {
         AppConfig.enableMangaEInk = true
         AppConfig.enableMangaGray = false
-        mAdapter.enableMangaEInk(true, value)
+        forEachMangaAdapter { enableMangaEInk(true, value) }
         mMenu?.let { upMenu(it) }
         binding.mangaMenu.runMenuOut()
     }

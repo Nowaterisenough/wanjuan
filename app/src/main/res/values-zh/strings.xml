@@ -328,6 +328,8 @@
     <string name="progress_show">%1$s      进度 %2$d/%3$d</string>
     <string name="chapter_progress_minimap">章节进度</string>
     <string name="manga_progress_minimap">漫画进度</string>
+    <string name="manga_double_column">双列阅读</string>
+    <string name="manga_single_column">单列阅读</string>
     <string name="tts_fix">请安装并选择中文 TTS！</string>
     <string name="tts_init_failed">TTS 初始化失败！</string>
     <string name="jf_convert">简繁转换</string>

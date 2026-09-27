@@ -479,6 +479,7 @@ data class Book(
         var mangaDisableScale: Boolean? = null,
         var mangaAutoPageSpeed: Int? = null,
         var mangaPageAnim: Int? = null,
+        var mangaDoubleColumn: Boolean? = null,
         var readerAppearance: String? = null
     ) : Parcelable
 

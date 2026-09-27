@@ -51,15 +51,16 @@ class WebtoonFrame : FrameLayout {
         super.onAttachedToWindow()
         recycler?.tapListener = { ev ->
             when {
-                mcRect.contains(ev.rawX, ev.rawY) -> {
+                // The hit rectangles are measured in this frame's local coordinates.
+                mcRect.contains(ev.x, ev.y) -> {
                     mTouchMiddle?.invoke()
                 }
 
-                blRect.contains(ev.rawX, ev.rawY) && !disabledClickScroll -> {
+                blRect.contains(ev.x, ev.y) && !disabledClickScroll -> {
                     mPrevPage?.invoke()
                 }
 
-                brRect.contains(ev.rawX, ev.rawY) && !disabledClickScroll -> {
+                brRect.contains(ev.x, ev.y) && !disabledClickScroll -> {
                     mNextPage?.invoke()
                 }
             }
