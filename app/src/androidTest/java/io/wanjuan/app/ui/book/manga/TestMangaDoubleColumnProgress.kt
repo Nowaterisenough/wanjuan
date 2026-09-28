@@ -32,7 +32,126 @@ class TestMangaDoubleColumnProgress {
     private val imageHeights = List(48) { 240 + it % 4 * 120 }
 
     @Test
-    fun bothColumnsFollowEveryPreviewBeforeTheSliderIsReleased() {
+    fun bothColumnsFollowEveryPreviewBeforeTheSliderIsReleased() = withReader { scenario ->
+        scenario.onActivity {
+            assertEquals(View.VISIBLE, it.views.webtoonFrameDoubleRight.visibility)
+            it.views.mangaMenu.runMenuIn(anim = false)
+        }
+        await(scenario) { it.views.mangaProgressMinimapPanel.visibility == View.VISIBLE && it.views.mangaProgressMinimap.height > 0 }
+
+        val downTime = SystemClock.uptimeMillis()
+        // Keep one drag active across distant jumps and direction changes.
+        listOf(.2f, .7f, .35f, .36f, .37f, .1f, .6f).forEachIndexed { index, ratio ->
+            var previousLeft = 0
+            var expectedPage = 0
+            scenario.onActivity { activity ->
+                previousLeft = contentOffset(activity.views.recyclerView)
+                val minimap = activity.views.mangaProgressMinimap
+                val event = MotionEvent.obtain(downTime, SystemClock.uptimeMillis(),
+                    if (index == 0) MotionEvent.ACTION_DOWN else MotionEvent.ACTION_MOVE,
+                    minimap.width / 2f, minimap.height * ratio, 0)
+                try { minimap.dispatchTouchEvent(event) } finally { event.recycle() }
+                expectedPage = ReadManga.durChapterPos
+                assertTrue("Preview must run before release", minimap.isDraggingProgress())
+            }
+            await(scenario) { activity ->
+                val left = activity.views.recyclerView
+                val right = activity.views.recyclerViewDoubleRight
+                val first = (left.layoutManager as LinearLayoutManager).findFirstVisibleItemPosition()
+                val gap = contentOffset(right) - contentOffset(left)
+                first >= expectedPage && contentOffset(left) != previousLeft &&
+                    visibleImagesLoaded(left) && visibleImagesLoaded(right) &&
+                    abs(gap - (left.height - left.paddingTop - left.paddingBottom)) <= 2
+            }
+            scenario.onActivity { assertTrue(it.views.mangaProgressMinimap.isDraggingProgress()) }
+        }
+        scenario.onActivity { activity ->
+            val minimap = activity.views.mangaProgressMinimap
+            val event = MotionEvent.obtain(downTime, SystemClock.uptimeMillis(), MotionEvent.ACTION_UP,
+                minimap.width / 2f, minimap.height * .6f, 0)
+            try { minimap.dispatchTouchEvent(event) } finally { event.recycle() }
+        }
+        await(scenario) {
+            val left = it.views.recyclerView
+            abs(contentOffset(it.views.recyclerViewDoubleRight) - contentOffset(left) - left.height) <= 2
+        }
+    }
+
+    @Test
+    fun draggingEitherColumnKeepsItsPositionWhenTheFollowerRelayouts() = withReader { scenario ->
+        scenario.onActivity { activity ->
+            ReadMangaActivity::class.java.getDeclaredMethod(
+                "scrollToMangaProgress", Float::class.javaPrimitiveType, Boolean::class.javaPrimitiveType,
+            ).apply { isAccessible = true }.invoke(activity, .4f, false)
+        }
+        await(scenario, ::columnsAligned)
+
+        for (dragRight in listOf(true, false)) {
+            val downTime = SystemClock.uptimeMillis()
+            var fingerY = 0f
+            var activeOffset = 0
+            scenario.onActivity { activity ->
+                val active = if (dragRight) activity.views.recyclerViewDoubleRight else activity.views.recyclerView
+                fingerY = active.height * .6f
+                touch(active, downTime, MotionEvent.ACTION_DOWN, fingerY)
+            }
+            SystemClock.sleep(32)
+            scenario.onActivity { activity ->
+                val active = if (dragRight) activity.views.recyclerViewDoubleRight else activity.views.recyclerView
+                fingerY -= 80f
+                touch(active, downTime, MotionEvent.ACTION_MOVE, fingerY)
+                assertEquals(RecyclerView.SCROLL_STATE_DRAGGING, active.scrollState)
+            }
+            await(scenario, ::columnsAligned)
+            scenario.onActivity { activity ->
+                val active = if (dragRight) activity.views.recyclerViewDoubleRight else activity.views.recyclerView
+                val follower = if (dragRight) activity.views.recyclerView else activity.views.recyclerViewDoubleRight
+                activeOffset = contentOffset(active)
+                val position = (active.layoutManager as LinearLayoutManager).findFirstVisibleItemPosition()
+                // Force a deferred follower layout, as happens when image dimensions resolve.
+                (follower.layoutManager as LinearLayoutManager).scrollToPositionWithOffset(position, -140)
+            }
+            await(scenario, ::columnsAligned)
+            scenario.onActivity { activity ->
+                val active = if (dragRight) activity.views.recyclerViewDoubleRight else activity.views.recyclerView
+                assertEquals("Follower layout must not move the column under the finger", activeOffset, contentOffset(active))
+            }
+            for (distance in listOf(120, 120, -120, -120)) {
+                scenario.onActivity { activity ->
+                    val active = if (dragRight) activity.views.recyclerViewDoubleRight else activity.views.recyclerView
+                    fingerY -= distance
+                    touch(active, downTime, MotionEvent.ACTION_MOVE, fingerY)
+                    activeOffset += distance
+                }
+                await(scenario, ::columnsAligned)
+                scenario.onActivity { activity ->
+                    val active = if (dragRight) activity.views.recyclerViewDoubleRight else activity.views.recyclerView
+                    assertEquals("Content must follow the finger without extra corrections", activeOffset, contentOffset(active))
+                }
+                SystemClock.sleep(32)
+            }
+            scenario.onActivity { activity ->
+                val active = if (dragRight) activity.views.recyclerViewDoubleRight else activity.views.recyclerView
+                touch(active, downTime, MotionEvent.ACTION_CANCEL, fingerY)
+            }
+            await(scenario, ::columnsAligned)
+        }
+    }
+
+    private fun touch(view: RecyclerView, downTime: Long, action: Int, y: Float) {
+        val event = MotionEvent.obtain(downTime, SystemClock.uptimeMillis(), action, view.width / 2f, y, 0)
+        try { view.dispatchTouchEvent(event) } finally { event.recycle() }
+    }
+
+    private fun columnsAligned(activity: ReadMangaActivity): Boolean {
+        val left = activity.views.recyclerView
+        val right = activity.views.recyclerViewDoubleRight
+        return !left.isLayoutRequested && !right.isLayoutRequested &&
+            visibleImagesLoaded(left) && visibleImagesLoaded(right) &&
+            abs(contentOffset(right) - contentOffset(left) - left.height + left.paddingTop + left.paddingBottom) <= 2
+    }
+
+    private fun withReader(test: (ActivityScenario<ReadMangaActivity>) -> Unit) {
         val context = instrumentation.targetContext
         val directory = File(context.cacheDir, "double-column-progress-${System.nanoTime()}").apply { mkdirs() }
         val pages = imageHeights.mapIndexed { index, height ->
@@ -69,48 +188,7 @@ class TestMangaDoubleColumnProgress {
                     activity.upContent()
                 }
                 await(scenario) { it.views.flLoading.visibility != View.VISIBLE && visibleImagesLoaded(it.views.recyclerView) }
-                scenario.onActivity {
-                    assertEquals(View.VISIBLE, it.views.webtoonFrameDoubleRight.visibility)
-                    it.views.mangaMenu.runMenuIn(anim = false)
-                }
-                await(scenario) { it.views.mangaProgressMinimapPanel.visibility == View.VISIBLE && it.views.mangaProgressMinimap.height > 0 }
-
-                val downTime = SystemClock.uptimeMillis()
-                // Keep one drag active across distant jumps and direction changes.
-                listOf(.2f, .7f, .35f, .36f, .37f, .1f, .6f).forEachIndexed { index, ratio ->
-                    var previousLeft = 0
-                    var expectedPage = 0
-                    scenario.onActivity { activity ->
-                        previousLeft = contentOffset(activity.views.recyclerView)
-                        val minimap = activity.views.mangaProgressMinimap
-                        val event = MotionEvent.obtain(downTime, SystemClock.uptimeMillis(),
-                            if (index == 0) MotionEvent.ACTION_DOWN else MotionEvent.ACTION_MOVE,
-                            minimap.width / 2f, minimap.height * ratio, 0)
-                        try { minimap.dispatchTouchEvent(event) } finally { event.recycle() }
-                        expectedPage = ReadManga.durChapterPos
-                        assertTrue("Preview must run before release", minimap.isDraggingProgress())
-                    }
-                    await(scenario) { activity ->
-                        val left = activity.views.recyclerView
-                        val right = activity.views.recyclerViewDoubleRight
-                        val first = (left.layoutManager as LinearLayoutManager).findFirstVisibleItemPosition()
-                        val gap = contentOffset(right) - contentOffset(left)
-                        first >= expectedPage && contentOffset(left) != previousLeft &&
-                            visibleImagesLoaded(left) && visibleImagesLoaded(right) &&
-                            abs(gap - (left.height - left.paddingTop - left.paddingBottom)) <= 2
-                    }
-                    scenario.onActivity { assertTrue(it.views.mangaProgressMinimap.isDraggingProgress()) }
-                }
-                scenario.onActivity { activity ->
-                    val minimap = activity.views.mangaProgressMinimap
-                    val event = MotionEvent.obtain(downTime, SystemClock.uptimeMillis(), MotionEvent.ACTION_UP,
-                        minimap.width / 2f, minimap.height * .6f, 0)
-                    try { minimap.dispatchTouchEvent(event) } finally { event.recycle() }
-                }
-                await(scenario) {
-                    val left = it.views.recyclerView
-                    abs(contentOffset(it.views.recyclerViewDoubleRight) - contentOffset(left) - left.height) <= 2
-                }
+                test(scenario)
             }
         } finally {
             AppConfig.hideMangaTitle = hideTitle

@@ -135,6 +135,7 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
     private var doubleColumnProgressSeeking = false
     private var doubleColumnProgressSeekPending = false
     private var doubleColumnPairSyncScheduled = false
+    private var doubleColumnPairAllowPositionJump = false
     private var doubleColumnPairSource: RecyclerView? = null
     private var mangaPreloadListener: RecyclerView.OnScrollListener? = null
     private var syncDialog: AlertDialog? = null
@@ -283,6 +284,7 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
                     !binding.mangaProgressMinimap.isDraggingProgress()
                 ) {
                     clearCommittedMangaProgressMinimapRatio()
+                    beginDoubleColumnScroll(this)
                 }
                 false
             }
@@ -327,6 +329,15 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
             setHasFixedSize(false)
             setDisableClickScroll(mangaDisableClickScroll)
             disableMangaScale = mangaDisableScale
+            setOnTouchListener { _, event ->
+                if (event.actionMasked == MotionEvent.ACTION_DOWN &&
+                    !binding.mangaProgressMinimap.isDraggingProgress()
+                ) {
+                    clearCommittedMangaProgressMinimapRatio()
+                    beginDoubleColumnScroll(this)
+                }
+                false
+            }
         }
         binding.recyclerView.addOnScrollListener(doubleColumnLeftScrollListener)
         binding.recyclerViewDoubleRight.addOnScrollListener(doubleColumnRightScrollListener)
@@ -380,8 +391,7 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
 
         override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
             if (newState == RecyclerView.SCROLL_STATE_DRAGGING) {
-                doubleColumnProgressSeeking = false
-                doubleColumnPairSource = recyclerView
+                beginDoubleColumnScroll(recyclerView)
             } else if (newState == RecyclerView.SCROLL_STATE_IDLE &&
                 doubleColumnPairSource === recyclerView
             ) {
@@ -392,16 +402,13 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
 
     private val doubleColumnRightScrollListener = object : RecyclerView.OnScrollListener() {
         override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
-            // A follower's deferred layout must not move the column driving the seek.
-            if (dy == 0 && doubleColumnPairSource !== recyclerView) return
             syncDoubleColumnScroll(recyclerView, binding.recyclerView, dy)
             syncDoubleColumnPair(recyclerView)
         }
 
         override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
             if (newState == RecyclerView.SCROLL_STATE_DRAGGING) {
-                doubleColumnProgressSeeking = false
-                doubleColumnPairSource = recyclerView
+                beginDoubleColumnScroll(recyclerView)
             } else if (newState == RecyclerView.SCROLL_STATE_IDLE &&
                 doubleColumnPairSource === recyclerView
             ) {
@@ -414,13 +421,25 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
         private const val DOUBLE_COLUMN_ALIGNMENT_TOLERANCE_PX = 2
     }
 
+    private fun beginDoubleColumnScroll(source: RecyclerView) {
+        if (!doubleColumnEnabled) return
+        doubleColumnProgressSeeking = false
+        doubleColumnPairSource = source
+        val follower = if (source === binding.recyclerView) {
+            binding.recyclerViewDoubleRight
+        } else {
+            binding.recyclerView
+        }
+        follower.stopScroll()
+    }
+
     private data class DoubleColumnScrollAnchor(
         val page: MangaPage,
         val adapterPosition: Int,
         val offsetPx: Int,
     )
 
-    private fun firstVisibleDoubleColumnPage(recyclerView: RecyclerView): DoubleColumnScrollAnchor? {
+    private fun doubleColumnSeamAnchor(recyclerView: RecyclerView): DoubleColumnScrollAnchor? {
         val layoutManager = recyclerView.layoutManager as? LinearLayoutManager ?: return null
         val firstPosition = layoutManager.findFirstVisibleItemPosition()
         val lastPosition = layoutManager.findLastVisibleItemPosition()
@@ -432,7 +451,13 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
         } else {
             mDoubleLeftAdapter
         }
-        for (position in firstPosition..lastPosition) {
+        // Use the adjoining edges, avoiding offscreen pages whose heights may still change.
+        val positions = if (recyclerView === binding.recyclerView) {
+            lastPosition downTo firstPosition
+        } else {
+            firstPosition..lastPosition
+        }
+        for (position in positions) {
             val page = adapter.getItem(position) as? MangaPage ?: continue
             val view = layoutManager.findViewByPosition(position) ?: continue
             val offsetPx = layoutManager.getDecoratedTop(view) - recyclerView.paddingTop
@@ -480,7 +505,9 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
     }
 
     private fun syncDoubleColumnScroll(source: RecyclerView, target: RecyclerView, dy: Int) {
-        if (!doubleColumnEnabled || doubleColumnSyncing || doubleColumnProgressSeekPending || dy == 0) {
+        if (!doubleColumnEnabled || doubleColumnSyncing || doubleColumnProgressSeekPending || dy == 0 ||
+            source !== (doubleColumnPairSource ?: binding.recyclerView) || target.isLayoutRequested
+        ) {
             return
         }
         doubleColumnSyncing = true
@@ -497,24 +524,22 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
         if (!doubleColumnEnabled || doubleColumnSyncing || doubleColumnProgressSeekPending || source.height <= 0) {
             return
         }
-        var sourceAnchor = firstVisibleDoubleColumnPage(source) ?: return
-        if (doubleColumnProgressSeeking && source === binding.recyclerView) {
-            // Anchor at the seam so unloaded pages above it cannot shift the follower.
-            val manager = source.layoutManager as? LinearLayoutManager ?: return
-            val position = manager.findLastVisibleItemPosition()
-            val page = mDoubleLeftAdapter.getItem(position) as? MangaPage
-            val child = manager.findViewByPosition(position)
-            if (page != null && child != null) {
-                sourceAnchor = DoubleColumnScrollAnchor(
-                    page, position, manager.getDecoratedTop(child) - source.paddingTop,
-                )
-            }
+        val driver = doubleColumnPairSource ?: binding.recyclerView
+        if (source !== driver) {
+            // Deferred follower callbacks must never correct the column under the finger.
+            scheduleDoubleColumnPairSync(driver, allowPositionJump = true)
+            return
         }
         val target = if (source === binding.recyclerView) {
             binding.recyclerViewDoubleRight
         } else {
             binding.recyclerView
         }
+        if (source.isLayoutRequested || target.isLayoutRequested) {
+            scheduleDoubleColumnPairSync(source, allowPositionJump)
+            return
+        }
+        val sourceAnchor = doubleColumnSeamAnchor(source) ?: return
         val targetAdapter = if (target === binding.recyclerViewDoubleRight) {
             mDoubleRightAdapter
         } else {
@@ -565,16 +590,22 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
         source: RecyclerView = binding.recyclerView,
         allowPositionJump: Boolean = false,
     ) {
-        if (!doubleColumnEnabled || doubleColumnPairSyncScheduled) {
+        if (!doubleColumnEnabled) {
             return
         }
+        doubleColumnPairAllowPositionJump = doubleColumnPairAllowPositionJump || allowPositionJump
+        if (doubleColumnPairSyncScheduled) return
         doubleColumnPairSyncScheduled = true
-        binding.recyclerView.post {
+        binding.mangaColumnsContainer.doOnPreDraw {
             doubleColumnPairSyncScheduled = false
+            val allowJump = doubleColumnPairAllowPositionJump
+            doubleColumnPairAllowPositionJump = false
             if (doubleColumnEnabled) {
-                syncDoubleColumnPair(source, allowPositionJump)
+                // Resolve the driver now; the user may have switched columns since scheduling.
+                syncDoubleColumnPair(doubleColumnPairSource ?: source, allowJump)
             }
         }
+        binding.mangaColumnsContainer.invalidate()
     }
 
     private fun activeAdapterPositionForPage(
@@ -595,6 +626,7 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
     }
 
     private fun scrollToMangaPagePosition(fullAdapterPosition: Int) {
+        beginDoubleColumnScroll(binding.recyclerView)
         val page = mAdapter.getItem(fullAdapterPosition) as? MangaPage
         val targetPosition = if (doubleColumnEnabled && page != null) {
             leftColumnPageFor(page)?.let {
@@ -1040,19 +1072,19 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
     }
 
     private fun onMangaPageImageReady(page: MangaPage) {
-        val key = page.thumbnailKeyIfCurrent(
-            ReadManga.durChapterIndex,
-            currentMangaImageUrls(),
-        ) ?: return
-        binding.mangaProgressMinimap.markBodyImageReady(key)
         if (doubleColumnEnabled) {
             // Image dimensions can settle at different times in the two streams.
             if (doubleColumnProgressSeeking) {
                 scheduleDoubleColumnProgressSeekSync()
             } else {
-                scheduleDoubleColumnPairSync(doubleColumnPairSource ?: binding.recyclerView)
+                scheduleDoubleColumnPairSync(doubleColumnPairSource ?: binding.recyclerView, allowPositionJump = true)
             }
         }
+        val key = page.thumbnailKeyIfCurrent(
+            ReadManga.durChapterIndex,
+            currentMangaImageUrls(),
+        ) ?: return
+        binding.mangaProgressMinimap.markBodyImageReady(key)
     }
 
     private fun reloadMangaProgressPage(pageIndex: Int) {
@@ -1454,6 +1486,7 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
         if (!binding.recyclerView.canScroll(1)) {
             return
         }
+        beginDoubleColumnScroll(binding.recyclerView)
         val time = ceil(16f / distance * 10000).toInt()
         binding.recyclerView.smoothScrollBy(10000, 10000, mLinearInterpolator, time)
     }
@@ -1819,6 +1852,8 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
         val shouldEnable = enabled && isPad
         val currentPage = currentVisibleMangaPage()
         doubleColumnEnabled = shouldEnable
+        doubleColumnPairSource = binding.recyclerView
+        doubleColumnProgressSeeking = false
         if (shouldEnable) {
             mDoubleLeftAdapter.isHorizontal = false
             mDoubleRightAdapter.isHorizontal = false
@@ -1981,6 +2016,7 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
         if (!binding.recyclerView.canScroll(direction)) {
             return
         }
+        beginDoubleColumnScroll(binding.recyclerView)
         var dx = 0
         var dy = 0
         if (mangaHorizontalScroll) {
