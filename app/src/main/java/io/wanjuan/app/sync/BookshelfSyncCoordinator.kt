@@ -1,6 +1,7 @@
 package io.wanjuan.app.sync
 
 import io.wanjuan.app.constant.AppLog
+import io.wanjuan.app.constant.BookType
 import io.wanjuan.app.data.appDb
 import io.wanjuan.app.data.AppDatabase
 import io.wanjuan.app.data.entities.Book
@@ -56,7 +57,7 @@ class BookshelfObjectApplier(
     fun applyRemoteDelete(bookSyncId: String): Boolean {
         var deleted = false
         store.runInTransaction {
-            val book = store.allBooks().firstOrNull { SyncIds.bookId(it) == bookSyncId }
+            val book = store.allBooks().firstOrNull { !it.isNotShelf && SyncIds.bookId(it) == bookSyncId }
                 ?: return@runInTransaction
             store.deleteBook(book)
             deleted = true
@@ -66,7 +67,7 @@ class BookshelfObjectApplier(
 
     fun applyRemoteOrder(payload: SyncOrderPayload) {
         store.runInTransaction {
-            val books = store.allBooks()
+            val books = store.allBooks().filterNot { it.isNotShelf }
             val byId = books.associateBy(SyncIds::bookId)
             val ordered = buildList {
                 payload.items.distinct().mapNotNullTo(this) { byId[it] }
@@ -96,7 +97,7 @@ class BookshelfSyncCoordinator(
     private val bookState = BookSyncState(db, clock, deviceIdProvider, groupCoordinator)
 
     fun hasBook(bookSyncId: String): Boolean =
-        db.bookDao.all.any { SyncIds.bookId(it) == bookSyncId }
+        db.bookDao.all.any { !it.isNotShelf && SyncIds.bookId(it) == bookSyncId }
 
     fun deleteLocalBook(book: Book): Boolean {
         var deleted = false
@@ -131,6 +132,7 @@ class BookshelfSyncCoordinator(
     }
 
     fun enqueueBook(book: Book) {
+        if (book.isNotShelf) return
         db.runInTransaction { repository.queueBook(bookState.capture(book)) }
     }
 
@@ -138,7 +140,7 @@ class BookshelfSyncCoordinator(
         val payload = SyncOrderPayload(
             updatedAt = clock.now(),
             updatedByDeviceId = deviceIdProvider(),
-            items = books.sortedBy { it.order }.map { SyncIds.bookId(it) }
+            items = books.filterNot { it.isNotShelf }.sortedBy { it.order }.map { SyncIds.bookId(it) }
         )
         repository.markDirty(SyncObjectType.BookshelfOrder, "bookshelf", payload, "order")
     }
@@ -148,6 +150,7 @@ class BookshelfSyncCoordinator(
         shelfUpdatedAt: Long = clock.now(),
         catalogUpdatedAt: Long = clock.now()
     ) {
+        if (book.isNotShelf) return
         val payload = BookSyncMapper.toBookPayload(
             book = book,
             deviceId = deviceIdProvider(),
@@ -159,16 +162,19 @@ class BookshelfSyncCoordinator(
     }
 
     suspend fun pushBookPayload(payload: SyncBookPayload) {
+        if (payload.book.type and BookType.notShelf != 0) return
         val merged = client.mergeBook(payload)
         db.runInTransaction { bookState.record(merged) }
         runCatching { client.delete("tombstones/books/${payload.bookSyncId}.json") }
     }
 
     suspend fun pullProgress(book: Book): BookProgress? {
+        if (book.isNotShelf) return null
         if (!AppWebDav.isConfigured) return null
         val id = SyncIds.bookId(book)
         val payload = client.download<SyncBookPayload>("books/$id.json") ?: return null
         if (payload.bookSyncId != id) return null
+        if (payload.book.type and BookType.notShelf != 0) return null
         val remoteUpdatedAt = payload.effectiveProgressUpdatedAt()
         if (!SyncMerge.remoteProgressWins(book.localProgressUpdatedAt(), remoteUpdatedAt)) {
             return null
@@ -188,6 +194,7 @@ class BookshelfSyncCoordinator(
      * existing remote object so a progress upload cannot overwrite newer shelf/catalog fields.
      */
     suspend fun pushProgress(book: Book, toast: Boolean = false, force: Boolean = false): Boolean {
+        if (book.isNotShelf) return false
         if (!AppConfig.webDavObjectSync) return false
         if (!AppWebDav.isConfigured) return false
         if (!NetworkUtils.isAvailable()) return false
@@ -195,15 +202,16 @@ class BookshelfSyncCoordinator(
             val id = SyncIds.bookId(book)
             val localUpdatedAt = book.localProgressUpdatedAt()
             val uploaded = client.updateBook(id) { remote ->
-                if (!force && remote != null && SyncMerge.remoteProgressWins(
+                val remoteOnShelf = remote?.takeIf { it.book.type and BookType.notShelf == 0 }
+                if (!force && remoteOnShelf != null && SyncMerge.remoteProgressWins(
                         localUpdatedAt,
-                        remote.effectiveProgressUpdatedAt()
+                        remoteOnShelf.effectiveProgressUpdatedAt()
                     )
                 ) {
                     return@updateBook null
                 }
                 val deviceId = deviceIdProvider()
-                val payload = if (remote == null) {
+                val payload = if (remoteOnShelf == null) {
                     BookSyncMapper.toBookPayload(
                         book = book,
                         deviceId = deviceId,
@@ -213,8 +221,8 @@ class BookshelfSyncCoordinator(
                         groupSyncIds = groupCoordinator.localMaskToRemoteGroupIds(book.group)
                     )
                 } else {
-                    remote.copy(
-                        book = remote.book.withProgressFrom(book, localUpdatedAt),
+                    remoteOnShelf.copy(
+                        book = remoteOnShelf.book.withProgressFrom(book, localUpdatedAt),
                         progressUpdatedAt = localUpdatedAt,
                         progressUpdatedByDeviceId = deviceId
                     )
@@ -249,6 +257,7 @@ class BookshelfSyncCoordinator(
     }
 
     fun applyRemoteBook(payload: SyncBookPayload): SyncApplyOutcome {
+        if (payload.book.type and BookType.notShelf != 0) return SyncApplyOutcome.Skipped
         var outcome = SyncApplyOutcome.Updated
         repository.applyRemote {
             db.runInTransaction {
@@ -269,7 +278,7 @@ class BookshelfSyncCoordinator(
                         groupSyncIds = groupCoordinator.localMaskToRemoteGroupIds(localMask)
                     )
                 )
-                val merged = if (local == null) remote else {
+                val merged = if (local == null || local.isNotShelf) remote else {
                     BookSyncMerge.merge(bookState.capture(local, newLocalBook = false), remote)
                 }
                 val book = merged.book.toBook(merged.localGroupMask(groupCoordinator))
@@ -303,7 +312,7 @@ class BookshelfSyncCoordinator(
         val payload = SyncOrderPayload(
             updatedAt = clock.now(),
             updatedByDeviceId = deviceIdProvider(),
-            items = books.sortedBy { it.order }.map { SyncIds.bookId(it) }
+            items = books.filterNot { it.isNotShelf }.sortedBy { it.order }.map { SyncIds.bookId(it) }
         )
         client.upload("order/bookshelf.json", payload)
     }
@@ -333,6 +342,7 @@ class BookshelfSyncCoordinator(
     }
 
     suspend fun pushBookDelete(book: Book) {
+        if (book.isNotShelf) return
         pushBookDeleteById(SyncIds.bookId(book))
     }
 

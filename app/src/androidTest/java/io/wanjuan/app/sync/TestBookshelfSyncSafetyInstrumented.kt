@@ -11,6 +11,7 @@ import io.wanjuan.app.lib.webdav.Authorization
 import io.wanjuan.app.sync.mapper.BookSyncMapper
 import io.wanjuan.app.sync.model.SyncBookPayload
 import io.wanjuan.app.sync.model.SyncObjectType
+import io.wanjuan.app.sync.model.SyncOrderPayload
 import io.wanjuan.app.sync.model.SyncTombstonePayload
 import io.wanjuan.app.sync.remote.SyncRemoteFile
 import io.wanjuan.app.sync.remote.SyncRemoteStore
@@ -162,6 +163,53 @@ class TestBookshelfSyncSafetyInstrumented {
     }
 
     @Test
+    fun temporaryBooksAreExcludedFromSnapshotsOrdersAndExplicitQueues() {
+        val a = replica("a")
+        val shelved = book("shelved")
+        val temporary = book("temporary").copy(name = "Preview", type = BookType.text or BookType.notShelf)
+        a.db.bookDao.insert(shelved, temporary)
+
+        val snapshots = a.snapshots.currentSnapshots()
+        a.books.enqueueBook(temporary)
+        a.books.enqueueBookDelete(temporary)
+        a.repository.queueBook(payload(temporary, 200))
+
+        assertEquals(listOf(SyncIds.bookId(shelved)), snapshots.filter { it.objectType == SyncObjectType.Book }.map { it.objectId })
+        val order = GSON.fromJsonObject<SyncOrderPayload>(snapshots.single { it.objectType == SyncObjectType.BookshelfOrder }.payloadJson).getOrThrow()
+        assertEquals(listOf(SyncIds.bookId(shelved)), order.items)
+        assertEquals(0, a.db.syncOutboxDao.count())
+    }
+
+    @Test
+    fun deletingPreviewAndDiscardingItsLegacyQueueDoesNotPublishAnything() = runBlocking {
+        val a = replica("a")
+        val temporary = book().copy(type = BookType.text or BookType.notShelf)
+        a.db.bookDao.insert(temporary)
+        a.repository.markDirty(SyncObjectType.Book, SyncIds.bookId(temporary), payload(temporary, 100), "upsert")
+
+        assertTrue(a.books.deleteLocalBook(temporary))
+        assertTrue(a.sync().isSuccess)
+
+        assertEquals(0, a.db.bookDao.allBookCount)
+        assertEquals(0, a.db.syncOutboxDao.count())
+        assertTrue(remote.objects.isEmpty())
+    }
+
+    @Test
+    fun queuedPreviewIsDiscardedEvenWhenThePreviewStillExists() = runBlocking {
+        val a = replica("a")
+        val temporary = book().copy(type = BookType.text or BookType.notShelf)
+        a.db.bookDao.insert(temporary)
+        a.repository.markDirty(SyncObjectType.Book, SyncIds.bookId(temporary), payload(temporary, 100), "upsert")
+
+        assertTrue(a.sync().isSuccess)
+
+        assertEquals(0, a.db.syncOutboxDao.count())
+        assertTrue(remote.objects.isEmpty())
+        assertNotNull(a.db.bookDao.getBook(temporary.bookUrl))
+    }
+
+    @Test
     fun stalePreviewCannotDeleteABookThatWasAddedToTheShelf() {
         val a = replica("a")
         val shelved = book()
@@ -171,6 +219,20 @@ class TestBookshelfSyncSafetyInstrumented {
         assertFalse(a.books.deleteLocalBook(preview))
 
         assertEquals(shelved, a.db.bookDao.all.single())
+        assertEquals(0, a.db.syncOutboxDao.count())
+    }
+
+    @Test
+    fun remotePreviewCannotHideShelvedBookOrOverrideItsPendingUpload() = runBlocking {
+        val a = replica("a")
+        val shelved = book()
+        a.db.bookDao.insert(shelved)
+        remote.put(payload(shelved.copy(type = shelved.type or BookType.notShelf), 900))
+
+        assertTrue(a.sync().isSuccess)
+
+        assertEquals(BookType.text, a.db.bookDao.all.single().type)
+        assertEquals(BookType.text, remote.book(shelved).book.type)
         assertEquals(0, a.db.syncOutboxDao.count())
     }
 

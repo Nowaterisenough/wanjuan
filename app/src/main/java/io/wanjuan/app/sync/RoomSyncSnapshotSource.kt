@@ -1,6 +1,7 @@
 package io.wanjuan.app.sync
 
 import io.wanjuan.app.data.AppDatabase
+import io.wanjuan.app.help.book.isNotShelf
 import io.wanjuan.app.sync.mapper.BookGroupSyncMapper
 import io.wanjuan.app.sync.mapper.BookSourceSyncMapper
 import io.wanjuan.app.sync.mapper.BookSyncMapper
@@ -25,7 +26,7 @@ class RoomSyncSnapshotSource(
         groupCoordinator.ensureStableIds()
         val version = SyncVersion(clock.now(), deviceIdProvider())
         val groups = db.bookGroupDao.all.filter { it.groupId > 0L }
-        val books = db.bookDao.all
+        val books = db.bookDao.all.filterNot { it.isNotShelf }
         val bookSources = db.bookSourceDao.all
         val rssSources = db.rssSourceDao.all
         val ruleSubs = db.ruleSubDao.all

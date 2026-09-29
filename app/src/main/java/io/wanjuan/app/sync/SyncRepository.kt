@@ -1,6 +1,8 @@
 package io.wanjuan.app.sync
 
+import io.wanjuan.app.constant.BookType
 import io.wanjuan.app.data.AppDatabase
+import io.wanjuan.app.help.book.isNotShelf
 import io.wanjuan.app.sync.local.SyncMetadata
 import io.wanjuan.app.sync.local.SyncOutbox
 import io.wanjuan.app.sync.model.SyncBookGroupPayload
@@ -32,6 +34,7 @@ class SyncRepository(
 ) {
 
     fun queueBook(payload: SyncBookPayload) {
+        if (payload.book.type and BookType.notShelf != 0) return
         val version = BookSyncMerge.version(payload)
         db.runInTransaction {
             val previous = db.syncMetadataDao.get(SyncObjectType.Book, payload.bookSyncId)
@@ -120,7 +123,9 @@ class SyncRepository(
             try {
                 val json = item.payloadJsonForUpload(deviceIdProvider)
                 val mergedBook = if (item.objectType == SyncObjectType.Book && item.operation != "delete") {
-                    remoteStore.mergeBook(GSON.fromJsonObject<SyncBookPayload>(json).getOrThrow())
+                    val payload = GSON.fromJsonObject<SyncBookPayload>(json).getOrThrow()
+                    if (discardUnpublishableBook(item, payload)) return@drainOutbox
+                    remoteStore.mergeBook(payload)
                 } else {
                     remoteStore.uploadJson(item.remotePath(), json)
                     null
@@ -154,6 +159,25 @@ class SyncRepository(
             }
         }
         result.pending = db.syncOutboxDao.count()
+    }
+
+    private fun discardUnpublishableBook(item: SyncOutbox, payload: SyncBookPayload): Boolean {
+        var discarded = false
+        db.runInTransaction {
+            val book = db.bookDao.getBook(payload.book.bookUrl)
+            if (payload.book.type and BookType.notShelf != 0 || book == null || book.isNotShelf ||
+                SyncIds.bookId(book) != payload.bookSyncId
+            ) {
+                val isLatest = db.syncOutboxDao.latestForObject(item.objectType, item.objectId)?.id == item.id
+                db.syncOutboxDao.delete(item.id)
+                if (isLatest) {
+                    val previous = db.syncMetadataDao.get(item.objectType, item.objectId)
+                    db.syncMetadataDao.markClean(item.objectType, item.objectId, previous?.lastSyncedHash)
+                }
+                discarded = true
+            }
+        }
+        return discarded
     }
 
     private suspend fun drainOutbox(action: suspend (SyncOutbox) -> Unit) {

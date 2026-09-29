@@ -28,6 +28,9 @@ object BookSyncMerge {
 
     fun merge(local: SyncBookPayload, remote: SyncBookPayload): SyncBookPayload {
         require(local.bookSyncId == remote.bookSyncId) { "Cannot merge different books" }
+        val localOnShelf = local.book.type and BookType.notShelf == 0
+        val remoteOnShelf = remote.book.type and BookType.notShelf == 0
+        if (localOnShelf != remoteOnShelf) return if (localOnShelf) local else remote
         val shelf = if (shelfVersion(remote) > shelfVersion(local)) remote else local
         val catalog = if (catalogVersion(remote) > catalogVersion(local)) remote else local
         val progress = if (progressVersion(remote) > progressVersion(local)) remote else local
