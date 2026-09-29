@@ -62,22 +62,27 @@ class SyncRepository(
 
     fun markDirty(objectType: String, objectId: String, payload: Any, operation: String) {
         if (SyncScope.isApplyingRemote) return
-        val now = clock.now()
-        val deviceId = deviceIdProvider()
+        val tombstone = payload as? SyncTombstonePayload
+        val now = tombstone?.deletedAt ?: clock.now()
+        val deviceId = tombstone?.deletedByDeviceId ?: deviceIdProvider()
         val payloadJson = GSON.toJson(payload)
         db.runInTransaction {
             val metadata = db.syncMetadataDao.get(objectType, objectId)?.copy(
                 localUpdatedAt = now,
                 dirty = true,
                 updatedByDeviceId = deviceId,
-                localUpdatedByDeviceId = deviceId
+                localUpdatedByDeviceId = deviceId,
+                deletedAt = if (operation == "delete") now else null,
+                deletedByDeviceId = if (operation == "delete") deviceId else null
             ) ?: SyncMetadata(
                 objectType = objectType,
                 objectId = objectId,
                 localUpdatedAt = now,
                 dirty = true,
                 updatedByDeviceId = deviceId,
-                localUpdatedByDeviceId = deviceId
+                localUpdatedByDeviceId = deviceId,
+                deletedAt = if (operation == "delete") now else null,
+                deletedByDeviceId = if (operation == "delete") deviceId else null
             )
             db.syncMetadataDao.insert(metadata)
             db.syncOutboxDao.deleteForObject(objectType, objectId)

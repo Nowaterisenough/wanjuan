@@ -3,6 +3,7 @@ package io.wanjuan.app.sync
 import io.wanjuan.app.data.AppDatabase
 import io.wanjuan.app.sync.local.SyncMetadata
 import io.wanjuan.app.sync.local.SyncOutbox
+import io.wanjuan.app.sync.model.SyncObjectType
 import io.wanjuan.app.sync.model.SyncSnapshot
 import io.wanjuan.app.sync.model.SyncTombstonePayload
 import io.wanjuan.app.sync.model.SyncVersion
@@ -58,6 +59,8 @@ class SyncLocalReconciler(
                         upserts += 1
                     }
                 }
+                // A missing book can be a cache cleanup or a source replacement, not a user deletion.
+                if (objectType == SyncObjectType.Book) continue
                 store.metadataForType(objectType)
                     .asSequence()
                     .filter { it.objectId !in currentIds && it.deletedAt == null }

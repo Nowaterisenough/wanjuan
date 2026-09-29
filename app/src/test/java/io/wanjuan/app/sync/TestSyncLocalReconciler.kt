@@ -59,9 +59,9 @@ class TestSyncLocalReconciler {
     }
 
     @Test
-    fun missingSyncedObjectQueuesOneStableTombstone() {
+    fun missingSyncedSourceQueuesOneStableTombstone() {
         val store = MemoryReconcileStore()
-        var snapshots = listOf(snapshot("book", "a", "hash-a"))
+        var snapshots = listOf(snapshot("bookSource", "a", "hash-a"))
         val reconciler = reconciler(store) { snapshots }
         reconciler.capture()
         store.markAllSynced()
@@ -78,6 +78,22 @@ class TestSyncLocalReconciler {
         assertEquals(firstDelete, store.outbox.single())
     }
 
+    @Test
+    fun missingSyncedBookDoesNotInferADeletion() {
+        val store = MemoryReconcileStore()
+        var snapshots = listOf(snapshot("book", "a", "hash-a"))
+        val reconciler = reconciler(store) { snapshots }
+        reconciler.capture()
+        store.markAllSynced()
+        val before = store.metadata("book", "a")
+
+        snapshots = emptyList()
+
+        assertEquals(SyncCaptureResult(0, 0, 0), reconciler.capture())
+        assertEquals(emptyList<SyncOutbox>(), store.outbox)
+        assertEquals(before, store.metadata("book", "a"))
+    }
+
     private fun reconciler(
         store: MemoryReconcileStore,
         snapshots: () -> List<SyncSnapshot>
@@ -89,7 +105,7 @@ class TestSyncLocalReconciler {
                 override fun now(): Long = 100L
             },
             deviceIdProvider = { "device-a" },
-            managedObjectTypes = setOf("book")
+            managedObjectTypes = setOf("book", "bookSource")
         )
     }
 

@@ -7,6 +7,7 @@ import io.wanjuan.app.data.entities.Book
 import io.wanjuan.app.help.AppWebDav
 import io.wanjuan.app.data.entities.BookProgress
 import io.wanjuan.app.help.config.AppConfig
+import io.wanjuan.app.help.book.isNotShelf
 import io.wanjuan.app.sync.mapper.BookSyncMapper
 import io.wanjuan.app.sync.mapper.progressSyncTime
 import io.wanjuan.app.sync.merge.BookSyncMerge
@@ -16,6 +17,7 @@ import io.wanjuan.app.sync.model.SyncBookPayload
 import io.wanjuan.app.sync.model.SyncObjectType
 import io.wanjuan.app.sync.model.SyncOrderPayload
 import io.wanjuan.app.sync.model.SyncTombstonePayload
+import io.wanjuan.app.sync.model.SyncVersion
 import io.wanjuan.app.sync.remote.WebDavSyncClient
 import io.wanjuan.app.sync.remote.mergeBook
 import io.wanjuan.app.utils.NetworkUtils
@@ -96,7 +98,22 @@ class BookshelfSyncCoordinator(
     fun hasBook(bookSyncId: String): Boolean =
         db.bookDao.all.any { SyncIds.bookId(it) == bookSyncId }
 
+    fun deleteLocalBook(book: Book): Boolean {
+        var deleted = false
+        db.runInTransaction {
+            val current = db.bookDao.getBook(book.bookUrl) ?: return@runInTransaction
+            if (SyncIds.bookId(current) != SyncIds.bookId(book) ||
+                (book.isNotShelf && !current.isNotShelf)
+            ) return@runInTransaction
+            if (!SyncScope.isApplyingRemote) enqueueBookDelete(current)
+            db.bookDao.delete(current)
+            deleted = true
+        }
+        return deleted
+    }
+
     fun enqueueBookDelete(book: Book) {
+        if (book.isNotShelf) return
         val id = SyncIds.bookId(book)
         val deletedAt = clock.now()
         val deviceId = deviceIdProvider()
@@ -283,8 +300,25 @@ class BookshelfSyncCoordinator(
         client.upload("order/bookshelf.json", payload)
     }
 
-    fun applyRemoteDelete(bookSyncId: String): Boolean =
-        repository.applyRemote { objectApplier.applyRemoteDelete(bookSyncId) }
+    fun applyRemoteDelete(payload: SyncTombstonePayload): SyncApplyOutcome {
+        var outcome = SyncApplyOutcome.Skipped
+        repository.applyRemote {
+            db.runInTransaction {
+                val current = db.bookDao.all.firstOrNull {
+                    !it.isNotShelf && SyncIds.bookId(it) == payload.objectId
+                } ?: return@runInTransaction
+                // Local edits can happen after capture while the remote files are downloading.
+                val local = bookState.capture(current)
+                if (BookSyncMerge.version(local) > SyncVersion(payload.deletedAt, payload.deletedByDeviceId)) {
+                    repository.queueBook(local)
+                    outcome = SyncApplyOutcome.Merged
+                } else if (objectApplier.applyRemoteDelete(payload.objectId)) {
+                    outcome = SyncApplyOutcome.Deleted
+                }
+            }
+        }
+        return outcome
+    }
 
     fun applyRemoteOrder(payload: SyncOrderPayload) {
         repository.applyRemote { objectApplier.applyRemoteOrder(payload) }

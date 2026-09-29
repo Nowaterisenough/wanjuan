@@ -66,6 +66,23 @@ class TestSyncReplica(
     fun remove(type: String, id: String, timestamp: Long) {
         clock.value = timestamp
         objects.remove(Key(type, id))
+        val tombstone = SyncTombstonePayload(type, id, timestamp, deviceId)
+        val previous = stateStore.metadata(type, id) ?: SyncMetadata(type, id)
+        stateStore.saveMetadata(previous.copy(
+            localUpdatedAt = timestamp,
+            localUpdatedByDeviceId = deviceId,
+            deletedAt = timestamp,
+            deletedByDeviceId = deviceId,
+            dirty = true
+        ))
+        stateStore.replaceOutbox(SyncOutbox(
+            objectType = type,
+            objectId = id,
+            operation = "delete",
+            payloadJson = GSON.toJson(tombstone),
+            createdAt = timestamp,
+            versionDeviceId = deviceId
+        ))
     }
 
     fun value(type: String, id: String): String? = objects[Key(type, id)]?.text

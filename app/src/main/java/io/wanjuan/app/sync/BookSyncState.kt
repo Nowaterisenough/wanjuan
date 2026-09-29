@@ -39,6 +39,11 @@ class BookSyncState(
             initialShelfTime,
             useDetectionTime = true
         )
+        // Re-adding unchanged content is still a new membership event after a deletion.
+        if (newLocalBook && known?.deletedAt != null) {
+            shelf = SyncVersion(maxOf(clock.now(), known.deletedAt + 1, shelf.timestamp + 1), deviceId)
+            save(Shelf, payload.bookSyncId, BookSyncMerge.shelfHash(payload.book), shelf)
+        }
         val catalog = componentVersion(
             Catalog, payload.bookSyncId, BookSyncMerge.catalogHash(payload.book),
             book.lastCheckTime

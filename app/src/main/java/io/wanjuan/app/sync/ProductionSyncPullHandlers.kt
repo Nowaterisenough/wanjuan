@@ -91,13 +91,7 @@ fun productionSyncPullHandlers(
             ruleSubCoordinator.applyRemoteDelete(it)
             SyncApplyOutcome.Deleted
         },
-        tombstoneHandler("tombstones/books", SyncObjectType.Book) {
-            if (bookshelfCoordinator.applyRemoteDelete(it.objectId)) {
-                SyncApplyOutcome.Deleted
-            } else {
-                SyncApplyOutcome.Skipped
-            }
-        }
+        bookSyncDeletePullHandler(bookshelfCoordinator)
     )
     return objects + tombstones
 }
@@ -113,6 +107,9 @@ fun bookSyncPullHandler(bookshelfCoordinator: BookshelfSyncCoordinator): SyncPul
         localObjectPresent = bookshelfCoordinator::hasBook,
         apply = bookshelfCoordinator::applyRemoteBook
     )
+
+fun bookSyncDeletePullHandler(bookshelfCoordinator: BookshelfSyncCoordinator): SyncPullHandler =
+    tombstoneHandler("tombstones/books", SyncObjectType.Book, bookshelfCoordinator::applyRemoteDelete)
 
 private inline fun <reified T> entityHandler(
     directory: String,

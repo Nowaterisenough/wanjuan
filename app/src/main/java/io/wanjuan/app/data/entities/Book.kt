@@ -22,7 +22,6 @@ import io.wanjuan.app.help.config.AppConfig
 import io.wanjuan.app.help.config.ReadBookConfig
 import io.wanjuan.app.model.ReadBook
 import io.wanjuan.app.sync.SyncManager
-import io.wanjuan.app.sync.SyncScope
 import io.wanjuan.app.utils.GSON
 import io.wanjuan.app.utils.fromJsonObject
 import kotlinx.parcelize.IgnoredOnParcel
@@ -435,13 +434,10 @@ data class Book(
     }
 
     fun delete() {
+        if (!SyncManager.bookshelf.deleteLocalBook(this)) return
         if (ReadBook.book?.bookUrl == bookUrl) {
             ReadBook.book = null
         }
-        if (!SyncScope.isApplyingRemote) {
-            SyncManager.bookshelf.enqueueBookDelete(this)
-        }
-        appDb.bookDao.delete(this)
     }
 
     @Suppress("ConstPropertyName")

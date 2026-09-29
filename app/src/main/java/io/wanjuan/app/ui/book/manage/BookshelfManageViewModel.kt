@@ -54,7 +54,7 @@ class BookshelfManageViewModel(application: Application) : BaseViewModel(applica
 
     fun deleteBook(books: List<Book>, deleteOriginal: Boolean = false) {
         execute {
-            appDb.bookDao.delete(*books.toTypedArray())
+            appDb.runInTransaction { books.forEach { it.delete() } }
             books.forEach {
                 if (it.isLocal) {
                     LocalBook.deleteBook(it, deleteOriginal)
