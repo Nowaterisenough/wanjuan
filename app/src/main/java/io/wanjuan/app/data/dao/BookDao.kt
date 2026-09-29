@@ -164,6 +164,9 @@ interface BookDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     fun insert(vararg book: Book)
 
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    fun insertFromSync(book: Book)
+
     @Update
     fun update(vararg book: Book)
 

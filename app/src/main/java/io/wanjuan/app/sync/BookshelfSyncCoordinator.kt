@@ -254,6 +254,14 @@ class BookshelfSyncCoordinator(
             db.runInTransaction {
                 val dao = db.bookDao
                 val local = dao.getBook(payload.book.bookUrl)
+                val sameTitle = dao.getBook(payload.book.name, payload.book.author)
+                // Room's REPLACE would silently delete another source and cascade its chapters.
+                if ((sameTitle != null && sameTitle.bookUrl != payload.book.bookUrl) ||
+                    (local != null && SyncIds.bookId(local) != payload.bookSyncId)
+                ) {
+                    outcome = SyncApplyOutcome.Skipped
+                    return@runInTransaction
+                }
                 val localMask = payload.localGroupMask(groupCoordinator)
                 val remote = payload.copy(
                     schemaVersion = 2,
@@ -266,7 +274,7 @@ class BookshelfSyncCoordinator(
                 }
                 val book = merged.book.toBook(merged.localGroupMask(groupCoordinator))
                 if (local == null) {
-                    dao.insert(book)
+                    dao.insertFromSync(book)
                     outcome = SyncApplyOutcome.Inserted
                 } else {
                     dao.update(book)

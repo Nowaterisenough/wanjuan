@@ -41,6 +41,8 @@ enum class SyncApplyOutcome {
 
 interface SyncPullHandler {
     val directories: List<String>
+    val conflictGroup: String?
+        get() = null
     val usesModifiedTimeMarker: Boolean
         get() = true
     val mergesComponents: Boolean
@@ -80,7 +82,15 @@ class SyncPullEngine(
     }
 
     suspend fun pullAll(result: SyncResult.Mutable) {
+        val completedGroups = hashSetOf<String>()
         for (handler in handlers) {
+            val group = handler.conflictGroup
+            if (group != null) {
+                if (completedGroups.add(group)) {
+                    pullConflictGroup(handlers.filter { it.conflictGroup == group }, result)
+                }
+                continue
+            }
             for (directory in handler.directories) {
                 currentCoroutineContext().ensureActive()
                 val files = remoteStore.list(directory)
@@ -90,6 +100,44 @@ class SyncPullEngine(
                 }
             }
         }
+    }
+
+    private suspend fun pullConflictGroup(group: List<SyncPullHandler>, result: SyncResult.Mutable) {
+        val candidates = linkedMapOf<SyncIdentity, Pair<SyncPullHandler, SyncRemoteCandidate>>()
+        val failed = hashSetOf<SyncIdentity>()
+        for (handler in group) {
+            for (directory in handler.directories) {
+                currentCoroutineContext().ensureActive()
+                for (file in remoteStore.list(directory)) {
+                    currentCoroutineContext().ensureActive()
+                    val identity = handler.identity(file) ?: continue
+                    try {
+                        val candidate = downloadAndParse(handler, file, identity, result)
+                        val previous = candidates[identity]?.second
+                        if (previous == null || candidate.version > previous.version ||
+                            (candidate.version == previous.version && candidate.deleteVersion != null)
+                        ) {
+                            candidates[identity] = handler to candidate
+                        }
+                        if (previous != null) result.skipped += 1
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        currentCoroutineContext().ensureActive()
+                        failed += identity
+                        result.fail(e.localizedMessage ?: e.javaClass.simpleName)
+                    }
+                }
+            }
+        }
+        // Resolve object/tombstone pairs before touching Room. Retire old sources before adding replacements.
+        candidates.values.filter { it.second.identity !in failed }
+            .sortedWith(compareByDescending<Pair<SyncPullHandler, SyncRemoteCandidate>> { it.second.deleteVersion != null }
+                .thenByDescending { it.second.version })
+            .forEach { (handler, candidate) ->
+                currentCoroutineContext().ensureActive()
+                applyCandidate(handler, candidate, result)
+            }
     }
 
     private suspend fun pullFile(
@@ -113,7 +161,22 @@ class SyncPullEngine(
 
         try {
             val candidate = downloadAndParse(handler, file, identity, result)
+            applyCandidate(handler, candidate, result)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            currentCoroutineContext().ensureActive()
+            result.fail(e.localizedMessage ?: e.javaClass.simpleName)
+        }
+    }
 
+    private suspend fun applyCandidate(
+        handler: SyncPullHandler,
+        candidate: SyncRemoteCandidate,
+        result: SyncResult.Mutable
+    ) {
+        val identity = candidate.identity
+        try {
             pullStore.runInTransaction {
                 val current = pullStore.metadata(identity)
                 val alreadyApplied = handler.isLocalObjectPresent(identity) &&
@@ -148,7 +211,10 @@ class SyncPullEngine(
                             fullyApplied = false
                         }
                         SyncApplyOutcome.Deleted -> result.deleted += 1
-                        SyncApplyOutcome.Skipped -> result.skipped += 1
+                        SyncApplyOutcome.Skipped -> {
+                            result.skipped += 1
+                            if (candidate.objectVersion != null) return@runInTransaction
+                        }
                     }
                     if (fullyApplied) pullStore.discardOutbox(identity)
                 } else {

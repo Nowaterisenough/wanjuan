@@ -122,6 +122,7 @@ private inline fun <reified T> entityHandler(
     crossinline apply: (T) -> SyncApplyOutcome
 ): SyncPullHandler = object : SyncPullHandler {
     override val mergesComponents = mergesComponents
+    override val conflictGroup = objectType.takeIf { it == SyncObjectType.Book }
     override val usesModifiedTimeMarker = !mergesComponents
     override val directories: List<String> = listOf(directory)
 
@@ -156,6 +157,7 @@ private fun tombstoneHandler(
     apply: (SyncTombstonePayload) -> SyncApplyOutcome
 ): SyncPullHandler = object : SyncPullHandler {
     override val directories: List<String> = listOf(directory)
+    override val conflictGroup = objectType.takeIf { it == SyncObjectType.Book }
     override val usesModifiedTimeMarker: Boolean = false
 
     override fun identity(file: SyncRemoteFile): SyncIdentity? =

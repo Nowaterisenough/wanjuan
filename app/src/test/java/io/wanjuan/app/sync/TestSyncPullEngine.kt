@@ -181,9 +181,27 @@ class TestSyncPullEngine {
         assertEquals(1, handler.applied)
     }
 
+    @Test
+    fun skippedObjectDoesNotAcknowledgeOrDiscardPendingLocalChanges() = runBlocking {
+        val remote = TestFakeSyncRemoteStore().apply {
+            put("books/book-a.json", "200|device-b|hash-remote", 10L)
+        }
+        val store = MemoryPullStore().apply {
+            putLocal("book", "book-a", SyncVersion(100L, "device-a"), hasOutbox = true)
+        }
+        val handler = TextPullHandler(outcome = SyncApplyOutcome.Skipped)
+
+        SyncPullEngine(remote, store, listOf(handler)).pullAll(SyncResult.Mutable())
+
+        assertTrue(store.hasOutbox("book", "book-a"))
+        assertTrue(store.metadata("book", "book-a")!!.dirty)
+        assertEquals(null, store.metadata("book", "book-a")!!.lastSyncedHash)
+    }
+
     private class TextPullHandler(
         override val usesModifiedTimeMarker: Boolean = true,
-        private val localObjectPresent: Boolean = true
+        private val localObjectPresent: Boolean = true,
+        private val outcome: SyncApplyOutcome = SyncApplyOutcome.Updated
     ) : SyncPullHandler {
         var applied = 0
         override val directories: List<String> = listOf("books")
@@ -212,7 +230,7 @@ class TestSyncPullEngine {
 
         override fun applyRemote(candidate: SyncRemoteCandidate): SyncApplyOutcome {
             applied += 1
-            return SyncApplyOutcome.Updated
+            return outcome
         }
     }
 

@@ -32,6 +32,118 @@ class TestBookshelfSyncSafetyInstrumented {
     fun tearDown() = replicas.forEach { it.db.close() }
 
     @Test
+    fun otherSourceAndItsTombstoneCannotReplaceLocalBookOrCascadeChapters() = runBlocking {
+        val a = replica("a")
+        val local = book("local").copy(durChapterIndex = 90, customTag = "keep")
+        a.db.bookDao.insert(local)
+        a.db.bookChapterDao.insert(BookChapter(url = "chapter", bookUrl = local.bookUrl, title = "Chapter"))
+        assertTrue(a.sync().isSuccess)
+        val other = local.copy(bookUrl = "other", origin = "other-source", durChapterIndex = 0)
+        remote.put(payload(other, 200))
+        remote.delete(other, 300)
+        a.time = 400
+
+        val result = a.sync()
+
+        assertTrue(result.isSuccess)
+        assertEquals(0, result.deleted)
+        assertEquals(local.bookUrl, a.db.bookDao.all.single().bookUrl)
+        assertEquals(90, a.db.bookDao.all.single().durChapterIndex)
+        assertEquals("keep", a.db.bookDao.all.single().customTag)
+        assertEquals(1, a.db.bookChapterDao.getChapterList(local.bookUrl).size)
+        assertFalse(remote.hasDelete(local))
+        assertTrue(a.sync().isSuccess)
+        assertFalse(remote.hasDelete(local))
+    }
+
+    @Test
+    fun sameUrlWithDifferentSourceCannotChangeLocalIdentity() = runBlocking {
+        val a = replica("a")
+        val local = book()
+        a.db.bookDao.insert(local)
+        assertTrue(a.sync().isSuccess)
+        remote.put(payload(local.copy(origin = "other-source"), 300))
+
+        assertTrue(a.sync().isSuccess)
+
+        assertEquals(local.origin, a.db.bookDao.all.single().origin)
+        assertFalse(remote.hasDelete(local))
+    }
+
+    @Test
+    fun firstSyncDoesNotLetDeletedSourceBlockLiveAlternative() = runBlocking {
+        val a = replica("a")
+        val old = book("old")
+        val live = old.copy(bookUrl = "live", origin = "new-source")
+        remote.put(payload(old, 100))
+        remote.put(payload(live, 200))
+        remote.delete(old, 300)
+
+        assertTrue(a.sync().isSuccess)
+
+        assertEquals(live.bookUrl, a.db.bookDao.all.single().bookUrl)
+    }
+
+    @Test
+    fun sourceReplacementFinishesInOneSyncEvenWhenOldSourceIsLocal() = runBlocking {
+        val a = replica("a")
+        val old = book("old")
+        a.db.bookDao.insert(old)
+        assertTrue(a.sync().isSuccess)
+        val live = old.copy(bookUrl = "live", origin = "new-source")
+        remote.put(payload(live, 200))
+        remote.delete(old, 300)
+
+        assertTrue(a.sync().isSuccess)
+
+        assertEquals(live.bookUrl, a.db.bookDao.all.single().bookUrl)
+    }
+
+    @Test
+    fun olderTombstoneCannotCascadeChaptersBeforeNewerRemoteObjectArrives() = runBlocking {
+        val a = replica("a")
+        val book = book()
+        a.db.bookDao.insert(book)
+        a.db.bookChapterDao.insert(BookChapter(url = "chapter", bookUrl = book.bookUrl, title = "Chapter"))
+        assertTrue(a.sync().isSuccess)
+        remote.delete(book, 200)
+        remote.put(payload(book.copy(customTag = "restored"), 300))
+
+        assertTrue(a.sync().isSuccess)
+
+        assertEquals("restored", a.db.bookDao.all.single().customTag)
+        assertEquals(1, a.db.bookChapterDao.getChapterList(book.bookUrl).size)
+    }
+
+    @Test
+    fun unreadableTombstoneDefersItsBookInsteadOfApplyingIncompleteState() = runBlocking {
+        val a = replica("a")
+        val book = book()
+        remote.put(payload(book, 100))
+        remote.objects["tombstones/books/${SyncIds.bookId(book)}.json"] = "invalid"
+
+        assertFalse(a.sync().isSuccess)
+
+        assertEquals(0, a.db.bookDao.allBookCount)
+        assertEquals(0, a.db.syncOutboxDao.count())
+    }
+
+    @Test
+    fun remoteRenameCannotEvictAnotherLocalBook() = runBlocking {
+        val a = replica("a")
+        val first = book("first")
+        val second = book("second").copy(name = "Second")
+        a.db.bookDao.insert(first, second)
+        assertTrue(a.sync().isSuccess)
+        remote.put(payload(second.copy(name = first.name), 300))
+
+        assertTrue(a.sync().isSuccess)
+
+        assertEquals(2, a.db.bookDao.allBookCount)
+        assertEquals("Second", a.db.bookDao.getBook(second.bookUrl)!!.name)
+    }
+
+    @Test
     fun missingBookIsRecoveredThroughCapturePullAndFlushWithoutPublishingADelete() = runBlocking {
         val a = replica("a")
         val book = book()
