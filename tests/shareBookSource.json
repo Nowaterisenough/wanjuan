@@ -1129,7 +1129,7 @@
     "bookSourceName": "P5韩漫",
     "bookSourceType": 2,
     "bookSourceUrl": "https://www.4p5mha.work",
-    "bookUrlPattern": "https://www\\.4p5mha\\.work/book/\\d+",
+    "bookUrlPattern": "https?://[^/]+/book/\\d+(?:[/?#].*)?",
     "customButton": false,
     "customOrder": 3,
     "enabled": true,
@@ -1137,13 +1137,13 @@
     "enabledExplore": true,
     "eventListener": false,
     "exploreUrl": "最新更新::/update?page={{page}}\n热门漫画::/rank?page={{page}}\n完结漫画::/booklist?end=1&page={{page}}",
-    "header": "{\n  \"User-Agent\": \"Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36\",\n  \"Referer\": \"https://www.4p5mha.work/\"\n}",
-    "lastUpdateTime": 0,
+    "header": "{\n  \"User-Agent\": \"Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36\"\n}",
+    "lastUpdateTime": 1790966602422,
     "respondTime": 9810,
     "ruleBookInfo": {
       "author": "$.author",
       "coverUrl": "$.cover",
-      "init": "<js>\nvar doc = org.jsoup.Jsoup.parse(result);\nfunction text(selector) {\n  var node = doc.select(selector).first();\n  return node ? String(node.text()).trim() : '';\n}\nfunction attr(selector, name) {\n  var node = doc.select(selector).first();\n  return node ? String(node.attr(name)).trim() : '';\n}\nfunction abs(u) {\n  u = String(u || '').trim();\n  if (!u) return '';\n  if (u.indexOf('//') === 0) return 'https:' + u;\n  if (/^https?:\\/\\//i.test(u)) return u;\n  return new java.net.URL(new java.net.URL(baseUrl), u).toString();\n}\nvar html = String(result);\nvar authorMatch = html.match(/作者[：:]\\s*<a[^>]*>([^<]*)<\\/a>/);\nvar cover = attr('div.detail-main-cover img', 'data-original') || attr('div.detail-main-cover img', 'src');\nJSON.stringify({\n  name: text('p.detail-main-info-title'),\n  author: authorMatch ? String(authorMatch[1]).trim() : '',\n  cover: abs(cover),\n  intro: text('p.detail-desc'),\n  kind: '漫画',\n  latest: text('ul.detail-list-1 li:last-child a'),\n  url: baseUrl\n});\n</js>",
+      "init": "<js>\nvar doc = org.jsoup.Jsoup.parse(result);\nfunction text(selector) {\n  var node = doc.select(selector).first();\n  return node ? String(node.text()).trim() : '';\n}\nfunction attr(selector, name) {\n  var node = doc.select(selector).first();\n  return node ? String(node.attr(name)).trim() : '';\n}\nfunction abs(u) {\n  u = String(u || '').trim();\n  if (!u) return '';\n  if (u.indexOf('//') === 0) return 'https:' + u;\n  if (/^https?:\\/\\//i.test(u)) return u;\n  return new Packages.java.net.URL(new Packages.java.net.URL(String(baseUrl)), u).toString();\n}\nvar html = String(result);\nvar authorMatch = html.match(/作者[：:]\\s*<a[^>]*>([^<]*)<\\/a>/);\nvar cover = attr('div.detail-main-cover img', 'data-original') || attr('div.detail-main-cover img', 'src');\nJSON.stringify({\n  name: text('p.detail-main-info-title'),\n  author: authorMatch ? String(authorMatch[1]).trim() : '',\n  cover: abs(cover),\n  intro: text('p.detail-desc'),\n  kind: '漫画',\n  latest: text('ul.detail-list-1 li:last-child a'),\n  url: baseUrl\n});\n</js>",
       "intro": "$.intro",
       "kind": "$.kind",
       "lastChapter": "$.latest",
@@ -1151,7 +1151,7 @@
       "tocUrl": "$.url"
     },
     "ruleContent": {
-      "content": "@js:\nvar doc = org.jsoup.Jsoup.parse(result);\nvar site = 'https://www.4p5mha.work';\nfunction abs(u) {\n  u = String(u || '').trim();\n  if (!u) return '';\n  if (u.indexOf('//') === 0) return 'https:' + u;\n  if (/^https?:\\/\\//i.test(u)) return u;\n  var root = String(baseUrl || site).replace(/[?#].*$/, '').replace(/\\/[^\\/]*$/, '/');\n  if (u.charAt(0) === '/') return site + u;\n  return root + u;\n}\nvar imgs = doc.select('img.lazy');\nvar urls = [];\nvar headers = {\"headers\":{\"Referer\":baseUrl,\"User-Agent\":\"Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36\"}};\nfor (var i = 0; i < imgs.size(); i++) {\n  var img = imgs.get(i);\n  var src = String(img.attr('data-original') || img.attr('data-fallback') || img.attr('src') || '').trim();\n  if (!src) continue;\n  if (/static|logo|mrtx|zhihu\\.com|onerro/i.test(src)) continue;\n  src = abs(src);\n  if (src && urls.indexOf(src) === -1) urls.push(src);\n}\nurls.map(function(u) { return '<img src=\"' + u + ',' + JSON.stringify(headers) + '\">'; }).join('\\n');",
+      "content": "@js:\nvar doc = org.jsoup.Jsoup.parse(String(result), String(baseUrl));\nvar imgs = doc.select('img.lazy');\nvar urls = [];\nvar headers = JSON.parse(String(source.header || '{}'));\nheaders.Referer = String(baseUrl);\nheaders.Accept = 'image/webp,image/apng,image/*,*/*;q=0.8';\nvar options = JSON.stringify({headers: headers});\nfor (var i = 0; i < imgs.size(); i++) {\n    var img = imgs.get(i);\n    var attrs = ['data-fallback', 'data-original', 'data-src', 'src'];\n    var url = '';\n    for (var j = 0; j < attrs.length && !url; j++) {\n        var value = String(img.attr(attrs[j])).trim();\n        if (!value || /^(?:data|blob|javascript):/i.test(value)) continue;\n        if (/(?:placeholder|loading\\.(?:gif|png)|blank\\.gif|\\/(?:logo|mrtx|onerro)[^/]*|(?:zhimg|zhihu)\\.com)/i.test(value)) continue;\n        var candidate = String(new Packages.java.net.URL(new Packages.java.net.URL(String(baseUrl)), value));\n        if (/^https?:\\/\\//i.test(candidate)) url = candidate;\n    }\n    if (url && urls.indexOf(url) < 0) urls.push(url);\n}\nif (!urls.length) throw new Error('No readable chapter images; check the page or website verification');\nurls.map(function(url) { return '<img src=\"' + url.replace(/\"/g, '%22') + ',' + options + '\">'; }).join('\\n');\n",
       "imageStyle": "FULL",
       "nextContentUrl": "@css:a:contains(下一页), a:contains(下一頁)@href"
     },
