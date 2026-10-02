@@ -3,6 +3,7 @@ const { readFileSync } = require('node:fs');
 const { resolve } = require('node:path');
 const { test } = require('node:test');
 const vm = require('node:vm');
+const { JavaURL, executeRule } = require('./helpers/source-rule-runtime.cjs');
 
 const source = JSON.parse(readFileSync(resolve(__dirname, '../../tests/shareBookSource.json'), 'utf8'))
   .find(item => item.bookSourceName === '小黄书');
@@ -10,7 +11,7 @@ const source = JSON.parse(readFileSync(resolve(__dirname, '../../tests/shareBook
 function element(attributes = {}, text = '', children = {}) {
   return {
     children,
-    attr: name => attributes[name] || '',
+    attr: name => new String(attributes[name] || ''),
     text: () => text,
     html: () => attributes.html || '',
     outerHtml: () => attributes.outerHtml || '',
@@ -33,13 +34,10 @@ function execute(rule, selectors = {}, baseUrl = 'https://reader.example/photo/i
     java: {
       base64Decode: text => Buffer.from(text, 'base64').toString('utf8'),
     },
-    Packages: {java: {net: {URL: function JavaURL(base, relative) {
-        const url = relative === undefined ? String(base) : new URL(String(relative), String(base)).href;
-        this.toString = () => url;
-      }}}},
+    Packages: {java: {net: {URL: JavaURL}}},
     org: {jsoup: {Jsoup: {parse: () => ({select: selector => elements(selectors[selector] || [])})}}},
   };
-  const value = vm.runInNewContext(source.jsLib + '\n' + rule.replace(/^@js:\s*/, ''), context);
+  const { value } = executeRule(rule, context, source.jsLib, { Packages: context.Packages });
   return {value: JSON.parse(JSON.stringify(value)), book: context.book};
 }
 
@@ -55,6 +53,26 @@ test('source identity stays stable while discovery and login use the active site
     assert.ok(url.endsWith(page === 1 ? '.html' : '/2.html'));
     if (page === 1) assert.ok(!url.endsWith('/1.html'));
   }
+});
+
+test('discovery and detail covers work with sealed library scope and Java string attributes', () => {
+  const selectors = {
+    '.image .img, .cover .img, .img, img': [element({style: "background-image:url('/covers/42.webp?sig=a_b')"})],
+  };
+  const cover = execute(source.ruleExplore.coverUrl, selectors).value;
+  assert.ok(cover.startsWith('https://reader.example/covers/42.webp?sig=a_b,{'));
+  assert.equal(JSON.parse(cover.slice(cover.indexOf(',{') + 1)).headers.Referer,
+    'https://reader.example/photo/id-42.html');
+  const detail = execute(source.ruleBookInfo.coverUrl, {
+    'meta[property="og:image"]': [element({content: '//cdn.example/detail.jpg'})],
+  }).value;
+  assert.ok(detail.startsWith('https://cdn.example/detail.jpg,{'));
+  const fallback = execute(source.ruleBookInfo.coverUrl, {
+    '.photo-image .img, .photo-image img, .fiction-detail .cover img, .video-detail .cover img, video[poster]':
+      [element({style: "background-image:url('/page.webp')"})],
+  }).value;
+  assert.ok(fallback.startsWith('https://reader.example/page.webp,{'));
+  assert.equal(execute(source.ruleBookInfo.coverUrl).value, '');
 });
 
 test('gallery directory fills omitted pages and normalizes an already paginated URL', () => {
