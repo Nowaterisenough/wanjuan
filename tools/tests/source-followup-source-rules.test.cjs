@@ -142,6 +142,87 @@ test('native Rhino and Jsoup: sealed shared library can generate covers and body
   assert.ok(JSON.parse(native(source.exploreUrl, source, '').value).length > 60);
 });
 
+test('native Rhino: explicit discovery routes remain clickable with the sealed shared library', nativeOptions, () => {
+  const source = sources.find(s => s.bookSourceName === '小黄书');
+  const entries = JSON.parse(native(source.exploreUrl, source, '').value);
+  const videos = entries.filter(entry => entry.url.includes('/videos/'));
+  assert.equal(videos.length, 22);
+  assert.ok(videos.every(entry => !entry.url.includes('/series-') && entry.style.layout_flexBasisPercent === 0.29));
+  assert.ok(entries.filter(entry => !entry.url).every(entry => entry.style.layout_flexBasisPercent === 1));
+});
+
+test('native Rhino and Jsoup: discovery refreshes live child routes and strips counts without keeping stale IDs', nativeOptions, () => {
+  const source = sources.find(s => s.bookSourceName === '小黄书');
+  const cn = `<div class="video-list"><div class="series">
+    <a href="/videos/xs-901.html">Fresh One (12)</a><a href="/videos/xs-902.html">Fresh Two (1,234)</a>
+    <a href="/videos/xs-901.html">Duplicate (12)</a><a href="/videos/series-old.html">Retired</a>
+    <a href="https://other.example/videos/xs-905.html">Unrelated</a></div></div>`;
+  const jav = `<div class="video-list"><div class="series">
+    <a href="https://xchina.co/videos/xs-903.html">Fresh Three (8)</a>
+    <a href="/videos/xs-901.html">Duplicate across parents (12)</a></div></div>`;
+  const extras = `var requests=[];java.ajax=function(request){
+    var text=String(request);var split=text.indexOf(',{');
+    var url=text.substring(0,split);var options=JSON.parse(text.substring(split+1));
+    requests.push({url:url,headers:options.headers});
+    if(url==='https://xchina.co/videos/cat-cn.html')return ${JSON.stringify(cn)};
+    if(url==='https://xchina.co/videos/cat-jav.html')return ${JSON.stringify(jav)};
+    throw new Error('Unexpected navigation URL');};`;
+  const result = JSON.parse(native(source.exploreUrl + '\nJSON.stringify({entries:list,requests:requests});', source, '',
+    'https://reader.example/', extras).value);
+  const videos = result.entries.filter(entry => entry.url.includes('/videos/'));
+  const firstPages = videos.map(entry => entry.url.replace(/\{\{(.*?)\}\}/g, (_, code) =>
+    require('node:vm').runInNewContext(code, {page: 1})));
+  assert.deepEqual(firstPages.map(url => new URL(url).pathname), [
+    '/videos/1.html', '/videos/cat-cn.html', '/videos/xs-901.html', '/videos/xs-902.html',
+    '/videos/cat-jav.html', '/videos/xs-903.html', '/videos/sort-read.html',
+    '/videos/sort-comment.html', '/videos/sort-length.html',
+  ]);
+  assert.deepEqual(videos.filter(entry => entry.url.includes('/xs-')).map(entry => entry.title),
+    ['Fresh One', 'Fresh Two', 'Fresh Three']);
+  assert.ok(videos.every(entry => entry.style.layout_flexBasisPercent === 0.29));
+  assert.equal(result.requests.length, 2);
+  for (const request of result.requests) assert.deepEqual(request.headers, JSON.parse(source.header));
+});
+
+test('native Rhino and Jsoup: a partial navigation failure retains the complete validated fallback', nativeOptions, () => {
+  const source = sources.find(s => s.bookSourceName === '小黄书');
+  const fallback = JSON.parse(native(source.exploreUrl, source, '').value);
+  const cn = '<div class="video-list"><div class="series"><a href="/videos/xs-999.html">Partial (2)</a></div></div>';
+  for (const secondResponse of ['throw new Error("Network failure")', 'return "<title>Verification needed</title>"']) {
+    const extras = `java.ajax=function(request){
+      if(String(request).indexOf('/videos/cat-cn.html,')!==-1)return ${JSON.stringify(cn)};
+      ${secondResponse};};`;
+    const entries = JSON.parse(native(source.exploreUrl, source, '', 'https://reader.example/', extras).value);
+    assert.deepEqual(entries, fallback);
+    assert.ok(!entries.some(entry => entry.url.includes('/xs-999')));
+  }
+});
+
+test('native Jsoup: discovery selects real cards, not category links or empty advertising cards', nativeOptions, () => {
+  const source = sources.find(s => s.bookSourceName === '小黄书');
+  assert.equal(source.ruleExplore.bookList, '@css:.item:has(.title a[href])');
+  assert.equal(source.ruleExplore.bookUrl, '@css:.title a@href');
+  assert.equal(source.ruleExplore.name, '@css:.title a@text##《|》');
+  const html = `<div class="series"><div class="title"><a href="/videos/cat-cn.html">Category</a></div></div>
+    <div class="item video"><a href="/video/id-1.html">Cover</a><div class="title"><a href="/video/id-1.html">Video</a></div></div>
+    <div class="item auto-height"><div class="title">Ad without a link</div></div>
+    <div class="item"><div class="title"><a>Placeholder</a></div></div>
+    <div class="item photo"><div class="title"><a href="/photo/id-2.html">Gallery</a></div></div>
+    <div class="item fiction"><div class="title"><a href="/fiction/id-3.html">Fiction</a></div></div>`;
+  const rule = `@js:
+    var selector = String(source.ruleExplore.bookList).replace(/^@css:/i, '');
+    var linkSelector = String(source.ruleExplore.bookUrl).replace(/^@css:/i, '').replace(/@href$/, '');
+    var cards = org.jsoup.Jsoup.parse(String(result), baseUrl).select(selector);
+    var links = [];
+    for (var i = 0; i < cards.size(); i++) {
+      links.push(String(cards.get(i).select(linkSelector).first().attr('href')));
+    }
+    links;`;
+  assert.deepEqual(native(rule, source, html).value, [
+    '/video/id-1.html', '/photo/id-2.html', '/fiction/id-3.html',
+  ]);
+});
+
 test('native Rhino: fiction images and video headers do not need rule bindings in jsLib', nativeOptions, () => {
   const source = sources.find(s => s.bookSourceName === '小黄书');
   const fiction = native(source.ruleContent.content, source,
