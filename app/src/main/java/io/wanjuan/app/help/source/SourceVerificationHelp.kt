@@ -11,6 +11,8 @@ import io.wanjuan.app.ui.association.VerificationCodeActivity
 import io.wanjuan.app.ui.browser.WebViewActivity
 import io.wanjuan.app.utils.isMainThread
 import io.wanjuan.app.utils.startActivity
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.runBlocking
 import splitties.init.appCtx
 import java.util.concurrent.ConcurrentHashMap
@@ -175,7 +177,10 @@ object SourceVerificationHelp {
                 null
             }
         }.onFailure {
-            if (it is InterruptedException || it is kotlinx.coroutines.CancellationException) throw it
+            // A verification timeout should fall back to the foreground browser.
+            if (it is InterruptedException ||
+                (it is CancellationException && it !is TimeoutCancellationException)
+            ) throw it
             AppLog.putDebug("${source.getTag()} Cloudflare: 后台自动验证失败 ${it.localizedMessage}")
         }.getOrNull()
     }
