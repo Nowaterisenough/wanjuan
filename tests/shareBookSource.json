@@ -3206,7 +3206,7 @@
     "eventListener": false,
     "exploreUrl": "[{\"title\":\"连载\",\"url\":\"/booklist?tag=全部&area=-1&end=0&page={{page}}\",\"style\":{\"layout_flexBasisPercent\":0.4,\"layout_flexGrow\":1}},\n{\"title\":\"完结\",\"url\":\"/booklist?tag=全部&area=-1&end=1&page={{page}}\",\"style\":{\"layout_flexBasisPercent\":0.4,\"layout_flexGrow\":1}},\n{\"title\":\"都市\",\"url\":\"/booklist?tag=都市&page={{page}}\",\"style\":{\"layout_flexBasisPercent\":0.4,\"layout_flexGrow\":1}},\n{\"title\":\"出版\",\"url\":\"/booklist?tag=出版漫画&page={{page}}\",\"style\":{\"layout_flexBasisPercent\":0.4,\"layout_flexGrow\":1}}]",
     "header": "{\n  \"User-Agent\": \"Mozilla/5.0 (Linux; U; Android 8.0.0; zh-cn; MIX 2 Build/OPR1.170623.027) AppleWebKit/533.1 (KHTML, like Gecko) Version/4.0 Mobile Safari/533.1\"\n}",
-    "lastUpdateTime": 1646918484927,
+    "lastUpdateTime": 1791891717943,
     "loginUrl": "",
     "respondTime": 13756,
     "ruleBookInfo": {
@@ -3220,7 +3220,7 @@
       "wordCount": ""
     },
     "ruleContent": {
-      "content": "#cp_img@html##src.*\\\"\n@js:result.replace(/data-original/g,\"src\")",
+      "content": "@js:\nvar pageUrl = String(baseUrl || '').replace(/,\\s*\\{[\\s\\S]*$/, '');\nvar doc = org.jsoup.Jsoup.parse(String(result || ''), pageUrl);\nvar images = doc.select('#cp_img img, .comicpage img');\nvar urls = [];\nvar headers = JSON.parse(String(source.header || '{}'));\nheaders.Referer = pageUrl;\nheaders.Accept = 'image/webp,image/apng,image/*,*/*;q=0.8';\nvar options = JSON.stringify({headers: headers});\nfor (var i = 0; i < images.size(); i++) {\n    var image = images.get(i);\n    var attrs = ['data-original', 'data-src', 'data-fallback', 'src'];\n    var url = '';\n    for (var j = 0; j < attrs.length && !url; j++) {\n        var value = String(image.attr(attrs[j])).trim();\n        if (!value || /^(?:data|blob|javascript):/i.test(value)) continue;\n        if (/(?:\\/static\\/images\\/|(?:loading|placeholder|blank|spacer|onerro)\\.(?:gif|png|jpe?g|webp)(?:[?#]|$))/i.test(value)) continue;\n        try {\n            var candidate = String(new Packages.java.net.URL(new Packages.java.net.URL(pageUrl), value));\n            if (/^https?:\\/\\//i.test(candidate)) url = candidate;\n        } catch (e) {}\n    }\n    if (url && urls.indexOf(url) < 0) urls.push(url);\n}\nif (!urls.length) throw new Error('未提取到漫画正文图片，请刷新目录或检查站点返回内容');\nurls.map(function(url) {\n    return '<img src=\"' + url.replace(/\"/g, '%22') + ',' + options + '\">';\n}).join(String.fromCharCode(10));",
       "imageStyle": "FULL"
     },
     "ruleExplore": {

@@ -7,6 +7,7 @@ import io.wanjuan.app.data.entities.rule.BookListRule
 import io.wanjuan.app.model.analyzeRule.AnalyzeByJSoup
 import io.wanjuan.app.utils.GSON
 import io.wanjuan.app.utils.fromJsonArray
+import io.wanjuan.app.utils.fromJsonObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -325,6 +326,81 @@ class TestMangaSourceRule {
         )
     }
 
+    @Test
+    fun mxshmExtractsEveryCurrentReaderImageWithoutLoadingOrScrolling() {
+        val source = source("韩国漫画 MXSHM")
+        val html = "<img data-original=\"https://ads.example/banner.jpg\">" +
+            "<div class=\"comicpage\">" + (1..127).joinToString("") {
+                "<div><img class=\"lazy\" data-original=\"https://cdn.example/static/upload/book/42/$it.jpg\"></div>"
+            } + "</div>"
+
+        assertEquals(
+            (1..127).map { "https://cdn.example/static/upload/book/42/$it.jpg" },
+            evaluateContentUrls(source, html, "http://www.mxshm.top/chapter/42")
+        )
+        assertEquals("http://www.mxshm.top", source.bookSourceUrl)
+    }
+
+    @Test
+    fun mxshmPreservesUnloadedImagesInLegacyReaderMarkup() {
+        val source = source("韩国漫画 MXSHM")
+        val html = "<div id=\"cp_img\">" + (1..40).joinToString("") {
+            if (it <= 3) {
+                "<img data-original=\"https://cdn.example/$it.jpg\" src=\"https://cdn.example/$it.jpg\">"
+            } else {
+                "<img src=\"loading.gif\" data-original=\"https://cdn.example/$it.jpg\">"
+            }
+        } + "<img src=\"loading.gif\" data-original=\"https://cdn.example/1.jpg\"></div>"
+
+        assertEquals(
+            (1..40).map { "https://cdn.example/$it.jpg" },
+            evaluateContentUrls(source, html, "https://redirected.example/chapter/42")
+        )
+    }
+
+    @Test
+    fun mxshmResolvesFallbackAttributesAndPreservesSignedRequests() {
+        val source = source("韩国漫画 MXSHM")
+        val html = """
+            <div class="comicpage">
+              <img data-original="" data-src="../pages/1.jpg?sig=a&amp;size=full" src="loading.gif">
+              <img data-original="data:image/gif;base64,fixture" data-fallback="//cdn.example/2.jpg">
+              <img data-original="loading.gif" src="/static/upload/book/3.jpg">
+              <img src="https://cdn.example/4.jpg">
+              <img src="data:image/gif;base64,fixture">
+              <img src="/static/images/loading.png">
+            </div>
+        """.trimIndent()
+        val pageUrl = "https://redirected.example/chapter/42"
+
+        assertEquals(
+            listOf(
+                "https://redirected.example/pages/1.jpg?sig=a&size=full",
+                "https://cdn.example/2.jpg",
+                "https://redirected.example/static/upload/book/3.jpg",
+                "https://cdn.example/4.jpg"
+            ),
+            evaluateContentUrls(source, html, "$pageUrl,{'webView': true}")
+        )
+        val output = evaluateContent(source, html, "$pageUrl,{'webView': true}")
+        output.lineSequence().forEach { line ->
+            val requestOptions = line.substringAfter(",{").substringBeforeLast("\">")
+            val options = GSON.fromJsonObject<Map<String, Map<String, String>>>("{$requestOptions").getOrThrow()
+            assertEquals(pageUrl, options.getValue("headers")["Referer"])
+            assertTrue(options.getValue("headers").getValue("User-Agent").isNotBlank())
+        }
+    }
+
+    @Test
+    fun mxshmRejectsPagesWithoutReadableChapterImages() {
+        val source = source("韩国漫画 MXSHM")
+        val result = runCatching {
+            evaluateContentUrls(source, "<img src=\"https://ads.example/cover.jpg\">", "https://reader.example/chapter/42")
+        }
+        assertTrue("An error page should not become a cover-only chapter", result.isFailure)
+        assertTrue(result.exceptionOrNull()?.message.orEmpty().contains("漫画正文图片"))
+    }
+
     private fun parseBookList(
         source: BookSource,
         rule: BookListRule,
@@ -346,6 +422,12 @@ class TestMangaSourceRule {
     }
 
     private fun evaluateContentUrls(source: BookSource, html: String, baseUrl: String): List<String> {
+        return evaluateContent(source, html, baseUrl).lineSequence().mapNotNull { line ->
+            Regex("""<img src="([^,"]+)""").find(line)?.groupValues?.get(1)
+        }.toList()
+    }
+
+    private fun evaluateContent(source: BookSource, html: String, baseUrl: String): String {
         val rule = source.getContentRule().content.orEmpty()
         val script = when {
             rule.startsWith("<js>") && rule.endsWith("</js>") ->
@@ -356,11 +438,9 @@ class TestMangaSourceRule {
         val bindings = ScriptBindings().apply {
             this["result"] = html
             this["baseUrl"] = baseUrl
+            this["source"] = source
         }
-        val output = RhinoScriptEngine.eval(script, bindings).toString()
-        return output.lineSequence().mapNotNull { line ->
-            Regex("""<img src="([^,"]+)""").find(line)?.groupValues?.get(1)
-        }.toList()
+        return RhinoScriptEngine.eval(script, bindings).toString()
     }
 
     private fun AnalyzeByJSoup.readString(rule: String?): String {
