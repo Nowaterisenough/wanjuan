@@ -5,10 +5,13 @@ import com.script.rhino.RhinoScriptEngine
 import io.wanjuan.app.data.entities.BookSource
 import io.wanjuan.app.utils.GSON
 import io.wanjuan.app.utils.fromJsonArray
+import io.wanjuan.app.utils.fromJsonObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import java.io.File
+import java.net.URLDecoder
 
 class TestJmcomicLoginCheckRule {
 
@@ -149,21 +152,95 @@ class TestJmcomicLoginCheckRule {
     }
 
     @Test
-    fun dynamicSourceCopiesStaySynchronized() {
-        val sources = jmcomicSources()
-
-        sources.forEach { (fileName, source) ->
-            assertEquals(
-                "$fileName Jmcomic lastUpdateTime",
-                EXPECTED_LAST_UPDATE_TIME,
-                source.lastUpdateTime
+    fun activeSourceHasUpdatedTimestamp() {
+        jmcomicSources().forEach { (fileName, source) ->
+            assertTrue(
+                "$fileName should mark the login URL repair as a source update",
+                source.lastUpdateTime > PREVIOUS_LAST_UPDATE_TIME
             )
         }
-        assertEquals(
-            "Jmcomic loginCheckJs should be identical in both dynamic source files",
-            sources[0].second.loginCheckJs,
-            sources[1].second.loginCheckJs
+    }
+
+    @Test
+    fun loginAndLinkDiscoveryNormalizePublishedUrlsInRhino() {
+        val addresses = mapOf(
+            "comic.example" to "https://comic.example",
+            " https://comic.example/// " to "https://comic.example",
+            "http://comic.example/" to "http://comic.example",
+            "//comic.example/" to "https://comic.example"
         )
+        addresses.forEach { (published, expected) ->
+            listOf("login()", "check()").forEach { action ->
+                val source = FakeLoginSource()
+                val java = FakeLoginJava("<a class='link china'>\n<span>$published</span></a>")
+                evaluateLogin(action, source, java)
+                assertEquals(expected, source.variable)
+                if (action == "login()") {
+                    assertEquals(expected + "/login", java.requests.last().substringBefore(','))
+                    assertEquals(2, java.requests.size)
+                } else {
+                    assertEquals(listOf(expected), java.toasts)
+                    assertEquals(1, java.requests.size)
+                }
+            }
+        }
+    }
+
+    @Test
+    fun loginFormEncodesCredentialsInRhino() {
+        val source = FakeLoginSource("用户 &+?=", "fixture&password+with=%# 空格")
+        val java = FakeLoginJava("<div class=\"china\"><span>comic.example</span></div>")
+        evaluateLogin("login()", source, java)
+        val options = GSON.fromJsonObject<Map<String, String>>(java.requests.last().substringAfter(',')).getOrThrow()
+        val form = options.getValue("body").split('&').associate {
+            URLDecoder.decode(it.substringBefore('='), "UTF-8") to
+                URLDecoder.decode(it.substringAfter('='), "UTF-8")
+        }
+        assertEquals("POST", options["method"])
+        assertEquals(mapOf("username" to source.username, "password" to source.password, "submit_login" to "1"), form)
+    }
+
+    @Test
+    fun invalidPublishingPageKeepsSavedUrlAndDoesNotPostCredentials() {
+        listOf("<html>unavailable</html>", "<div class='china'><span> </span></div>").forEach { page ->
+            val source = FakeLoginSource().apply { setVariable("https://saved.example") }
+            val java = FakeLoginJava(page)
+            val result = runCatching { evaluateLogin("login()", source, java) }
+            assertTrue("Invalid publishing page should fail", result.isFailure)
+            assertTrue(result.exceptionOrNull()?.message.orEmpty().contains("发布页"))
+            assertEquals("https://saved.example", source.variable)
+            assertEquals(1, java.requests.size)
+        }
+    }
+
+    private fun evaluateLogin(action: String, source: FakeLoginSource, java: FakeLoginJava) {
+        val bindings = ScriptBindings().apply {
+            this["source"] = source
+            this["java"] = java
+        }
+        val rule = jmcomicSources().single().second.loginUrl.orEmpty()
+        RhinoScriptEngine.eval("$rule\n$action", bindings)
+    }
+
+    class FakeLoginSource(val username: String = "fixture-user", val password: String = "fixture-password") {
+        private var savedVariable = ""
+        val variable: String get() = savedVariable
+
+        fun getLoginInfo(): String = GSON.toJson(mapOf("账号" to username, "密码" to password))
+        fun setVariable(value: String) { savedVariable = value }
+    }
+
+    class FakeLoginJava(private val page: String) {
+        val requests = mutableListOf<String>()
+        val toasts = mutableListOf<String>()
+
+        fun ajax(request: String): String {
+            request.substringBefore(',').toHttpUrl()
+            requests += request
+            return if (requests.size == 1) page else "fixture response"
+        }
+
+        fun longToast(value: String) { toasts += value }
     }
 
     private fun rules(): List<Pair<String, String>> {
@@ -241,7 +318,7 @@ class TestJmcomicLoginCheckRule {
 
     private companion object {
         const val JMCOMIC_SOURCE_URL = "https://jmcomicgo.me"
-        const val EXPECTED_LAST_UPDATE_TIME = 1784017318000L
-        val SOURCE_FILES = listOf("shareBookSource.json", "qyyuapiBookSource.json")
+        const val PREVIOUS_LAST_UPDATE_TIME = 1784017318000L
+        val SOURCE_FILES = listOf("shareBookSource.json")
     }
 }
