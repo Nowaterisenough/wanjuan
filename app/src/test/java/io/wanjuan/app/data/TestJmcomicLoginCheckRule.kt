@@ -91,12 +91,20 @@ class TestJmcomicLoginCheckRule {
     }
 
     @Test
-    fun explicitVerificationAndCloudflareChallengeOpenVerificationBrowser() {
+    fun explicitVerificationPageOpensManualBrowser() {
+        val response = FakeResponse("https://comic18j-codi.net/verify.php", 200, "verify")
+        rules().forEach { (fileName, rule) ->
+            assertEquals(
+                fileName,
+                listOf(BrowserCall(response.url(), "验证", false)),
+                evaluate(rule, response)
+            )
+        }
+    }
+
+    @Test
+    fun cloudflareChallengeStartsAutomaticVerification() {
         val cases = listOf(
-            ResponseCase(
-                "explicit verify page",
-                FakeResponse("https://comic18j-codi.net/verify.php", 200, "verify")
-            ),
             ResponseCase(
                 "403 challenge title only",
                 FakeResponse(
@@ -144,8 +152,25 @@ class TestJmcomicLoginCheckRule {
             cases.forEach { case ->
                 assertEquals(
                     "$fileName ${case.name}",
-                    listOf(BrowserCall(case.response.url(), "验证", false)),
+                    listOf(BrowserCall(case.response.url(), "Cloudflare", true)),
                     evaluate(rule, case.response)
+                )
+            }
+        }
+    }
+
+    @Test
+    fun cloudflareChallengeIsHandledBeforeLoginAndSiteVerification() {
+        listOf("/login", "/verify.php", "/account").forEach { path ->
+            val response = FakeResponse(
+                "https://comic18j-codi.net$path", 401, "challenge",
+                mapOf("cf-mitigated" to "challenge")
+            )
+            rules().forEach { (fileName, rule) ->
+                assertEquals(
+                    "$fileName $path should attempt Cloudflare before opening site login",
+                    listOf(BrowserCall(response.url(), "Cloudflare", true)),
+                    evaluate(rule, response)
                 )
             }
         }
