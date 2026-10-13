@@ -98,7 +98,6 @@ import io.wanjuan.app.help.webView.WebViewPool.DATA_HTML
 import io.wanjuan.app.model.Download
 import kotlinx.coroutines.Dispatchers.IO
 import java.lang.ref.WeakReference
-import splitties.systemservices.powerManager
 import java.net.URLDecoder
 import androidx.core.graphics.createBitmap
 
@@ -117,7 +116,6 @@ class ReadRssActivity : VMBaseActivity<ActivityRssReadBinding, ReadRssViewModel>
     private var starMenuItem: MenuItem? = null
     private var ttsMenuItem: MenuItem? = null
     private var isFullscreen = false
-    private var wasScreenOff = false
     private var customWebViewCallback: WebChromeClient.CustomViewCallback? = null
     private var interfaceInjected: String? = null
     private var needClearHistory = true
@@ -478,20 +476,13 @@ class ReadRssActivity : VMBaseActivity<ActivityRssReadBinding, ReadRssViewModel>
     }
 
     override fun onPause() {
+        currentWebView.onPause()
         super.onPause()
-        if (powerManager.isInteractive) {
-            wasScreenOff = false
-            currentWebView.onPause()
-        } else {
-            wasScreenOff = true
-        }
     }
 
     override fun onResume() {
         super.onResume()
-        if (!wasScreenOff) {
-            currentWebView.onResume()
-        }
+        currentWebView.onResume()
     }
 
     override fun onDestroy() {

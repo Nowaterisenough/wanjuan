@@ -58,7 +58,6 @@ import io.wanjuan.app.help.webView.WebViewPool
 import io.wanjuan.app.help.webView.WebViewPool.BLANK_HTML
 import io.wanjuan.app.help.webView.WebViewPool.DATA_HTML
 import io.wanjuan.app.model.Download
-import splitties.systemservices.powerManager
 import java.lang.ref.WeakReference
 import java.net.URLDecoder
 import androidx.core.graphics.createBitmap
@@ -82,7 +81,6 @@ class WebViewActivity : VMBaseActivity<ActivityWebViewBinding, WebViewModel>() {
     private var hasReturnedVerificationResult = false
     private var isFullScreen = false
     private var isfullscreen = false
-    private var wasScreenOff = false
     private var needClearHistory = true
     private val saveImage = registerForActivityResult(HandleFileContract()) {
         it.uri?.let { uri ->
@@ -325,20 +323,13 @@ class WebViewActivity : VMBaseActivity<ActivityWebViewBinding, WebViewModel>() {
     }
 
     override fun onPause() {
+        currentWebView.onPause()
         super.onPause()
-        if (powerManager.isInteractive) {
-            wasScreenOff = false
-            currentWebView.onPause()
-        } else {
-            wasScreenOff = true
-        }
     }
 
     override fun onResume() {
         super.onResume()
-        if (!wasScreenOff) {
-            currentWebView.onResume()
-        }
+        currentWebView.onResume()
     }
 
     override fun onDestroy() {

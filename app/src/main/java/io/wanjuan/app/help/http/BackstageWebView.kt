@@ -94,11 +94,12 @@ class BackstageWebView(
                 delayTime = 900L
             }
             runOnUI {
+                if (!block.isActive) return@runOnUI
                 try {
                     load()
                 } catch (error: Throwable) {
                     destroy()
-                    block.resumeWithException(error)
+                    if (block.isActive) block.resumeWithException(error)
                 }
             }
         }
@@ -174,8 +175,10 @@ class BackstageWebView(
     }
 
     private fun destroy() {
-        pooledWebView?.let { WebViewPool.release(it) }
+        mHandler.removeCallbacksAndMessages(null)
+        val pooled = pooledWebView
         pooledWebView = null
+        pooled?.let { WebViewPool.release(it) }
     }
 
     private fun getJs(): String {
@@ -248,7 +251,9 @@ class BackstageWebView(
                 "$getInjectionString\n$mJavaScript"
             } else mJavaScript
             override fun run() {
-                mWebView.get()?.evaluateJavascript(jsStr) {
+                val webView = mWebView.get() ?: return
+                if (pooledWebView?.realWebView !== webView) return
+                webView.evaluateJavascript(jsStr) {
                     if (pooledWebView != null) {
                         handleResult(it)
                     }
@@ -383,7 +388,9 @@ class BackstageWebView(
         ) : Runnable {
             private val mWebView: WeakReference<WebView> = WeakReference(webView)
             override fun run() {
-                mWebView.get()?.loadUrl("javascript:${mJavaScript}")
+                val webView = mWebView.get() ?: return
+                if (pooledWebView?.realWebView !== webView) return
+                webView.loadUrl("javascript:${mJavaScript}")
             }
         }
 

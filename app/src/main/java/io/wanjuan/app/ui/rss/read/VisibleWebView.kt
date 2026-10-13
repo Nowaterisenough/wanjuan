@@ -10,7 +10,7 @@ class VisibleWebView(
 ) : WebView(context, attrs) {
 
     override fun onWindowVisibilityChanged(visibility: Int) {
-        super.onWindowVisibilityChanged(VISIBLE)
+        super.onWindowVisibilityChanged(visibility)
     }
 
 }
