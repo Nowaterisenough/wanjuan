@@ -100,9 +100,8 @@ fun buildRequest(request: Request, callback: UrlRequest.Callback): UrlRequest? {
             } else {
                 BodyUploadProvider(requestBody)
             }
-            provider.use {
-                this.setUploadDataProvider(it, okHttpClient.dispatcher.executorService)
-            }
+            // Cronet owns the provider and closes it when the request finishes or is cancelled.
+            setUploadDataProvider(provider, okHttpClient.dispatcher.executorService)
         }
     }?.build()
 }

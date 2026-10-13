@@ -5,6 +5,7 @@ import okhttp3.RequestBody
 import okio.Buffer
 import org.chromium.net.UploadDataProvider
 import org.chromium.net.UploadDataSink
+import java.io.EOFException
 import java.io.IOException
 import java.nio.ByteBuffer
 
@@ -21,14 +22,9 @@ class BodyUploadProvider(private val body: RequestBody) : UploadDataProvider(), 
     }
 
     private fun fillBuffer() {
-        try {
-            buffer.clear()
-            filled = true
-            body.writeTo(buffer)
-            buffer.flush()
-        } catch (e: IOException) {
-            e.printStackTrace()
-        }
+        buffer.clear()
+        body.writeTo(buffer)
+        filled = true
     }
 
     @Throws(IOException::class)
@@ -42,18 +38,14 @@ class BodyUploadProvider(private val body: RequestBody) : UploadDataProvider(), 
             fillBuffer()
         }
         check(byteBuffer.hasRemaining()) { "Cronet passed a buffer with no bytes remaining" }
-        var read: Int
-        var bytesRead = 0
-        while (bytesRead == 0) {
-            read = buffer.read(byteBuffer)
-            bytesRead += read
-        }
-        uploadDataSink.onReadSucceeded(false)
+        val count = buffer.read(byteBuffer)
+        if (count < 0 && length >= 0) throw EOFException("Request body ended before Cronet finished reading")
+        uploadDataSink.onReadSucceeded(count < 0 && length < 0)
     }
 
     @Throws(IOException::class)
     override fun rewind(uploadDataSink: UploadDataSink) {
-        check(body.isOneShot()) { "Okhttp RequestBody is oneShot" }
+        check(!body.isOneShot()) { "Okhttp RequestBody is oneShot" }
         filled = false
         fillBuffer()
         uploadDataSink.onRewindSucceeded()
@@ -61,6 +53,7 @@ class BodyUploadProvider(private val body: RequestBody) : UploadDataProvider(), 
 
     @Throws(IOException::class)
     override fun close() {
+        buffer.clear()
         buffer.close()
         super.close()
     }
