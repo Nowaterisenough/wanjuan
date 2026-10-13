@@ -61,6 +61,7 @@ import io.wanjuan.app.ui.book.manga.entities.MangaPage
 import io.wanjuan.app.ui.book.manga.recyclerview.MangaAdapter
 import io.wanjuan.app.ui.book.manga.recyclerview.MangaLayoutManager
 import io.wanjuan.app.ui.book.manga.recyclerview.ScrollTimer
+import io.wanjuan.app.ui.book.manga.recyclerview.MangaPreloadWindow
 import io.wanjuan.app.ui.book.read.MangaMenu
 import io.wanjuan.app.ui.book.read.ReadBookActivity.Companion.RESULT_DELETED
 import io.wanjuan.app.ui.book.read.applyMinimapChapterNavigationStyle
@@ -138,6 +139,7 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
     private var doubleColumnPairAllowPositionJump = false
     private var doubleColumnPairSource: RecyclerView? = null
     private var mangaPreloadListener: RecyclerView.OnScrollListener? = null
+    private val mangaPreloadWindow = MangaPreloadWindow()
     private var syncDialog: AlertDialog? = null
     private val mScrollTimer by lazy {
         ScrollTimer(this, binding.recyclerView, lifecycleScope).apply {
@@ -1399,6 +1401,7 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
 
     override fun onResume() {
         super.onResume()
+        mangaPreloadWindow.clear()
         binding.mangaProgressMinimap.resumeThumbnailLoading()
         networkChangedListener.register()
         networkChangedListener.onNetworkChanged = {
@@ -1766,6 +1769,7 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
     }
 
     private fun setRecyclerViewPreloader(maxPreload: Int) {
+        mangaPreloadWindow.clear()
         mangaPreloadListener?.let { binding.recyclerView.removeOnScrollListener(it) }
         if (maxPreload <= 0) {
             mangaPreloadListener = null
@@ -1796,17 +1800,9 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
                     return
                 }
                 val forward = if (layoutManager.canScrollVertically()) dy >= 0 else dx >= 0
-                val positions = if (forward) {
-                    (last + 1)..(last + maxPreload)
-                } else {
-                    (first - maxPreload until first).reversed()
-                }
-                positions.forEach { position ->
-                    if (position < 0) return@forEach
-                    activeMangaAdapter().getPreloadItems(position).forEach { item ->
-                        activeMangaAdapter().getPreloadRequestBuilder(item)?.preload()
-                    }
-                }
+                val adapter = activeMangaAdapter()
+                mangaPreloadWindow.entering(adapter.getItems(), first, last, maxPreload, forward)
+                    .forEach { item -> adapter.getPreloadRequestBuilder(item)?.preload() }
             }
         }.also(binding.recyclerView::addOnScrollListener)
     }
