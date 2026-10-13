@@ -170,6 +170,7 @@ class AudioPlayService : BaseService(),
                 }
 
                 IntentAction.stopPlay -> {
+                    releaseWakeLocks()
                     exoPlayer.stop()
                     upPlayProgressJob?.cancel()
                     AudioPlay.status = Status.STOP
@@ -198,10 +199,7 @@ class AudioPlayService : BaseService(),
 
     override fun onDestroy() {
         super.onDestroy()
-        if (useWakeLock) {
-            wakeLock.release()
-            wifiLock?.release()
-        }
+        releaseWakeLocks()
         isRun = false
         abandonFocus()
         exoPlayer.release()
@@ -220,14 +218,10 @@ class AudioPlayService : BaseService(),
      * 播放音频
      */
     @OptIn(UnstableApi::class)
-    @SuppressLint("WakelockTimeout")
     private fun play() {
-        if (useWakeLock) {
-            wakeLock.acquire()
-            wifiLock?.acquire()
-        }
         upAudioPlayNotification()
         if (!requestFocus()) {
+            pause()
             return
         }
         val book = AudioPlay.book
@@ -238,8 +232,7 @@ class AudioPlayService : BaseService(),
             if (url.isJsonArray()) {
                 val mediaSource = ExoPlayerHelper.getMediaSource(this@AudioPlayService, url)
                 if (mediaSource ==  null) {
-                    NoStackTraceException("url格式错误")
-                    return@execute
+                    throw NoStackTraceException("url格式错误")
                 }
                 exoPlayer.setMediaSource(mediaSource)
                 position = 0
@@ -270,10 +263,7 @@ class AudioPlayService : BaseService(),
      * 暂停播放
      */
     private fun pause(abandonFocus: Boolean = true) {
-        if (useWakeLock) {
-            wakeLock.release()
-            wifiLock?.release()
-        }
+        releaseWakeLocks()
         try {
             pause = true
             if (abandonFocus) {
@@ -281,7 +271,8 @@ class AudioPlayService : BaseService(),
             }
             upPlayProgressJob?.cancel()
             position = exoPlayer.currentPosition.toInt()
-            if (exoPlayer.isPlaying) exoPlayer.pause()
+            // Clear playWhenReady even while buffering, otherwise playback restarts later.
+            exoPlayer.pause()
             upMediaSessionPlaybackState(PlaybackStateCompat.STATE_PAUSED)
             AudioPlay.status = Status.PAUSE
             postEvent(EventBus.AUDIO_STATE, Status.PAUSE)
@@ -294,11 +285,10 @@ class AudioPlayService : BaseService(),
     /**
      * 恢复播放
      */
-    @SuppressLint("WakelockTimeout")
     private fun resume() {
-        if (useWakeLock) {
-            wakeLock.acquire()
-            wifiLock?.acquire()
+        if (!requestFocus()) {
+            pause()
+            return
         }
         try {
             pause = false
@@ -322,6 +312,32 @@ class AudioPlayService : BaseService(),
         } catch (e: Exception) {
             e.printOnDebug()
             stopSelf()
+        }
+    }
+
+    @SuppressLint("WakelockTimeout")
+    private fun acquireWakeLocks() {
+        if (!useWakeLock) return
+        if (!wakeLock.isHeld) wakeLock.acquire()
+        wifiLock?.let { if (!it.isHeld) it.acquire() }
+    }
+
+    private fun releaseWakeLocks() {
+        if (!useWakeLock) return
+        if (wakeLock.isHeld) wakeLock.release()
+        wifiLock?.let { if (it.isHeld) it.release() }
+    }
+
+    override fun onEvents(player: Player, events: Player.Events) {
+        super.onEvents(player, events)
+        val active = !pause && player.playWhenReady && player.playerError == null &&
+            player.playbackSuppressionReason == Player.PLAYBACK_SUPPRESSION_REASON_NONE &&
+            (player.playbackState == Player.STATE_BUFFERING || player.playbackState == Player.STATE_READY)
+        if (active) acquireWakeLocks() else releaseWakeLocks()
+        if (player.isPlaying) {
+            if (upPlayProgressJob?.isActive != true) upPlayProgress()
+        } else {
+            upPlayProgressJob?.cancel()
         }
     }
 
@@ -379,6 +395,7 @@ class AudioPlayService : BaseService(),
 
             Player.STATE_ENDED -> {
                 // 结束
+                releaseWakeLocks()
                 upPlayProgressJob?.cancel()
                 AudioPlay.playPositionChanged(exoPlayer.duration.toInt())
                 AudioPlay.next()
@@ -403,12 +420,18 @@ class AudioPlayService : BaseService(),
      */
     override fun onPlayerError(error: PlaybackException) {
         super.onPlayerError(error)
+        pause = true
+        releaseWakeLocks()
+        upPlayProgressJob?.cancel()
+        abandonFocus()
         AudioPlay.status = Status.STOP
         postEvent(EventBus.AUDIO_STATE, Status.STOP)
         AudioPlay.upLoading(false)
         val errorMsg = "音频播放出错\n${error.errorCodeName} ${error.errorCode}"
         AppLog.put(errorMsg, error)
         toastOnUi(errorMsg)
+        upMediaSessionPlaybackState(PlaybackStateCompat.STATE_ERROR)
+        upAudioPlayNotification()
     }
 
     private fun setTimer(minute: Int) {
@@ -457,9 +480,10 @@ class AudioPlayService : BaseService(),
      */
     private fun upPlayProgress() {
         upPlayProgressJob?.cancel()
+        if (!exoPlayer.isPlaying) return
         upPlayProgressJob = lifecycleScope.launch {
             val skipEnds = AudioPlay.book?.getCloseCredits() ?: 0
-            while (isActive) {
+            while (isActive && exoPlayer.isPlaying) {
                 val durP = exoPlayer.currentPosition
                 //更新buffer位置
                 AudioPlay.playPositionChanged(durP.toInt())
@@ -479,6 +503,7 @@ class AudioPlayService : BaseService(),
                             upPlayProgressJob?.cancel()
                             AudioPlay.playPositionChanged(exoPlayer.duration.toInt())
                             pause = true
+                            releaseWakeLocks()
                             AudioPlay.next()
                         }
                     }
