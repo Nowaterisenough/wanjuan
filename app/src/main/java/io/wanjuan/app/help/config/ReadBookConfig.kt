@@ -527,6 +527,12 @@ object ReadBookConfig {
             config.paragraphIndent = value
         }
 
+    var paragraphIndentSize: Int
+        get() = paragraphIndent.length
+        set(value) {
+            paragraphIndent = "　".repeat(value.coerceIn(0, 8))
+        }
+
     var underlineMode: Int
         get() = config.underlineMode
         set(value) {
@@ -627,6 +633,7 @@ object ReadBookConfig {
             exportConfig.letterSpacing = shareConfig.letterSpacing
             exportConfig.lineSpacingExtra = shareConfig.lineSpacingExtra
             exportConfig.paragraphSpacing = shareConfig.paragraphSpacing
+            exportConfig.paragraphIndent = paragraphIndent
             exportConfig.paperEffect = shareConfig.paperEffect
             exportConfig.paperInkStrength = shareConfig.paperInkStrength
             exportConfig.titleMode = shareConfig.titleMode

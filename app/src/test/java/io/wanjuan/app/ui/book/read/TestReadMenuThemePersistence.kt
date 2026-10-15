@@ -1,6 +1,7 @@
 package io.wanjuan.app.ui.book.read
 
 import io.wanjuan.app.utils.GSON
+import com.google.gson.JsonParser
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -27,5 +28,28 @@ class TestReadMenuThemePersistence {
     fun incompleteOrBrokenThemesCannotOverwriteTheReaderConfiguration() {
         assertTrue(ReadMenuThemeSuiteStore.decode("{broken").isEmpty())
         assertTrue(ReadMenuThemeSuiteStore.decode("[{\"name\":\"bad\",\"bgValue\":\"#FFFFFF\"}]").isEmpty())
+    }
+
+    @Test
+    fun indentationSurvivesThemeExportAndChangesThemeMatching() {
+        val default = theme()
+        for (indent in listOf("", "　", "　　　　")) {
+            val custom = default.copy(paragraphIndent = indent)
+            val restored = ReadMenuThemeSuiteStore.decode(GSON.toJson(listOf(custom))).single()
+            assertEquals(indent, restored.paragraphIndent)
+            assertTrue(custom.matches(restored))
+            assertFalse(default.matches(restored))
+        }
+    }
+
+    @Test
+    fun olderThemesKeepTwoSpacesWhileZeroSpacesRemainDistinct() {
+        val default = theme()
+        val oldJson = JsonParser.parseString(GSON.toJson(default)).asJsonObject.apply {
+            remove("paragraphIndent")
+        }
+        val restored = ReadMenuThemeSuiteStore.decode("[$oldJson]").single()
+        assertTrue(restored.matches(default))
+        assertFalse(restored.matches(default.copy(paragraphIndent = "")))
     }
 }

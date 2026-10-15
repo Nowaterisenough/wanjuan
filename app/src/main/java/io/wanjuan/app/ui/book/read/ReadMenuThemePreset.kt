@@ -24,6 +24,7 @@ data class ReadMenuThemePreset(
     val letterSpacing: Float = 0.1f,
     val lineSpacingExtra: Int = 12,
     val paragraphSpacing: Int = 2,
+    val paragraphIndent: String = "　　",
     val paddingTop: Int = 6,
     val paddingBottom: Int = 6,
     val paddingLeft: Int = 16,

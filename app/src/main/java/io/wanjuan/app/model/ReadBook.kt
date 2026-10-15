@@ -657,6 +657,7 @@ object ReadBook : CoroutineScope by MainScope() {
             append('|').append(ChapterProvider.titlePaintTextHeight)
             append('|').append(ChapterProvider.lineSpacingExtra)
             append('|').append(ChapterProvider.paragraphSpacing)
+            append('|').append(ReadBookConfig.paragraphIndent)
             append('|').append(paragraphRuleLayoutKey)
             chapterIndex?.let { index ->
                 append('|').append(chapterProgressPageBreakPosition(index) ?: -1)

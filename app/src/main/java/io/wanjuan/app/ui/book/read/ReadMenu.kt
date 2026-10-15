@@ -3760,6 +3760,7 @@ class ReadMenu @JvmOverloads constructor(
                 abs(ReadBookConfig.letterSpacing - preset.letterSpacing) < 0.01f &&
                 ReadBookConfig.lineSpacingExtra == preset.lineSpacingExtra &&
                 ReadBookConfig.paragraphSpacing == preset.paragraphSpacing &&
+                ReadBookConfig.paragraphIndent == preset.paragraphIndent &&
                 ReadBookConfig.paddingTop == preset.paddingTop &&
                 ReadBookConfig.paddingBottom == preset.paddingBottom &&
                 ReadBookConfig.paddingLeft == preset.paddingLeft &&
@@ -3919,6 +3920,7 @@ class ReadMenu @JvmOverloads constructor(
         ReadBookConfig.letterSpacing = preset.letterSpacing
         ReadBookConfig.lineSpacingExtra = preset.lineSpacingExtra
         ReadBookConfig.paragraphSpacing = preset.paragraphSpacing
+        ReadBookConfig.paragraphIndent = preset.paragraphIndent
         ReadBookConfig.paddingTop = preset.paddingTop
         ReadBookConfig.paddingBottom = preset.paddingBottom
         ReadBookConfig.paddingLeft = preset.paddingLeft

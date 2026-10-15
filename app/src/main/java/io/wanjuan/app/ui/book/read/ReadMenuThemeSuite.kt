@@ -31,6 +31,7 @@ data class ReadMenuThemeSuite(
     val letterSpacing: Float,
     val lineSpacingExtra: Int,
     val paragraphSpacing: Int,
+    val paragraphIndent: String? = null,
     val paddingTop: Int = 0,
     val paddingBottom: Int = 0,
     val paddingLeft: Int = 0,
@@ -63,6 +64,9 @@ data class ReadMenuThemeSuite(
     val includeTurning: Boolean? = null
 ) {
 
+    // Themes saved before paragraph indentation was configurable used two full-width spaces.
+    private val resolvedParagraphIndent: String get() = paragraphIndent ?: "　　"
+
     fun matchesCurrentTheme(): Boolean {
         return matches(captureCurrent(name))
     }
@@ -82,6 +86,7 @@ data class ReadMenuThemeSuite(
                 abs(letterSpacing - other.letterSpacing) < 0.01f &&
                 lineSpacingExtra == other.lineSpacingExtra &&
                 paragraphSpacing == other.paragraphSpacing &&
+                resolvedParagraphIndent == other.resolvedParagraphIndent &&
                 paddingTop == other.paddingTop &&
                 paddingBottom == other.paddingBottom &&
                 paddingLeft == other.paddingLeft &&
@@ -134,6 +139,7 @@ data class ReadMenuThemeSuite(
             ReadBookConfig.letterSpacing = letterSpacing
             ReadBookConfig.lineSpacingExtra = lineSpacingExtra
             ReadBookConfig.paragraphSpacing = paragraphSpacing
+            ReadBookConfig.paragraphIndent = resolvedParagraphIndent
             ReadBookConfig.paddingTop = paddingTop
             ReadBookConfig.paddingBottom = paddingBottom
             ReadBookConfig.paddingLeft = paddingLeft
@@ -207,6 +213,7 @@ data class ReadMenuThemeSuite(
                 letterSpacing = ReadBookConfig.letterSpacing,
                 lineSpacingExtra = ReadBookConfig.lineSpacingExtra,
                 paragraphSpacing = ReadBookConfig.paragraphSpacing,
+                paragraphIndent = ReadBookConfig.paragraphIndent,
                 paddingTop = ReadBookConfig.paddingTop,
                 paddingBottom = ReadBookConfig.paddingBottom,
                 paddingLeft = ReadBookConfig.paddingLeft,
@@ -251,6 +258,7 @@ data class ReadMenuThemeSuite(
                 letterSpacing = preset.letterSpacing,
                 lineSpacingExtra = preset.lineSpacingExtra,
                 paragraphSpacing = preset.paragraphSpacing,
+                paragraphIndent = preset.paragraphIndent,
                 paddingTop = preset.paddingTop,
                 paddingBottom = preset.paddingBottom,
                 paddingLeft = preset.paddingLeft,

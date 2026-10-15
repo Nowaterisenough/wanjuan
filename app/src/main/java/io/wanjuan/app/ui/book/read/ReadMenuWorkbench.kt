@@ -640,6 +640,12 @@ class ReadMenuWorkbench(
             }, LayoutParams(0, dp(Ui.CONTROL_NORMAL), 1f))
         }
         body.addView(spacing)
+        actionRow(body, "段首空格数", "${ReadBookConfig.paragraphIndentSize} 格") {
+            numberDialog("段首空格数（每格为一个汉字宽度）", ReadBookConfig.paragraphIndentSize, 0, 8) {
+                ReadBookConfig.paragraphIndentSize = it
+                changed(true)
+            }
+        }
         actionRow(body, "页面边距", "左右 ${ReadBookConfig.paddingLeft} / ${ReadBookConfig.paddingRight}") { show(Page.LAYOUT_DETAILS) }
     }
 

@@ -3,6 +3,8 @@ package io.wanjuan.app.help.config
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.wanjuan.app.data.appDb
 import io.wanjuan.app.data.entities.Book
+import io.wanjuan.app.data.entities.BookChapter
+import io.wanjuan.app.help.book.ContentProcessor
 import io.wanjuan.app.model.ReadBook
 import io.wanjuan.app.ui.book.read.ReadMenuThemeSuite
 import io.wanjuan.app.utils.GSON
@@ -50,9 +52,11 @@ class TestReaderAppearanceScope {
     @Test
     fun independentAppearancePersistsAndDoesNotChangeOtherBooksOrGlobalFont() {
         val defaultSize = ReadBookConfig.textSize
+        val defaultIndent = ReadBookConfig.paragraphIndent
         val globalTypeface = AppConfig.systemTypefaces
         ReadBookConfig.useBookAppearance()
         ReadBookConfig.textSize = 31
+        ReadBookConfig.paragraphIndentSize = 4
         ReadBookConfig.systemTypeface = 2
         ReadBookConfig.animationSpeed = 760
         ReadBookConfig.save()
@@ -60,12 +64,45 @@ class TestReaderAppearanceScope {
         val restored = appDb.bookDao.getBook(first.bookUrl)!!
         ReadBook.book = second
         assertEquals(defaultSize, ReadBookConfig.textSize)
+        assertEquals(defaultIndent, ReadBookConfig.paragraphIndent)
         assertFalse(ReadBookConfig.hasBookAppearance)
         assertEquals(globalTypeface, AppConfig.systemTypefaces)
         ReadBook.book = restored
         assertEquals(31, ReadBookConfig.textSize)
+        assertEquals("　　　　", ReadBookConfig.paragraphIndent)
         assertEquals(2, ReadBookConfig.systemTypeface)
         assertEquals(760, ReadBookConfig.animationSpeed)
+    }
+
+    @Test
+    fun indentationReplacesExistingWhitespaceAndLeavesTheTitleUnindented() {
+        ReadBookConfig.useBookAppearance()
+        val chapter = BookChapter(bookUrl = first.bookUrl, url = "paragraph-indent-test", title = "测试章节")
+        val processor = ContentProcessor.get(first)
+        for (spaces in listOf(0, 1, 2, 4, 8)) {
+            ReadBookConfig.paragraphIndentSize = spaces
+            val result = processor.getContent(first, chapter, "  第一段正文\n　　第二段正文", useReplace = false,
+                chineseConvert = false, reSegment = false)
+            assertEquals(listOf("测试章节", "${"　".repeat(spaces)}第一段正文", "${"　".repeat(spaces)}第二段正文"), result.textList)
+        }
+        val saved = ReadMenuThemeSuite.captureCurrent("段首空格")
+        ReadBookConfig.paragraphIndentSize = 0
+        saved.applyToReader()
+        assertEquals(8, ReadBookConfig.paragraphIndentSize)
+        saved.copy(paragraphIndent = null).applyToReader()
+        assertEquals(2, ReadBookConfig.paragraphIndentSize)
+    }
+
+    @Test
+    fun sharedTypographyExportsTheActiveIndentation() {
+        ReadBookConfig.shareLayout = true
+        ReadBookConfig.paragraphIndentSize = 0
+        assertEquals("", ReadBookConfig.getExportConfig().paragraphIndent)
+        ReadBookConfig.paragraphIndentSize = 4
+        assertEquals("　　　　", ReadBookConfig.getExportConfig().paragraphIndent)
+        ReadBookConfig.useBookAppearance()
+        ReadBookConfig.paragraphIndentSize = 0
+        assertEquals("", ReadBookConfig.getExportConfig().paragraphIndent)
     }
 
     @Test
