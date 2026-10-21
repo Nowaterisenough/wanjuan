@@ -1,5 +1,6 @@
 package io.wanjuan.app.sync
 
+import io.wanjuan.app.constant.AppLog
 import io.wanjuan.app.data.appDb
 import io.wanjuan.app.help.AppWebDav
 import io.wanjuan.app.help.config.AppConfig
@@ -16,6 +17,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import splitties.init.appCtx
@@ -24,6 +27,7 @@ object SyncManager {
 
     private val syncScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val mutationMutex = Mutex()
+    private var changeObserver: Job? = null
     private val managedTypes = setOf(
         SyncObjectType.BookGroup, SyncObjectType.Book, SyncObjectType.BookSource,
         SyncObjectType.RssSource, SyncObjectType.RuleSub, SyncObjectType.BookGroupOrder,
@@ -140,8 +144,29 @@ object SyncManager {
     } else SyncResult()
 
     fun onAppStart() {
+        observeLocalChanges()
         if (!AppConfig.webDavObjectSync) return
         syncNow()
+    }
+
+    @Synchronized
+    private fun observeLocalChanges() {
+        if (changeObserver?.isActive == true) return
+        changeObserver = syncScope.launch {
+            SyncAutoTrigger().observe(
+                fingerprints = RoomSyncChangeSource(appDb).fingerprints(),
+                isEnabled = { isEnabled },
+                hasPendingChanges = {
+                    mutationMutex.withLock {
+                        // Compare after remote apply; clean cloud changes must not echo back.
+                        reconciler.capture()
+                        appDb.syncOutboxDao.count() > 0
+                    }
+                },
+                requestSync = { syncNow() },
+                onError = { AppLog.put("记录自动同步变更失败", it) }
+            )
+        }
     }
 
     fun onNetworkAvailable() {

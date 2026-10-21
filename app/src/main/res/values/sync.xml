@@ -3,7 +3,7 @@
     <string name="sync_settings_title">同步</string>
     <string name="sync_settings_summary">WebDAV / GitHub 仓库双向同步</string>
     <string name="sync_enabled_title">启用同步</string>
-    <string name="sync_triggers_summary">启动、联网、下拉更新和阅读进度变化时同步</string>
+    <string name="sync_triggers_summary">启动、联网、下拉更新和阅读进度变化时同步；书源、书籍、换源和分组变化后自动同步</string>
     <string name="sync_provider_title">同步服务器</string>
     <string name="sync_root_directory">根目录</string>
     <string name="sync_now_title">立即同步</string>
