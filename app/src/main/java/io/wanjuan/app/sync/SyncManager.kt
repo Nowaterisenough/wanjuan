@@ -7,16 +7,31 @@ import io.wanjuan.app.help.coroutine.Coroutine
 import io.wanjuan.app.sync.model.SyncObjectType
 import io.wanjuan.app.sync.model.SyncResult
 import io.wanjuan.app.sync.remote.newSyncClient
+import io.wanjuan.app.sync.remote.SelectedSyncRemoteStore
+import io.wanjuan.app.sync.remote.SyncSettings
+import io.wanjuan.app.utils.getPrefString
+import io.wanjuan.app.utils.putPrefString
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import splitties.init.appCtx
 
 object SyncManager {
 
     private val syncScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val mutationMutex = Mutex()
+    private val managedTypes = setOf(
+        SyncObjectType.BookGroup, SyncObjectType.Book, SyncObjectType.BookSource,
+        SyncObjectType.RssSource, SyncObjectType.RuleSub, SyncObjectType.BookGroupOrder,
+        SyncObjectType.BookshelfOrder, SyncObjectType.BookSourceOrder,
+        SyncObjectType.RssSourceOrder, SyncObjectType.RuleSubOrder
+    )
 
-    private val client by lazy { AppWebDav.newSyncClient() }
+    private val client by lazy { SelectedSyncRemoteStore(SyncSettings::target) }
     private val repository: SyncRepository by lazy {
         SyncRepository(
             db = appDb,
@@ -37,7 +52,8 @@ object SyncManager {
             groupCoordinator
         )
     }
-    val assets by lazy { SyncAssetCoordinator(client) }
+    // Large book/cache exports remain WebDAV files, separate from object synchronization.
+    val assets by lazy { SyncAssetCoordinator(AppWebDav.newSyncClient()) }
     val bookSources by lazy {
         BookSourceSyncCoordinator(client, repository, SystemSyncClock, SyncDeviceStore::deviceId)
     }
@@ -59,18 +75,7 @@ object SyncManager {
             store = RoomSyncReconcileStore(appDb),
             clock = SystemSyncClock,
             deviceIdProvider = SyncDeviceStore::deviceId,
-            managedObjectTypes = setOf(
-                SyncObjectType.BookGroup,
-                SyncObjectType.Book,
-                SyncObjectType.BookSource,
-                SyncObjectType.RssSource,
-                SyncObjectType.RuleSub,
-                SyncObjectType.BookGroupOrder,
-                SyncObjectType.BookshelfOrder,
-                SyncObjectType.BookSourceOrder,
-                SyncObjectType.RssSourceOrder,
-                SyncObjectType.RuleSubOrder
-            )
+            managedObjectTypes = managedTypes
         )
     }
 
@@ -91,7 +96,15 @@ object SyncManager {
     private val orchestrator by lazy {
         SyncOrchestrator(
             remoteStore = client,
-            captureAction = SyncCaptureAction { reconciler.capture() },
+            captureAction = SyncCaptureAction {
+                client.withTarget { target ->
+                    if (appCtx.getPrefString("syncLastRemoteTarget") != target.identity) {
+                        appDb.syncMetadataDao.resetRemoteState(managedTypes)
+                        appCtx.putPrefString("syncLastRemoteTarget", target.identity)
+                    }
+                }
+                reconciler.capture()
+            },
             pullAction = SyncPullAction(pullEngine::pullAll),
             flushAction = SyncFlushAction { result -> repository.flushOutbox(client, result) }
         )
@@ -101,17 +114,29 @@ object SyncManager {
         SingleFlightSync(syncScope, ::sync)
     }
 
-    suspend fun sync(): SyncResult = orchestrator.sync()
+    suspend fun sync(): SyncResult = runSync(flushOnly = false)
+
+    private suspend fun runSync(flushOnly: Boolean): SyncResult = mutationMutex.withLock {
+        try {
+            client.withTarget {
+                if (flushOnly) orchestrator.flushPending() else orchestrator.sync()
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            SyncResult(failed = 1, errorMessage = e.localizedMessage ?: e.javaClass.simpleName)
+        }
+    }
 
     val isEnabled: Boolean
-        get() = AppConfig.webDavObjectSync && AppWebDav.isConfigured
+        get() = AppConfig.webDavObjectSync && SyncSettings.isConfigured
 
     suspend fun syncAwait(): SyncResult = if (isEnabled) {
         singleFlightSync.start(rerunIfActive = true).await()
     } else SyncResult()
 
     suspend fun flushPending(): SyncResult = if (isEnabled) {
-        orchestrator.flushPending()
+        runSync(flushOnly = true)
     } else SyncResult()
 
     fun onAppStart() {
@@ -125,7 +150,7 @@ object SyncManager {
     }
 
     fun syncNow(force: Boolean = false, onComplete: (SyncResult) -> Unit = {}) {
-        if (!force && (!AppConfig.webDavObjectSync || !AppWebDav.isConfigured)) {
+        if (!force && !isEnabled) {
             onComplete(SyncResult())
             return
         }

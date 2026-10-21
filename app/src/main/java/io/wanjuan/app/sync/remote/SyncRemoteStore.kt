@@ -16,6 +16,7 @@ interface SyncRemoteStore {
     suspend fun list(relativeDir: String): List<SyncRemoteFile>
     suspend fun downloadJson(relativePath: String): String?
     suspend fun uploadJson(relativePath: String, json: String)
+    suspend fun delete(relativePath: String): Boolean = false
 
     suspend fun updateBook(
         id: String,
@@ -29,6 +30,12 @@ interface SyncRemoteStore {
         return updated
     }
 }
+
+suspend inline fun <reified T> SyncRemoteStore.download(relativePath: String): T? =
+    downloadJson(relativePath)?.let { GSON.fromJsonObject<T>(it).getOrThrow() }
+
+suspend fun SyncRemoteStore.upload(relativePath: String, payload: Any) =
+    uploadJson(relativePath, GSON.toJson(payload))
 
 suspend fun SyncRemoteStore.mergeBook(payload: SyncBookPayload): SyncBookPayload =
     requireNotNull(updateBook(payload.bookSyncId) { remote ->

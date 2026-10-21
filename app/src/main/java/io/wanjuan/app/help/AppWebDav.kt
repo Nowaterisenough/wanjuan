@@ -54,6 +54,10 @@ object AppWebDav {
         get() = !appCtx.getPrefString(PreferKey.webDavAccount).isNullOrBlank() &&
             !appCtx.getPrefString(PreferKey.webDavPassword).isNullOrBlank()
 
+    fun configuredAuthorization(): Authorization? = currentConfig()?.let {
+        Authorization(it.account, it.password)
+    }
+
     val isJianGuoYun get() = rootWebDavUrl.startsWith(defaultWebDavUrl, true)
 
     fun syncRootWebDavUrl(): String {

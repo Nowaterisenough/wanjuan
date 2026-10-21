@@ -16,7 +16,6 @@ import io.wanjuan.app.sync.model.SyncRssSourcePayload
 import io.wanjuan.app.sync.model.SyncRuleSubPayload
 import io.wanjuan.app.sync.model.SyncTombstonePayload
 import io.wanjuan.app.sync.remote.SyncRemoteStore
-import io.wanjuan.app.sync.remote.WebDavSyncClient
 import io.wanjuan.app.sync.remote.mergeBook
 import io.wanjuan.app.sync.merge.BookSyncMerge
 import io.wanjuan.app.utils.GSON
@@ -27,7 +26,7 @@ import kotlinx.coroutines.ensureActive
 
 class SyncRepository(
     private val db: AppDatabase,
-    private val client: WebDavSyncClient,
+    private val client: SyncRemoteStore,
     private val clock: SyncClock,
     private val onBookUploaded: (SyncBookPayload) -> Unit = {},
     private val deviceIdProvider: () -> String
@@ -130,7 +129,7 @@ class SyncRepository(
                     remoteStore.uploadJson(item.remotePath(), json)
                     null
                 }
-                if (item.operation != "delete" && remoteStore is WebDavSyncClient) {
+                if (item.operation != "delete") {
                     item.remoteTombstonePath()?.let { path ->
                         runCatching { remoteStore.delete(path) }
                     }

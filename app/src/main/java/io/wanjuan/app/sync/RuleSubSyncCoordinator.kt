@@ -9,10 +9,11 @@ import io.wanjuan.app.sync.model.SyncOrderPayload
 import io.wanjuan.app.sync.model.SyncRuleSub
 import io.wanjuan.app.sync.model.SyncRuleSubPayload
 import io.wanjuan.app.sync.model.SyncTombstonePayload
-import io.wanjuan.app.sync.remote.WebDavSyncClient
+import io.wanjuan.app.sync.remote.SyncRemoteStore
+import io.wanjuan.app.sync.remote.upload
 
 class RuleSubSyncCoordinator(
-    private val client: WebDavSyncClient,
+    private val client: SyncRemoteStore,
     private val repository: SyncRepository,
     private val clock: SyncClock,
     private val deviceIdProvider: () -> String

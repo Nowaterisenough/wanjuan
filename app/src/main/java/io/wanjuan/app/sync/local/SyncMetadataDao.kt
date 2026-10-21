@@ -25,6 +25,12 @@ interface SyncMetadataDao {
     @Query("delete from sync_metadata")
     fun deleteAll()
 
+    @Query("""update sync_metadata set lastSyncedHash = null,
+        remoteFileModifiedAt = 0, remoteUpdatedAt = 0, remoteUpdatedByDeviceId = null,
+        dirty = case when deletedAt is null then 1 else dirty end
+        where objectType in (:objectTypes)""")
+    fun resetRemoteState(objectTypes: Set<String>)
+
     @Query(
         """update sync_metadata
         set dirty = 0, lastSyncedHash = :hash

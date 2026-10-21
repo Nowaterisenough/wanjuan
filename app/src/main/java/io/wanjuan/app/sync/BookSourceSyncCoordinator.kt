@@ -13,10 +13,11 @@ import io.wanjuan.app.sync.model.SyncBookSourcePayload
 import io.wanjuan.app.sync.model.SyncObjectType
 import io.wanjuan.app.sync.model.SyncOrderPayload
 import io.wanjuan.app.sync.model.SyncTombstonePayload
-import io.wanjuan.app.sync.remote.WebDavSyncClient
+import io.wanjuan.app.sync.remote.SyncRemoteStore
+import io.wanjuan.app.sync.remote.upload
 
 class BookSourceSyncCoordinator(
-    private val client: WebDavSyncClient,
+    private val client: SyncRemoteStore,
     private val repository: SyncRepository,
     private val clock: SyncClock,
     private val deviceIdProvider: () -> String

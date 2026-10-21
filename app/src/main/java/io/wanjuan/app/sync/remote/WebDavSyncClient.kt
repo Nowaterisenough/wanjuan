@@ -81,6 +81,7 @@ class WebDavSyncClient(
         ensureDirsMutex.withLock {
             if (readyEndpoint == endpoint) return
 
+            WebDav(base, authorization).makeAsDir()
             val syncRoot = base + "sync/"
             val root = syncRoot + "v1/"
             listOf(
@@ -196,7 +197,7 @@ class WebDavSyncClient(
         throw NoStackTraceException("书籍同步冲突，请稍后重试")
     }
 
-    suspend fun delete(relativePath: String): Boolean {
+    override suspend fun delete(relativePath: String): Boolean {
         val authorization = requireAuthorization()
         return WebDav(resolve(relativePath), authorization).delete()
     }
@@ -205,7 +206,7 @@ class WebDavSyncClient(
 fun AppWebDav.newSyncClient(): WebDavSyncClient {
     return WebDavSyncClient(
         rootUrlProvider = { syncRootWebDavUrl() },
-        authorizationProvider = { authorization },
+        authorizationProvider = { configuredAuthorization() },
         authorizationLoader = { requireAuthorization() }
     )
 }

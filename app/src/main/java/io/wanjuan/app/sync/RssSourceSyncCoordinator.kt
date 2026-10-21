@@ -10,7 +10,8 @@ import io.wanjuan.app.sync.model.SyncOrderPayload
 import io.wanjuan.app.sync.model.SyncRssSourcePayload
 import io.wanjuan.app.sync.model.SyncTombstonePayload
 import io.wanjuan.app.sync.model.SyncVersion
-import io.wanjuan.app.sync.remote.WebDavSyncClient
+import io.wanjuan.app.sync.remote.SyncRemoteStore
+import io.wanjuan.app.sync.remote.upload
 
 interface RssSourceSyncStore {
     fun allSources(): List<RssSource>
@@ -105,7 +106,7 @@ class RssSourceSyncApplier(
 }
 
 class RssSourceSyncCoordinator(
-    private val client: WebDavSyncClient,
+    private val client: SyncRemoteStore,
     private val repository: SyncRepository,
     private val clock: SyncClock,
     private val deviceIdProvider: () -> String,

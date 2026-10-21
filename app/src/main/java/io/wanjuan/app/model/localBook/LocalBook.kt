@@ -572,7 +572,7 @@ object LocalBook {
             val webdav: WebDav = kotlin.runCatching {
                 WebDav.fromPath(webDavUrl)
             }.getOrElse {
-                AppWebDav.authorization?.let { WebDav(webDavUrl, it) }
+                AppWebDav.configuredAuthorization()?.let { WebDav(webDavUrl, it) }
                     ?: throw WebDavException("WebDAV authorization is unavailable")
             }
             val inputStream = runBlocking {

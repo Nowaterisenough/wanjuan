@@ -30,9 +30,9 @@ class TestBookshelfSyncSource {
     }
 
     @Test
-    fun progressSyncSkipsWhenWebDavCredentialsAreAbsent() {
+    fun progressSyncSkipsWhenSelectedProviderIsNotConfigured() {
         val source = File("app/src/main/java/io/wanjuan/app/sync/BookshelfSyncCoordinator.kt").readText()
-        assertTrue(source.contains("if (!AppWebDav.isConfigured) return null"))
-        assertTrue(source.contains("if (!AppWebDav.isConfigured) return false"))
+        assertTrue(source.contains("if (!SyncSettings.isConfigured) return null"))
+        assertTrue(source.contains("if (!SyncSettings.isConfigured) return false"))
     }
 }

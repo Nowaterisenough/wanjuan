@@ -39,7 +39,6 @@ import io.wanjuan.app.data.entities.BookChapter
 import io.wanjuan.app.data.entities.BookProgress
 import io.wanjuan.app.data.entities.BookSource
 import io.wanjuan.app.exception.NoStackTraceException
-import io.wanjuan.app.help.AppWebDav
 import io.wanjuan.app.help.IntentData
 import io.wanjuan.app.help.TTS
 import io.wanjuan.app.help.book.BookHelp
@@ -510,7 +509,7 @@ class ReadBookActivity : BaseReadBookActivity(),
         updateSourceActionMenuItem(menu.findItem(R.id.menu_login), ReadBook.bookSource)
         lifecycleScope.launch {
             val show = ReadBook.inBookshelf && withContext(IO) {
-                AppWebDav.isOk
+                SyncManager.isEnabled
             }
             menu.findItem(R.id.menu_get_progress)?.isVisible = show
             menu.findItem(R.id.menu_cover_progress)?.isVisible = show

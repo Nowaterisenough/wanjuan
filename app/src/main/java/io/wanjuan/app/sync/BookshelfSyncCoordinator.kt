@@ -5,7 +5,7 @@ import io.wanjuan.app.constant.BookType
 import io.wanjuan.app.data.appDb
 import io.wanjuan.app.data.AppDatabase
 import io.wanjuan.app.data.entities.Book
-import io.wanjuan.app.help.AppWebDav
+import io.wanjuan.app.sync.remote.SyncSettings
 import io.wanjuan.app.data.entities.BookProgress
 import io.wanjuan.app.help.config.AppConfig
 import io.wanjuan.app.help.book.isNotShelf
@@ -19,7 +19,9 @@ import io.wanjuan.app.sync.model.SyncObjectType
 import io.wanjuan.app.sync.model.SyncOrderPayload
 import io.wanjuan.app.sync.model.SyncTombstonePayload
 import io.wanjuan.app.sync.model.SyncVersion
-import io.wanjuan.app.sync.remote.WebDavSyncClient
+import io.wanjuan.app.sync.remote.SyncRemoteStore
+import io.wanjuan.app.sync.remote.upload
+import io.wanjuan.app.sync.remote.download
 import io.wanjuan.app.sync.remote.mergeBook
 import io.wanjuan.app.utils.NetworkUtils
 import kotlinx.coroutines.currentCoroutineContext
@@ -86,7 +88,7 @@ class BookshelfObjectApplier(
 }
 
 class BookshelfSyncCoordinator(
-    private val client: WebDavSyncClient,
+    private val client: SyncRemoteStore,
     private val repository: SyncRepository,
     private val clock: SyncClock,
     private val deviceIdProvider: () -> String,
@@ -170,7 +172,7 @@ class BookshelfSyncCoordinator(
 
     suspend fun pullProgress(book: Book): BookProgress? {
         if (book.isNotShelf) return null
-        if (!AppWebDav.isConfigured) return null
+        if (!SyncSettings.isConfigured) return null
         val id = SyncIds.bookId(book)
         val payload = client.download<SyncBookPayload>("books/$id.json") ?: return null
         if (payload.bookSyncId != id) return null
@@ -196,7 +198,7 @@ class BookshelfSyncCoordinator(
     suspend fun pushProgress(book: Book, toast: Boolean = false, force: Boolean = false): Boolean {
         if (book.isNotShelf) return false
         if (!AppConfig.webDavObjectSync) return false
-        if (!AppWebDav.isConfigured) return false
+        if (!SyncSettings.isConfigured) return false
         if (!NetworkUtils.isAvailable()) return false
         return try {
             val id = SyncIds.bookId(book)
