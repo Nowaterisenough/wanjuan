@@ -22,7 +22,7 @@ class ConfigActivity : VMBaseActivity<ActivityConfigBinding, ConfigViewModel>() 
         when (val configTag = intent.getStringExtra("configTag")) {
             ConfigTag.OTHER_CONFIG -> replaceFragment(configTag, OtherConfigFragment::class.java)
             ConfigTag.THEME_CONFIG -> replaceFragment(configTag, ThemeConfigFragment::class.java)
-            ConfigTag.BACKUP_CONFIG -> replaceFragment(configTag, BackupConfigFragment::class.java)
+            ConfigTag.SYNC_CONFIG -> replaceFragment(configTag, SyncConfigFragment::class.java)
             ConfigTag.AI_CONFIG -> replaceFragment(configTag, AiConfigFragment::class.java)
             ConfigTag.COVER_CONFIG -> replaceFragment(configTag, CoverConfigFragment::class.java)
             ConfigTag.WELCOME_CONFIG -> replaceFragment(configTag, WelcomeConfigFragment::class.java)

@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.preference.PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <io.wanjuan.app.lib.prefs.SwitchPreference
+        android:defaultValue="true"
+        android:key="syncBookProgress"
+        android:title="@string/sync_enabled_title"
+        android:summary="@string/sync_triggers_summary"
+        app:iconSpaceReserved="false" />
+
+    <io.wanjuan.app.lib.prefs.NameListPreference
+        android:defaultValue="webdav"
+        android:key="syncProvider"
+        android:title="@string/sync_provider_title"
+        android:entries="@array/sync_provider_names"
+        android:entryValues="@array/sync_provider_values"
+        app:iconSpaceReserved="false" />
+
+    <io.wanjuan.app.lib.prefs.PreferenceCategory
+        android:key="webdav_config"
+        android:title="@string/web_dav_set"
+        app:iconSpaceReserved="false">
+        <io.wanjuan.app.lib.prefs.EditTextPreference
+            android:key="web_dav_url"
+            android:title="@string/web_dav_url"
+            app:iconSpaceReserved="false" />
+        <io.wanjuan.app.lib.prefs.EditTextPreference
+            android:key="web_dav_account"
+            android:title="@string/web_dav_account"
+            app:iconSpaceReserved="false" />
+        <io.wanjuan.app.lib.prefs.EditTextPreference
+            android:key="web_dav_password"
+            android:title="@string/web_dav_pw"
+            app:iconSpaceReserved="false" />
+        <io.wanjuan.app.lib.prefs.EditTextPreference
+            android:defaultValue="wanjuan"
+            android:key="webDavDir"
+            android:title="@string/sub_dir"
+            app:iconSpaceReserved="false" />
+    </io.wanjuan.app.lib.prefs.PreferenceCategory>
+
+    <io.wanjuan.app.lib.prefs.PreferenceCategory
+        android:key="github_config"
+        android:title="@string/github_sync_title"
+        app:iconSpaceReserved="false">
+        <io.wanjuan.app.lib.prefs.Preference
+            android:selectable="false"
+            android:title="@string/github_sync_privacy_title"
+            android:summary="@string/github_sync_privacy_summary"
+            app:iconSpaceReserved="false" />
+        <io.wanjuan.app.lib.prefs.EditTextPreference
+            android:key="gitHubSyncRepository"
+            android:title="@string/github_sync_repository"
+            android:dialogMessage="@string/github_sync_repository_hint"
+            app:iconSpaceReserved="false" />
+        <io.wanjuan.app.lib.prefs.EditTextPreference
+            android:key="gitHubSyncToken"
+            android:title="@string/github_sync_token"
+            android:dialogMessage="@string/github_sync_token_hint"
+            app:iconSpaceReserved="false" />
+        <io.wanjuan.app.lib.prefs.EditTextPreference
+            android:key="gitHubSyncBranch"
+            android:title="@string/github_sync_branch"
+            android:dialogMessage="@string/github_sync_default_branch"
+            app:iconSpaceReserved="false" />
+        <io.wanjuan.app.lib.prefs.EditTextPreference
+            android:defaultValue="wanjuan"
+            android:key="gitHubSyncDir"
+            android:title="@string/sub_dir"
+            app:iconSpaceReserved="false" />
+    </io.wanjuan.app.lib.prefs.PreferenceCategory>
+
+    <io.wanjuan.app.lib.prefs.PreferenceCategory
+        android:title="@string/sync_settings_title"
+        app:iconSpaceReserved="false">
+        <io.wanjuan.app.lib.prefs.EditTextPreference
+            android:key="webDavDeviceName"
+            android:title="@string/webdav_device_name"
+            app:iconSpaceReserved="false" />
+        <io.wanjuan.app.lib.prefs.SwitchPreference
+            android:defaultValue="false"
+            android:dependency="syncBookProgress"
+            android:key="syncBookProgressPlus"
+            android:title="@string/sync_book_progress_plus_t"
+            android:summary="@string/sync_book_progress_plus_s"
+            app:iconSpaceReserved="false" />
+        <io.wanjuan.app.lib.prefs.Preference
+            android:key="sync_now"
+            android:title="@string/sync_now_title"
+            android:summary="@string/sync_now_summary"
+            app:iconSpaceReserved="false" />
+    </io.wanjuan.app.lib.prefs.PreferenceCategory>
+</androidx.preference.PreferenceScreen>

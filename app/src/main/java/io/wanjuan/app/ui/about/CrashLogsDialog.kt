@@ -1,7 +1,6 @@
 package io.wanjuan.app.ui.about
 
 import android.app.Application
-import android.net.Uri
 import android.os.Bundle
 import android.view.MenuItem
 import android.view.View
@@ -18,7 +17,6 @@ import io.wanjuan.app.base.adapter.ItemViewHolder
 import io.wanjuan.app.base.adapter.RecyclerAdapter
 import io.wanjuan.app.databinding.DialogRecyclerViewBinding
 import io.wanjuan.app.databinding.Item1lineTextBinding
-import io.wanjuan.app.help.config.AppConfig
 import io.wanjuan.app.lib.theme.primaryColor
 import io.wanjuan.app.ui.widget.dialog.TextDialog
 import io.wanjuan.app.utils.FileDoc
@@ -113,17 +111,6 @@ class CrashLogsDialog : BaseDialogFragment(R.layout.dialog_recycler_view),
                     ?.forEach {
                         list.add(FileDoc.fromFile(it))
                     }
-                val backupPath = AppConfig.backupPath
-                if (!backupPath.isNullOrEmpty()) {
-                    val uri = Uri.parse(backupPath)
-                    FileDoc.fromUri(uri, true)
-                        .find("crash")
-                        ?.list {
-                            !it.isDir
-                        }?.let {
-                            list.addAll(it)
-                        }
-                }
                 return@execute list.sortedByDescending { it.name }.distinctBy { it.name }
             }.onSuccess {
                 logLiveData.postValue(it)
@@ -147,13 +134,6 @@ class CrashLogsDialog : BaseDialogFragment(R.layout.dialog_recycler_view),
                     ?.let {
                         FileUtils.delete(it, false)
                     }
-                val backupPath = AppConfig.backupPath
-                if (!backupPath.isNullOrEmpty()) {
-                    val uri = Uri.parse(backupPath)
-                    FileDoc.fromUri(uri, true)
-                        .find("crash")
-                        ?.delete()
-                }
             }.onError {
                 context.toastOnUi(it.localizedMessage)
             }.onFinally {

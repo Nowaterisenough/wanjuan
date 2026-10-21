@@ -7,14 +7,6 @@
     <string name="tip_perm_request_storage">萬卷需要存取記憶卡權限，請前往「設定」—「應用程式權限」—打開所需權限</string>
 
     <!--Other-->
-    <string name="menu_backup">備份</string>
-    <string name="menu_restore">復原</string>
-    <string name="menu_import_old">匯入萬卷資料</string>
-    <string name="webdav_cache_backup">離線快取書籍備份</string>
-    <string name="webdav_cache_backup_s">匯出本機同時備份到wanjuan資料夾下exports目錄</string>
-    <string name="backup_path">備份路徑</string>
-    <string name="select_backup_path">請選擇備份路徑</string>
-    <string name="menu_import_old_version">匯入舊版資料</string>
     <string name="menu_import_github">匯入Github資料</string>
     <string name="menu_replace_rule">淨化取代</string>
     <string name="menu_send">傳送</string>
@@ -108,24 +100,10 @@
     <string name="ps_auto_refresh">打開軟體時自動更新書籍</string>
     <string name="pt_auto_download">自動下載最新章節</string>
     <string name="ps_auto_download">更新書籍時自動下載最新章節</string>
-    <string name="backup_restore">備份與復原</string>
     <string name="web_dav_set">WebDav設定</string>
-    <string name="web_dav_set_import_old">WebDav設定/匯入舊版本資料</string>
-    <string name="backup">備份</string>
     <string name="restore">復原</string>
-    <string name="backup_permission">備份請給予儲存權限</string>
-    <string name="restore_permission">復原請給予儲存權限</string>
     <string name="ok">確認</string>
     <string name="cancel">取消</string>
-    <string name="backup_confirmation">確認備份嗎？</string>
-    <string name="backup_message">新備份會取代原有備份。\n備份資料夾YueDu</string>
-    <string name="restore_confirmation">確認復原嗎？</string>
-    <string name="restore_message">復原書架會覆蓋現有書架。</string>
-    <string name="backup_success">備份成功</string>
-    <string name="backup_fail">備份失敗\n%s</string>
-    <string name="on_restore">正在復原</string>
-    <string name="restore_success">復原成功</string>
-    <string name="restore_fail">復原失敗</string>
     <string name="screen_direction">螢幕方向</string>
     <string name="screen_sensor">跟隨感測器</string>
     <string name="screen_landscape">橫向</string>
@@ -732,9 +710,6 @@
     <string name="text_bottom_justify">文字底部對齊</string>
     <string name="auto_page_speed">自動翻頁速度</string>
     <string name="sort_by_url">地址排序</string>
-    <string name="backup_summary">本機和 WebDav 一起備份</string>
-    <string name="restore_summary">優先從 WebDav 復原，長按從本機復原</string>
-    <string name="import_old_summary">選擇舊版備份資料夾</string>
     <string name="enabled">已啟用</string>
     <string name="disabled">已禁用</string>
     <string name="enabled_explore">已啟用發現</string>
@@ -753,14 +728,11 @@
     <string name="contributors_summary">gedoor、Invinciblelee、Xwite等，詳情請在github中查看</string>
     <string name="clear_cache_summary">清除已下載書籍和字體快取</string>
     <string name="default_cover">預設封面</string>
-    <string name="restore_ignore">復原忽略列表</string>
-    <string name="restore_ignore_summary">復原時忽略一些內容不復原，方便不同手機配置不同</string>
     <string name="read_config">閱讀介面設定</string>
     <string name="group_name">分組名稱</string>
     <string name="note_content">備註內容</string>
     <string name="replace_enable_default_t">預設啟用取代淨化</string>
     <string name="replace_enable_default_s">新加入書架的書是否啟用取代淨化</string>
-    <string name="select_restore_file">選擇復原文件</string>
     <string name="day_background_too_dark">白天背景不能太暗</string>
     <string name="day_bottom_bar_too_dark">白天底欄不能太暗</string>
     <string name="night_background_too_light">夜間背景不能太亮</string>
@@ -875,7 +847,6 @@
     <string name="null_url">url為空</string>
     <string name="dict">字典</string>
     <string name="unknown_error">未知錯誤</string>
-    <string name="autobackup_fail">自動備份失敗\n%s</string>
     <string name="end">結束</string>
     <string name="custom_group_summary">關閉取代分組/開啟新增分組</string>
     <string name="pref_media_button_per_next">媒體按鈕•上一首|下一首</string>
@@ -1115,9 +1086,7 @@
     <string name="select_new_source">选中新增源</string>
     <string name="select_update_source">选中更新源</string>
     <string name="set_local_password">设置本地密码</string>
-    <string name="set_local_password_summary">本地密码用来对备份的敏感信息加密和解密,如需在不同设备之间同步,本地密码需一致.</string>
-    <string name="only_latest_backup_t">仅保留最新备份</string>
-    <string name="only_latest_backup_s">本地备份仅保留最新备份文件</string>
+    <string name="set_local_password_summary">本地密码用于加密本机保存的敏感信息，不会上传到同步服务器。</string>
     <string name="webdav_application_authorization_error">webDav应用验证失败</string>
     <string name="load_word_count">加載字數</string>
     <string name="replace_exclude_scope">排除范围，选填书名或者书源 URL</string>
@@ -1218,7 +1187,5 @@
     <string name="disable_horizontal_page_snap">禁用水平翻页效果</string>
     <string name="enable_manga_gray">开启图片灰色</string>
     <string name="sure_cache_book">是否确认开始缓存？</string>
-    <string name="auto_check_new_backup_t">自动检查新备份</string>
-    <string name="auto_check_new_backup_s">打开软件时检查是否有新备份，有新备份时提示是否更新</string>
     <string name="sys_image_picker">系统图片选择器</string>
 </resources>

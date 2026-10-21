@@ -2,19 +2,15 @@ package io.wanjuan.app.help
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.net.Uri
 import android.os.Build
 import android.os.Debug
 import android.os.Looper
 import android.webkit.WebSettings
 import io.wanjuan.app.constant.AppConst
 import io.wanjuan.app.constant.AppLog
-import io.wanjuan.app.exception.NoStackTraceException
 import io.wanjuan.app.help.config.AppConfig
 import io.wanjuan.app.help.config.LocalConfig
-import io.wanjuan.app.help.storage.RestoreJournal
 import io.wanjuan.app.model.ReadAloud
-import io.wanjuan.app.utils.FileDoc
 import io.wanjuan.app.utils.FileUtils
 import io.wanjuan.app.utils.createFileIfNotExist
 import io.wanjuan.app.utils.createFolderReplace
@@ -77,7 +73,6 @@ class CrashHandler(val context: Context) : Thread.UncaughtExceptionHandler {
     private fun handleException(ex: Throwable?) {
         if (ex == null) return
         LocalConfig.appCrash = true
-        RestoreJournal.markCrash()
         //保存日志文件
         saveCrashInfo2File(ex)
         if ((ex is OutOfMemoryError || ex.cause is OutOfMemoryError) && AppConfig.recordHeapDump) {
@@ -146,15 +141,6 @@ class CrashHandler(val context: Context) : Thread.UncaughtExceptionHandler {
             val timestamp = System.currentTimeMillis()
             val time = format.format(Date())
             val fileName = "crash-$time-$timestamp.log"
-            try {
-                val backupPath = AppConfig.backupPath
-                    ?: throw NoStackTraceException("备份路径未配置")
-                val uri = Uri.parse(backupPath)
-                val fileDoc = FileDoc.fromUri(uri, true)
-                fileDoc.createFileIfNotExist(fileName, "crash")
-                    .writeText(crashLog)
-            } catch (_: Exception) {
-            }
             kotlin.runCatching {
                 appCtx.externalCacheDir?.let { rootFile ->
                     val exceedTimeMillis = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(7)

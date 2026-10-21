@@ -8,14 +8,6 @@
     <string name="tip_perm_request_storage">万卷 needs storage access to find and read books. please go "App Settings" to allow "Storage permission".</string>
 
     <!--Other-->
-    <string name="menu_backup">Home</string>
-    <string name="menu_restore">Restore</string>
-    <string name="menu_import_old">Import 万卷 data</string>
-    <string name="webdav_cache_backup">Offline cache book backup</string>
-    <string name="webdav_cache_backup_s">Export to local and back up to the exports directory under the wanjuan folder</string>
-    <string name="backup_path">Backup to</string>
-    <string name="select_backup_path">Please select a backup path.</string>
-    <string name="menu_import_old_version">Import legacy data</string>
     <string name="menu_import_github">Import github data</string>
     <string name="menu_replace_rule">Replacement</string>
     <string name="menu_send">Send</string>
@@ -118,24 +110,10 @@
     <string name="ps_auto_refresh">Update books automatically when opening the software</string>
     <string name="pt_auto_download">Auto-download</string>
     <string name="ps_auto_download">Download the latest chapters automatically  when updating books</string>
-    <string name="backup_restore">Backup and restore</string>
     <string name="web_dav_set">WebDav settings</string>
-    <string name="web_dav_set_import_old">WebDav settings/Import legacy data</string>
-    <string name="backup">Backup</string>
     <string name="restore">Restore</string>
-    <string name="backup_permission">Backup needs storage permission</string>
-    <string name="restore_permission">Restore needs storage permission</string>
     <string name="ok">OK</string>
     <string name="cancel">Cancel</string>
-    <string name="backup_confirmation">Backup confirmation</string>
-    <string name="backup_message">The new backup files will replace the original.\n Backup folder: YueDu</string>
-    <string name="restore_confirmation">Restore confirmation</string>
-    <string name="restore_message">Restoring the bookshelf data will overwrite the current Bookshelf.</string>
-    <string name="backup_success">Backup succeed</string>
-    <string name="backup_fail">Backup failed\n%s</string>
-    <string name="on_restore">Restoring</string>
-    <string name="restore_success">Restore succeed</string>
-    <string name="restore_fail">Backup failed</string>
     <string name="screen_direction">Screen orientation</string>
     <string name="screen_sensor">Auto(sensor)</string>
     <string name="screen_landscape">Landscape</string>
@@ -948,9 +926,6 @@
     <string name="auto_read_mode_scroll">Smooth scroll</string>
     <string name="auto_read_mode_timed">Timed page turn</string>
     <string name="sort_by_url">Sort by URL</string>
-    <string name="backup_summary">Backup the local and WebDav simultaneously</string>
-    <string name="restore_summary">Restore from WebDAV first, Restore form the local backup on long click</string>
-    <string name="import_old_summary">Select a legacy backup folder</string>
     <string name="enabled">Enabled</string>
     <string name="disabled">Disabled</string>
     <string name="enabled_explore">Discovery Enabled</string>
@@ -969,14 +944,11 @@
     <string name="contributors_summary">gedoor,Invinciblelee,Xwite etc. Checking in github for details</string>
     <string name="clear_cache_summary">Clear the cache of the downloaded books and fonts</string>
     <string name="default_cover">Default cover</string>
-    <string name="restore_ignore">Bypass list</string>
-    <string name="restore_ignore_summary">Ignore some contents while restoring</string>
     <string name="read_config">Reading interface settings</string>
     <string name="group_name">Group name</string>
     <string name="note_content">Remarks section</string>
     <string name="replace_enable_default_t">Enable replace rule by default</string>
     <string name="replace_enable_default_s">For new added books</string>
-    <string name="select_restore_file">Select restore file</string>
     <string name="day_background_too_dark">Day background can not be too dark!</string>
     <string name="day_bottom_bar_too_dark">Day bottom can not be too dark!</string>
     <string name="night_background_too_light">Night background can not be too bright!</string>
@@ -1172,7 +1144,6 @@
     <string name="dict">dict</string>
     <string name="unknown_error">unknown error</string>
     <string name="export_no_chapter_name">No export chapter names</string>
-    <string name="autobackup_fail">Autobackup failed\n%s</string>
     <string name="end">end</string>
     <string name="custom_group_summary">Turn off Replace Group / Turn on Add Group</string>
     <string name="pref_media_button_per_next">Media Buttons • Previous | Next</string>
@@ -1425,9 +1396,7 @@
     <string name="select_new_source">Select new source</string>
     <string name="select_update_source">Select update source</string>
     <string name="set_local_password">Setting the local password</string>
-    <string name="set_local_password_summary">The local password is used to encrypt and decrypt the sensitive information of the backup, if you need to synchronize between different devices, the local password should be the same.</string>
-    <string name="only_latest_backup_t">Keep only the latest backup</string>
-    <string name="only_latest_backup_s">Local backup keeps only the latest backup file</string>
+    <string name="set_local_password_summary">The local password encrypts sensitive data stored on this device and is never uploaded to the sync server.</string>
     <string name="webdav_application_authorization_error">Fail to authorize WebDav application</string>
     <string name="respondTime">respondTime: %1$d ms</string>
     <string name="load_word_count">Load word count</string>
@@ -1618,8 +1587,6 @@
     <string name="setting_show_line_number">设置辅助按键展示的行数</string>
     <string name="menu_page">第 %d 页</string>
     <string name="change_page">选择页数</string>
-    <string name="auto_check_new_backup_t">自动检查新备份</string>
-    <string name="auto_check_new_backup_s">打开软件时检查是否有新备份，有新备份时提示是否更新</string>
     <string name="r_preloadJs">预注入Js（preloadJs）</string>
     <string name="cache_first">优先加载缓存</string>
     <string name="rule_sub_content">副文规则（subContent）</string>

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="sync_settings_title">同步</string>
+    <string name="sync_settings_summary">WebDAV / GitHub 仓库双向同步</string>
+    <string name="sync_enabled_title">启用同步</string>
+    <string name="sync_triggers_summary">启动、联网、下拉更新和阅读进度变化时同步</string>
+    <string name="sync_provider_title">同步服务器</string>
+    <string name="sync_root_directory">根目录</string>
+    <string name="sync_now_title">立即同步</string>
+    <string name="sync_now_summary">上传本机变更并拉取云端变更</string>
+    <string name="sync_secret_empty">未设置</string>
+    <string name="sync_secret_saved">已设置（隐藏）</string>
+    <string name="sync_configure_first">请先完成所选同步服务器的配置</string>
+    <string name="sync_complete_counts">同步完成：上传 %1$d，下载 %2$d，新增 %3$d，更新 %4$d，删除 %5$d</string>
+    <string name="sync_incomplete">同步未完成：%1$s</string>
+    <string name="sync_pending_count">剩余 %1$d 项待上传</string>
+    <string name="github_sync_title">GitHub 仓库</string>
+    <string name="github_sync_repository">同步仓库</string>
+    <string name="github_sync_repository_hint">填写 所有者/仓库名，例如 your-name/reading-sync；请先创建仓库</string>
+    <string name="github_sync_token">访问令牌（Token）</string>
+    <string name="github_sync_token_hint">使用仅授权此仓库的 Fine-grained Token，授予 Contents 读写权限。Token 仅保存在本机，不会上传。</string>
+    <string name="github_sync_branch">分支</string>
+    <string name="github_sync_default_branch">留空使用仓库默认分支</string>
+    <string name="github_sync_privacy_title">建议使用专用私有仓库</string>
+    <string name="github_sync_privacy_summary">书架、阅读进度和规则以 JSON 存储。所有设备使用同一仓库、分支和子目录。书籍文件与离线缓存导出仍使用 WebDAV，不上传到 GitHub。</string>
+    <string-array name="sync_provider_names"><item>WebDAV</item><item>GitHub 仓库</item></string-array>
+    <string-array name="sync_provider_values"><item>webdav</item><item>github</item></string-array>
+</resources>

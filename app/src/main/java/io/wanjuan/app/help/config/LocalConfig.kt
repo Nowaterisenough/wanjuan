@@ -18,7 +18,7 @@ by appCtx.getSharedPreferences("local", Context.MODE_PRIVATE) {
     private const val bookshelfLastRefreshTimeKey = "bookshelfLastRefreshTime"
 
     /**
-     * 本地密码,用来对需要备份的敏感信息加密,如 webdav 配置等
+     * 本地密码，用于加密设备内的敏感信息。
      */
     var password: String?
         get() = getString("password", null)
@@ -38,9 +38,6 @@ by appCtx.getSharedPreferences("local", Context.MODE_PRIVATE) {
 
     val readHelpVersionIsLast: Boolean
         get() = isLastVersion(1, "readHelpVersion", "firstRead")
-
-    val backupHelpVersionIsLast: Boolean
-        get() = isLastVersion(1, "backupHelpVersion", "firstBackup")
 
     val readMenuHelpVersionIsLast: Boolean
         get() = isLastVersion(1, "readMenuHelpVersion", "firstReadMenu")

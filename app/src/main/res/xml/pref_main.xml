@@ -81,9 +81,9 @@
         app:layout="@layout/view_preference_category">
 
         <io.wanjuan.app.lib.prefs.Preference
-            android:key="web_dav_setting"
-            android:summary="@string/web_dav_set_import_old"
-            android:title="@string/backup_restore"
+            android:key="sync_setting"
+            android:summary="@string/sync_settings_summary"
+            android:title="@string/sync_settings_title"
             app:iconSpaceReserved="false" />
 
         <io.wanjuan.app.lib.prefs.Preference

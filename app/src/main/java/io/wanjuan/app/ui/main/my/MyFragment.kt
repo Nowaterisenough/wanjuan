@@ -276,7 +276,7 @@ class MyFragment() : BaseFragment(R.layout.fragment_my_config), MainFragmentInte
         private fun buildSubSearchItems(): List<SubSearchItem> {
             return listOf(
                 Triple("theme_setting", R.xml.pref_config_theme, ConfigTag.THEME_CONFIG),
-                Triple("web_dav_setting", R.xml.pref_config_backup, ConfigTag.BACKUP_CONFIG),
+                Triple("sync_setting", R.xml.pref_config_sync, ConfigTag.SYNC_CONFIG),
                 Triple("coverConfig", R.xml.pref_config_cover, ConfigTag.COVER_CONFIG),
                 Triple("ai_setting", R.xml.pref_config_ai, ConfigTag.AI_CONFIG),
                 Triple("setting", R.xml.pref_config_other, ConfigTag.OTHER_CONFIG),
@@ -374,8 +374,8 @@ class MyFragment() : BaseFragment(R.layout.fragment_my_config), MainFragmentInte
                     putExtra("configTag", ConfigTag.OTHER_CONFIG)
                 }
 
-                "web_dav_setting" -> startActivity<ConfigActivity> {
-                    putExtra("configTag", ConfigTag.BACKUP_CONFIG)
+                "sync_setting" -> startActivity<ConfigActivity> {
+                    putExtra("configTag", ConfigTag.SYNC_CONFIG)
                 }
 
                 "cacheManage" -> startActivity<CacheManageActivity>()

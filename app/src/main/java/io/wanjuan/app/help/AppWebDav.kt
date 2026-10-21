@@ -5,16 +5,10 @@ import io.wanjuan.app.constant.AppLog
 import io.wanjuan.app.constant.PreferKey
 import io.wanjuan.app.exception.NoStackTraceException
 import io.wanjuan.app.help.config.AppConfig
-import io.wanjuan.app.help.storage.Backup
-import io.wanjuan.app.help.storage.Restore
 import io.wanjuan.app.lib.webdav.Authorization
 import io.wanjuan.app.lib.webdav.WebDav
 import io.wanjuan.app.lib.webdav.WebDavException
 import io.wanjuan.app.sync.remote.WebDavSyncClient
-import io.wanjuan.app.utils.AlphanumComparator
-import io.wanjuan.app.utils.FileUtils
-import io.wanjuan.app.utils.NetworkUtils
-import io.wanjuan.app.utils.compress.ZipUtils
 import io.wanjuan.app.utils.getPrefString
 import io.wanjuan.app.utils.removePref
 import io.wanjuan.app.utils.toastOnUi
@@ -23,7 +17,6 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import splitties.init.appCtx
-import java.io.File
 
 /**
  * webDav初始化会访问网络,不要放到主线程
@@ -142,43 +135,6 @@ object AppWebDav {
             appCtx.toastOnUi(R.string.webdav_application_authorization_error)
             throw WebDavException(appCtx.getString(R.string.webdav_application_authorization_error))
         }
-    }
-
-    @Throws(Exception::class)
-    suspend fun getBackupNames(): ArrayList<String> {
-        val names = arrayListOf<String>()
-        val authorization = requireAuthorization()
-        var files = WebDav(rootWebDavUrl, authorization).listFiles()
-        files = files.sortedWith { o1, o2 ->
-            AlphanumComparator.compare(o1.displayName, o2.displayName)
-        }.reversed()
-        files.forEach { webDav ->
-            val name = webDav.displayName
-            if (name.startsWith("backup")) {
-                names.add(name)
-            }
-        }
-        return names
-    }
-
-    @Throws(WebDavException::class)
-    suspend fun restoreWebDav(name: String) {
-        val webDav = WebDav(rootWebDavUrl + name, requireAuthorization())
-        webDav.downloadTo(Backup.zipFilePath, true)
-        FileUtils.delete(Backup.backupPath)
-        ZipUtils.unZipToPath(File(Backup.zipFilePath), Backup.backupPath)
-        Restore.restoreLocked(Backup.backupPath)
-    }
-
-    /**
-     * webDav备份
-     * @param fileName 备份文件名
-     */
-    @Throws(Exception::class)
-    suspend fun backUpWebDav(fileName: String) {
-        if (!NetworkUtils.isAvailable()) return
-        val putUrl = "$rootWebDavUrl$fileName"
-        WebDav(putUrl, requireAuthorization()).upload(Backup.zipFilePath)
     }
 
 }

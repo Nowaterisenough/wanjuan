@@ -137,18 +137,14 @@ class AboutFragment : PreferenceFragmentCompat() {
 
     private fun saveLog() {
         Coroutine.async {
-            val backupPath = AppConfig.backupPath ?: let {
-                appCtx.toastOnUi("未设置备份目录")
-                return@async
-            }
             if (!AppConfig.recordLog) {
                 appCtx.toastOnUi("未开启日志记录，请去其他设置里打开记录日志")
                 delay(3000)
             }
-            val doc = FileDoc.fromUri(Uri.parse(backupPath), true)
+            val doc = FileDoc.fromFile(File(appCtx.getExternalFilesDir(null) ?: appCtx.filesDir, "diagnostics").apply { mkdirs() })
             copyLogs(doc)
             copyHeapDump(doc)
-            appCtx.toastOnUi("已保存至备份目录")
+            appCtx.toastOnUi("已保存至应用文件目录 diagnostics")
         }.onError {
             AppLog.put("保存日志出错\n${it.localizedMessage}", it, true)
         }
@@ -156,10 +152,6 @@ class AboutFragment : PreferenceFragmentCompat() {
 
     private fun createHeapDump() {
         Coroutine.async {
-            val backupPath = AppConfig.backupPath ?: let {
-                appCtx.toastOnUi("未设置备份目录")
-                return@async
-            }
             if (!AppConfig.recordHeapDump) {
                 appCtx.toastOnUi("未开启堆转储记录，请去其他设置里打开记录堆转储")
                 delay(3000)
@@ -167,11 +159,11 @@ class AboutFragment : PreferenceFragmentCompat() {
             appCtx.toastOnUi("开始创建堆转储")
             System.gc()
             CrashHandler.doHeapDump(true)
-            val doc = FileDoc.fromUri(Uri.parse(backupPath), true)
+            val doc = FileDoc.fromFile(File(appCtx.getExternalFilesDir(null) ?: appCtx.filesDir, "diagnostics").apply { mkdirs() })
             if (!copyHeapDump(doc)) {
                 appCtx.toastOnUi("未找到堆转储文件")
             } else {
-                appCtx.toastOnUi("已保存至备份目录")
+                appCtx.toastOnUi("已保存至应用文件目录 diagnostics")
             }
         }.onError {
             AppLog.put("保存堆转储失败\n${it.localizedMessage}", it)

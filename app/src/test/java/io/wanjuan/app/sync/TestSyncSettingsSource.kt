@@ -8,16 +8,16 @@ class TestSyncSettingsSource {
 
     @Test
     fun backupPreferencesExposeManualSync() {
-        val xml = repoFile("app/src/main/res/xml/pref_config_backup.xml").readText()
-        assertTrue(xml.contains("web_dav_sync_now"))
+        val xml = repoFile("app/src/main/res/xml/pref_config_sync.xml").readText()
+        assertTrue(xml.contains("sync_now"))
     }
 
     @Test
     fun backupFragmentHandlesManualSyncClick() {
-        val fragment = repoFile("app/src/main/java/io/wanjuan/app/ui/config/BackupConfigFragment.kt").readText()
-        assertTrue(fragment.contains("web_dav_sync_now"))
+        val fragment = repoFile("app/src/main/java/io/wanjuan/app/ui/config/SyncConfigFragment.kt").readText()
+        assertTrue(fragment.contains("sync_now"))
         assertTrue(fragment.contains("SyncManager.syncNow(force = true) { result ->"))
-        assertTrue(fragment.contains("同步完成：上传"))
+        assertTrue(fragment.contains("sync_complete_counts"))
     }
 
     private fun repoFile(path: String): File {

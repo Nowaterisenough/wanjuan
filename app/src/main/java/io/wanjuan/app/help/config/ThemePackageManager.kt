@@ -80,12 +80,6 @@ object ThemePackageManager {
         ThemeConfig.applyConfig(context, config, switchNightMode)
     }
 
-    suspend fun reapplyRestoredAppliedThemes(context: Context) = withContext(IO) {
-        val currentNight = AppConfig.isNightTheme
-        reapplyRestoredAppliedTheme(context, !currentNight)
-        reapplyRestoredAppliedTheme(context, currentNight)
-    }
-
     fun getConfig(entry: Entry): ThemeConfig.Config {
         val dir = entry.localDir ?: localDir(entry.packageInfo.isNightTheme, entry.dirName)
         return resolveConfigPaths(entry.packageInfo, dir)
@@ -106,23 +100,6 @@ object ThemePackageManager {
             }
             saveConfig(config.copy(isNightTheme = isNightTheme))
         }
-
-    private fun reapplyRestoredAppliedTheme(context: Context, isNightTheme: Boolean) {
-        val themeName = context.getPrefString(
-            if (isNightTheme) PreferKey.dNThemeName else PreferKey.dThemeName
-        )?.trim().orEmpty()
-        if (themeName.isBlank()) return
-        val normalizedDirName = themeName.normalizeFileName()
-        val directDir = localDir(isNightTheme, normalizedDirName)
-        val entry = readPackage(directDir)?.let { pkg ->
-            Entry(pkg, localDir = directDir)
-        } ?: loadLocal(isNightTheme).firstOrNull {
-            it.dirName == normalizedDirName || it.packageInfo.name == themeName
-        } ?: return
-        val dir = entry.localDir ?: localDir(isNightTheme, entry.dirName)
-        val config = resolveConfigPaths(entry.packageInfo, dir)
-        ThemeConfig.applyConfig(context, config, switchNightMode = false, notify = false)
-    }
 
     private fun saveConfig(config: ThemeConfig.Config): Entry {
         val normalizedName = config.themeName.trim()

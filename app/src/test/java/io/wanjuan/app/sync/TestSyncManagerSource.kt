@@ -26,7 +26,7 @@ class TestSyncManagerSource {
     @Test
     fun newestBackupRestoreIsNotCheckedAutomatically() {
         val main = repoFile("app/src/main/java/io/wanjuan/app/ui/main/MainActivity.kt").readText()
-        val prefs = repoFile("app/src/main/res/xml/pref_config_backup.xml").readText()
+        val prefs = repoFile("app/src/main/res/xml/pref_config_sync.xml").readText()
         val keys = repoFile("app/src/main/java/io/wanjuan/app/constant/PreferKey.kt").readText()
         val config = repoFile("app/src/main/java/io/wanjuan/app/help/config/AppConfig.kt").readText()
         assertFalse(main.contains("backupSync()"))

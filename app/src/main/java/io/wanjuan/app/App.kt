@@ -47,8 +47,6 @@ import io.wanjuan.app.help.http.ObsoleteUrlFactory
 import io.wanjuan.app.help.http.okHttpClient
 import io.wanjuan.app.help.rhino.NativeBaseSource
 import io.wanjuan.app.help.source.SourceHelp
-import io.wanjuan.app.help.storage.Backup
-import io.wanjuan.app.help.storage.RestoreJournal
 import io.wanjuan.app.model.BookCover
 import io.wanjuan.app.receiver.NetworkChangedListener
 import io.wanjuan.app.sync.SyncManager
@@ -85,8 +83,6 @@ class App : Application() {
         registerActivityLifecycleCallbacks(LifecycleHelp)
         defaultSharedPreferences.registerOnSharedPreferenceChangeListener(AppConfig)
         Coroutine.async {
-            RestoreJournal.recoverIfNeeded("应用启动检测到上次恢复未完成")
-            RestoreJournal.markStableIfPending()
             LogUtils.init(this@App)
             LogUtils.d("App", "onCreate")
             LogUtils.logDeviceInfo()
@@ -114,7 +110,6 @@ class App : Application() {
             }
             RuleBigDataHelp.clearInvalid()
             BookHelp.clearInvalidCache()
-            Backup.clearCache()
             ReadBookConfig.clearBgAndCache()
 //            ThemeConfig.clearBg() //每次手动切换主题时清理多余图片
             //初始化简繁转换引擎

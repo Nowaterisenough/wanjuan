@@ -303,16 +303,6 @@ object AppConfig : SharedPreferences.OnSharedPreferenceChangeListener {
             appCtx.putPrefString(PreferKey.bookImportFileName, value)
         }
 
-    var backupPath: String?
-        get() = appCtx.getPrefString(PreferKey.backupPath)
-        set(value) {
-            if (value.isNullOrEmpty()) {
-                appCtx.removePref(PreferKey.backupPath)
-            } else {
-                appCtx.putPrefString(PreferKey.backupPath, value)
-            }
-        }
-
     // 书籍保存位置
     var defaultBookTreeUri: String?
         get() = appCtx.getPrefString(PreferKey.defaultBookTreeUri)
@@ -1406,8 +1396,6 @@ object AppConfig : SharedPreferences.OnSharedPreferenceChangeListener {
     var pauseReadAloudWhilePhoneCalls
         get() = appCtx.getPrefBoolean(PreferKey.pauseReadAloudWhilePhoneCalls, false)
         set(value) = appCtx.putPrefBoolean(PreferKey.pauseReadAloudWhilePhoneCalls, value)
-
-    val onlyLatestBackup get() = appCtx.getPrefBoolean(PreferKey.onlyLatestBackup, true)
 
     val defaultHomePage get() = appCtx.getPrefString(PreferKey.defaultHomePage, "bookshelf")
 

@@ -37,14 +37,11 @@ class TestForkSyncFeature {
     }
 
     @Test
-    fun restoreUsesJournalAndSanitizesLegacyBookConfig() {
-        val restore = repoFile("app/src/main/java/io/wanjuan/app/help/storage/Restore.kt").readText()
-        val journal = repoFile("app/src/main/java/io/wanjuan/app/help/storage/RestoreJournal.kt")
-
-        assertTrue(journal.exists())
-        assertTrue(restore.contains("RestoreJournal.begin"))
-        assertTrue(restore.contains("sanitizeReadConfigJson"))
-        assertTrue(restore.contains("normalizeStringPrefs"))
+    fun backupImplementationIsRemoved() {
+        val directory = repoFile("app/src/main/java/io/wanjuan/app/help/storage")
+        listOf("Backup.kt", "BackupAES.kt", "BackupConfig.kt", "Restore.kt", "RestoreJournal.kt").forEach {
+            assertTrue(!File(directory, it).exists())
+        }
     }
 
     @Test

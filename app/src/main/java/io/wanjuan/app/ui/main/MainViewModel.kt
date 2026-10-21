@@ -12,7 +12,6 @@ import io.wanjuan.app.constant.EventBus
 import io.wanjuan.app.data.appDb
 import io.wanjuan.app.data.entities.Book
 import io.wanjuan.app.data.entities.BookSource
-import io.wanjuan.app.help.AppWebDav
 import io.wanjuan.app.help.DefaultData
 import io.wanjuan.app.help.book.BookHelp
 import io.wanjuan.app.help.book.BookCatalogUpdate
@@ -468,12 +467,6 @@ class MainViewModel(application: Application) : BaseViewModel(application) {
                     appDb.httpTTSDao.insert(*it.toTypedArray())
                 }
             }
-        }
-    }
-
-    fun restoreWebDav(name: String) {
-        execute {
-            AppWebDav.restoreWebDav(name)
         }
     }
 
