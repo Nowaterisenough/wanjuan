@@ -11,6 +11,8 @@ import io.wanjuan.app.utils.GSON
 
 fun interface SyncLocalSnapshotSource {
     fun currentSnapshots(): List<SyncSnapshot>
+    fun currentSnapshots(objectTypes: Set<String>): List<SyncSnapshot> =
+        currentSnapshots().filter { it.objectType in objectTypes }
 }
 
 interface SyncReconcileStore {
@@ -35,14 +37,16 @@ class SyncLocalReconciler(
     private val managedObjectTypes: Set<String>
 ) {
 
-    fun capture(): SyncCaptureResult {
+    fun capture(objectTypes: Set<String> = managedObjectTypes): SyncCaptureResult {
+        val selected = managedObjectTypes.intersect(objectTypes)
+        if (selected.isEmpty()) return SyncCaptureResult(0, 0, 0)
         var upserts = 0
         var deletes = 0
         var unchanged = 0
         store.runInTransaction {
-            val snapshots = snapshotSource.currentSnapshots()
+            val snapshots = snapshotSource.currentSnapshots(selected)
             val snapshotsByType = snapshots.groupBy { it.objectType }
-            for (objectType in managedObjectTypes) {
+            for (objectType in selected) {
                 val current = snapshotsByType[objectType].orEmpty()
                 val currentIds = current.mapTo(hashSetOf()) { it.objectId }
                 current.forEach { snapshot ->

@@ -28,12 +28,10 @@ object SyncManager {
     private val syncScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val mutationMutex = Mutex()
     private var changeObserver: Job? = null
-    private val managedTypes = setOf(
-        SyncObjectType.BookGroup, SyncObjectType.Book, SyncObjectType.BookSource,
-        SyncObjectType.RssSource, SyncObjectType.RuleSub, SyncObjectType.BookGroupOrder,
-        SyncObjectType.BookshelfOrder, SyncObjectType.BookSourceOrder,
-        SyncObjectType.RssSourceOrder, SyncObjectType.RuleSubOrder
-    )
+    private var dirtyObserver: Job? = null
+    private val managedTypes = SyncObjectSelection.all
+    private val dirty = SyncDirtyTracker()
+    private var forcedCapture = emptySet<String>()
 
     private val client by lazy { SelectedSyncRemoteStore(SyncSettings::target) }
     private val repository: SyncRepository by lazy {
@@ -104,10 +102,11 @@ object SyncManager {
                 client.withTarget { target ->
                     if (appCtx.getPrefString("syncLastRemoteTarget") != target.identity) {
                         appDb.syncMetadataDao.resetRemoteState(managedTypes)
+                        dirty.mark(managedTypes)
                         appCtx.putPrefString("syncLastRemoteTarget", target.identity)
                     }
                 }
-                reconciler.capture()
+                dirty.capture(forcedCapture) { reconciler.capture(it) }
             },
             pullAction = SyncPullAction(pullEngine::pullAll),
             flushAction = SyncFlushAction { result -> repository.flushOutbox(client, result) }
@@ -117,10 +116,12 @@ object SyncManager {
     private val singleFlightSync by lazy {
         SingleFlightSync(syncScope, ::sync)
     }
+    private val localFlushFlight by lazy { SingleFlightSync(syncScope) { runSync(flushOnly = true) } }
 
     suspend fun sync(): SyncResult = runSync(flushOnly = false)
 
-    private suspend fun runSync(flushOnly: Boolean): SyncResult = mutationMutex.withLock {
+    private suspend fun runSync(flushOnly: Boolean, captureCatalogChanges: Boolean = false): SyncResult = mutationMutex.withLock {
+        forcedCapture = if (captureCatalogChanges) setOf(SyncObjectType.Book, SyncObjectType.BookshelfOrder) else emptySet()
         try {
             client.withTarget {
                 if (flushOnly) orchestrator.flushPending() else orchestrator.sync()
@@ -129,6 +130,8 @@ object SyncManager {
             throw e
         } catch (e: Exception) {
             SyncResult(failed = 1, errorMessage = e.localizedMessage ?: e.javaClass.simpleName)
+        } finally {
+            forcedCapture = emptySet()
         }
     }
 
@@ -136,11 +139,11 @@ object SyncManager {
         get() = AppConfig.webDavObjectSync && SyncSettings.isConfigured
 
     suspend fun syncAwait(): SyncResult = if (isEnabled) {
-        singleFlightSync.start(rerunIfActive = true).await()
+        singleFlightSync.start().await()
     } else SyncResult()
 
     suspend fun flushPending(): SyncResult = if (isEnabled) {
-        runSync(flushOnly = true)
+        runSync(flushOnly = true, captureCatalogChanges = true)
     } else SyncResult()
 
     fun onAppStart() {
@@ -151,19 +154,25 @@ object SyncManager {
 
     @Synchronized
     private fun observeLocalChanges() {
+        if (dirtyObserver?.isActive != true) {
+            dirtyObserver = syncScope.launch {
+                appDb.invalidationTracker.createFlow("books", "book_groups", "book_sources", "rssSources", "ruleSubs",
+                    emitInitialState = false).collect { dirty.markTables(it) }
+            }
+        }
         if (changeObserver?.isActive == true) return
         changeObserver = syncScope.launch {
             SyncAutoTrigger().observe(
-                fingerprints = RoomSyncChangeSource(appDb).fingerprints(),
+                fingerprints = RoomSyncChangeSource(appDb, dirty::markTables).fingerprints(),
                 isEnabled = { isEnabled },
                 hasPendingChanges = {
                     mutationMutex.withLock {
                         // Compare after remote apply; clean cloud changes must not echo back.
-                        reconciler.capture()
+                        dirty.capture { reconciler.capture(it) }
                         appDb.syncOutboxDao.count() > 0
                     }
                 },
-                requestSync = { syncNow() },
+                requestSync = { localFlushFlight.start(rerunIfActive = true) },
                 onError = { AppLog.put("记录自动同步变更失败", it) }
             )
         }
@@ -179,7 +188,7 @@ object SyncManager {
             onComplete(SyncResult())
             return
         }
-        val task = singleFlightSync.start(rerunIfActive = true)
+        val task = singleFlightSync.start()
         Coroutine.async(start = CoroutineStart.LAZY) { task.await() }
             .onSuccess { onComplete(it) }
             .onError {

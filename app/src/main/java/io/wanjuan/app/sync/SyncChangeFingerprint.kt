@@ -10,13 +10,18 @@ import io.wanjuan.app.sync.model.SyncBookSource
 
 object SyncChangeFingerprint {
     fun of(books: List<Book>, groups: List<BookGroup>, sources: List<BookSource>): String =
-        SyncCanonicalJson.hash(listOf(
+        SyncCanonicalJson.hash(listOf(books(books), groups(groups), sources(sources)))
+
+    fun books(books: List<Book>): String = SyncCanonicalJson.hash(
             books.filterNot { it.isNotShelf }.sortedBy { it.bookUrl }.map {
                 // Progress/catalog writes have their own triggers; watch shelf membership and metadata here.
                 listOf(SyncIds.bookId(it), it.order,
                     BookSyncMerge.shelfHash(SyncBook.from(it, listOf(it.group.toString()))))
-            },
-            groups.filter { it.groupId > 0L }.sortedBy { it.groupId },
-            sources.sortedBy { it.bookSourceUrl }.map(SyncBookSource::from)
-        ))
+            })
+
+    fun groups(groups: List<BookGroup>): String =
+        SyncCanonicalJson.hash(groups.filter { it.groupId > 0L }.sortedBy { it.groupId })
+
+    fun sources(sources: List<BookSource>): String =
+        SyncCanonicalJson.hash(sources.sortedBy { it.bookSourceUrl }.map(SyncBookSource::from))
 }

@@ -9,7 +9,8 @@ class TestOutboxRoutingSource {
 
     @Test
     fun managerRoutesKnownObjectTypes() {
-        val source = repoFile("app/src/main/java/io/wanjuan/app/sync/SyncManager.kt").readText()
+        val source = repoFile("app/src/main/java/io/wanjuan/app/sync/SyncManager.kt").readText() +
+            repoFile("app/src/main/java/io/wanjuan/app/sync/SyncDirtyTracker.kt").readText()
         assertTrue(source.contains("SyncObjectType.Book"))
         assertTrue(source.contains("SyncObjectType.BookSource"))
         assertTrue(source.contains("SyncObjectType.RuleSub"))

@@ -9,6 +9,18 @@ import org.junit.Assert.assertNotNull
 import org.junit.Test
 
 class TestSyncLocalReconciler {
+    @Test
+    fun partialCaptureNeverInfersDeletionForUnselectedSourceTypes() {
+        val store = MemoryReconcileStore()
+        var snapshots = listOf(snapshot("book", "a", "hash-a"), snapshot("bookSource", "b", "hash-b"))
+        val reconciler = reconciler(store) { snapshots }
+        reconciler.capture()
+        store.markAllSynced()
+        snapshots = listOf(snapshot("book", "a", "hash-a"))
+        assertEquals(SyncCaptureResult(0, 0, 1), reconciler.capture(setOf("book")))
+        assertEquals(null, store.metadata("bookSource", "b")!!.deletedAt)
+        assertEquals(emptyList<SyncOutbox>(), store.outbox)
+    }
 
     @Test
     fun firstScanQueuesEveryObjectAndSecondScanIsIdempotent() {
