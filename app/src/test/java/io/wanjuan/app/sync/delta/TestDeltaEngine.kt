@@ -36,13 +36,29 @@ class TestDeltaEngine {
         engine.flush()
         val changed = SyncIdentity(id.objectType, "5")
         a.values[changed] = content(tag = "edited")
+        remote.reads.clear()
         assertEquals(1, engine.flush().uploaded)
+        assertEquals(listOf(DeltaRemote.HEAD), remote.reads)
         val head = DeltaRemote(remote).head().second
         val changes = DeltaRemote(remote).block(head).changes
         assertEquals(1, changes.size)
         assertEquals("5", changes.single().objectId)
         assertEquals(listOf(listOf("b", "h")), changes.single().fields.map { it.path })
         assertFalse(changes.single().create)
+    }
+
+    @Test fun batchLimitUsesPatchBytesRatherThanLargeUnchangedFields() = runBlocking {
+        val remote = Remote(); val a = Local(); val engine = engine(a, remote)
+        val large = "x".repeat(600000)
+        repeat(3) { a.values[SyncIdentity(id.objectType, "$it")] = content(tag = large) }
+        repeat(3) { engine.flush() }
+        repeat(3) { a.values[SyncIdentity(id.objectType, "$it")] = content(tag = large, chapter = 2) }
+        val result = engine.flush()
+        assertEquals(3, result.uploaded)
+        assertEquals(0, result.pending)
+        val block = DeltaRemote(remote).block(DeltaRemote(remote).head().second)
+        assertEquals(3, block.changes.size)
+        assertTrue(GSON.toJson(block).toByteArray().size < 10000)
     }
 
     @Test fun readingAndCheckTimestampsAreNotEdits() {

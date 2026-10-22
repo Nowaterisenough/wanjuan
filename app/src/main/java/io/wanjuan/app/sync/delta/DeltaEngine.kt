@@ -4,6 +4,7 @@ import io.wanjuan.app.sync.*
 import io.wanjuan.app.sync.local.SyncDeltaState
 import io.wanjuan.app.sync.model.SyncObjectType
 import io.wanjuan.app.sync.model.SyncResult
+import io.wanjuan.app.sync.remote.SyncRemoteRead
 import io.wanjuan.app.utils.GSON
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -19,8 +20,8 @@ class DeltaEngine(
     private val progress: SyncProgressTracker = SyncProgressTracker()
 ) {
     private fun SyncDeltaState.identity() = SyncIdentity(objectType, objectId)
-    private fun pending() = local.states(target).filter { it.pendingId != null || it.inFlightChange != null }
-    fun hasPending(): Boolean = pending().isNotEmpty()
+    private fun pendingCount() = local.pendingCount(target)
+    fun hasPending(): Boolean = pendingCount() > 0
 
     fun capture(): Int {
         local.transaction {
@@ -50,12 +51,18 @@ class DeltaEngine(
             }
             local.consumeLegacyQueue()
         }
-        return pending().size
+        return pendingCount()
     }
 
     suspend fun pull(result: SyncResult.Mutable = SyncResult.Mutable()): SyncResult {
+        pullHead(result)
+        return result.toResult()
+    }
+
+    private suspend fun pullHead(result: SyncResult.Mutable): Pair<SyncRemoteRead, DeltaHead> {
         progress.phase(SyncPhase.CheckingCursor)
-        val (_, head) = remote.head()
+        val versionedHead = remote.head()
+        val (_, head) = versionedHead
         var cursor = local.cursor(target)
         if (!cursor.legacyImported) {
             val downloadedBefore = progress.snapshot().downloaded
@@ -67,7 +74,7 @@ class DeltaEngine(
             check(cursor.timestamp == 0L) { "Remote sync journal was removed; refusing to advance the cursor" }
             progress.phase(SyncPhase.Capturing)
             recoverMissingBooks()
-            return result.toResult()
+            return versionedHead
         }
         check(head.timestamp >= cursor.timestamp) { "Remote sync journal moved backwards" }
         val blocks = arrayListOf<Pair<DeltaHead, DeltaBlock>>()
@@ -89,8 +96,8 @@ class DeltaEngine(
         }
         progress.phase(SyncPhase.Capturing)
         recoverMissingBooks()
-        result.pending = pending().size
-        return result.toResult()
+        result.pending = pendingCount()
+        return versionedHead
     }
 
     suspend fun flush(): SyncResult {
@@ -100,28 +107,30 @@ class DeltaEngine(
         if (capture() == 0) return result.toResult()
         repeat(6) {
             currentCoroutineContext().ensureActive()
-            pull(result)
+            val (revision, head) = pullHead(result)
             capture()
             if (!hasPending()) return result.toResult().copy(pending = 0)
-            val (revision, head) = remote.head()
             val cursor = local.cursor(target)
-            if (head.timestamp != cursor.timestamp || head.block != cursor.block) return@repeat
+            check(head.timestamp == cursor.timestamp && head.block == cursor.block) { "Pulled sync head does not match local cursor" }
             var bytes = 0L
-            val queued = pending().take(64).takeWhile { state ->
-                val include = bytes == 0L || bytes + (state.pendingJson?.length ?: 0) * 4L <= 2 * 1024 * 1024
-                if (include) bytes += maxOf(1, state.pendingJson?.length ?: 0) * 4L
-                include
+            val queued = arrayListOf<SyncDeltaState>()
+            val changes = arrayListOf<DeltaChange>()
+            for (state in local.pending(target, 64)) {
+                val change = state.inFlightChange?.let { GSON.fromJson(it, DeltaChange::class.java) }
+                    ?: DeltaChange(requireNotNull(state.pendingId), state.objectType, state.objectId,
+                        delete = state.pendingDelete, create = state.pendingCreate || state.remoteJson == null,
+                        fields = state.pendingJson?.let { DeltaCodec.fields(state.objectType, state.remoteJson, it) }.orEmpty())
+                val size = GSON.toJson(change).toByteArray(Charsets.UTF_8).size
+                if (queued.isNotEmpty() && bytes + size > 2 * 1024 * 1024) break
+                bytes += size
+                queued += state
+                changes += change
             }
             if (queued.isEmpty()) return result.toResult().copy(pending = 0)
             val bootstrap = if (head.timestamp == 0L) local.states(target).mapNotNull { state ->
                 state.remoteJson?.let { DeltaChange("bootstrap:${state.objectType}:${state.objectId}",
                     state.objectType, state.objectId, create = true, fields = DeltaCodec.fields(state.objectType, null, it)) }
             } else emptyList()
-            val changes = queued.map { state ->
-                state.inFlightChange?.let { GSON.fromJson(it, DeltaChange::class.java) } ?: DeltaChange(requireNotNull(state.pendingId), state.objectType, state.objectId,
-                    delete = state.pendingDelete, create = state.pendingCreate || state.remoteJson == null,
-                    fields = state.pendingJson?.let { DeltaCodec.fields(state.objectType, state.remoteJson, it) }.orEmpty())
-            }
             // Keep an immutable operation until its publication is known. A user may undo an
             // edit while the response is lost; that undo must become a compensating delta.
             local.transaction {
@@ -130,7 +139,6 @@ class DeltaEngine(
                         inFlightChange = GSON.toJson(change), inFlightValue = state.pendingJson))
                 }
             }
-            progress.upload(0, changes.size, result.uploaded, result.failed)
             val batches = arrayListOf<MutableList<DeltaChange>>()
             var batchBytes = 0
             (bootstrap + changes).forEach { change ->
@@ -143,6 +151,7 @@ class DeltaEngine(
                 batchBytes += size
             }
             var published = head
+            progress.upload(0, changes.size, result.uploaded, result.failed)
             val prepared = batches.map { batch ->
                 check(published.timestamp < Long.MAX_VALUE) { "Sync timestamp overflow" }
                 val block = DeltaBlock(maxOf(clock.now(), published.timestamp + 1), published, batch)
@@ -153,7 +162,7 @@ class DeltaEngine(
                 prepared.forEach { (position, block) -> applyBlock(position, block, result) }
                 recoverMissingBooks()
                 result.uploaded += changes.size
-                result.pending = pending().size
+                result.pending = pendingCount()
                 progress.upload(changes.size, changes.size, result.uploaded, result.failed)
                 return result.toResult()
             }

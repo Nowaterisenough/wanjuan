@@ -58,16 +58,17 @@ class DeltaRemote(private val remote: SyncRemoteStore) {
     internal suspend fun write(path: String, json: String) {
         val bytes = json.toByteArray(Charsets.UTF_8)
         if (bytes.size <= MAX_FILE_BYTES) {
-            remote.uploadJson(path, json)
+            remote.uploadImmutableJson(path, json)
             return
         }
         val parts = com.google.gson.JsonArray()
+        val uploaded = hashSetOf<String>()
         var offset = 0
         while (offset < bytes.size) {
             val chunk = bytes.copyOfRange(offset, minOf(offset + CHUNK_BYTES, bytes.size))
             val hash = checksum(chunk)
             val encoded = JsonObject().apply { addProperty("data", Base64.getEncoder().encodeToString(chunk)) }
-            remote.uploadJson("delta-v2/chunks/$hash.json", encoded.toString())
+            if (uploaded.add(hash)) remote.uploadImmutableJson("delta-v2/chunks/$hash.json", encoded.toString())
             parts.add(hash)
             offset += chunk.size
         }
@@ -78,7 +79,7 @@ class DeltaRemote(private val remote: SyncRemoteStore) {
             add("parts", parts)
         }.toString()
         require(manifest.toByteArray(Charsets.UTF_8).size <= MAX_FILE_BYTES) { "Sync chunk manifest is too large" }
-        remote.uploadJson(path, manifest)
+        remote.uploadImmutableJson(path, manifest)
     }
 
     internal suspend fun read(path: String): String {

@@ -15,6 +15,7 @@ import io.wanjuan.app.sync.delta.*
 import io.wanjuan.app.sync.remote.*
 import io.wanjuan.app.sync.local.SyncDeltaPayloadStore
 import io.wanjuan.app.sync.local.SyncDeltaPayloadCodec
+import io.wanjuan.app.sync.local.SyncDeltaState
 import io.wanjuan.app.utils.GSON
 import com.google.gson.JsonObject
 import kotlinx.coroutines.runBlocking
@@ -30,6 +31,19 @@ class TestDeltaSyncInstrumented {
     private val context = InstrumentationRegistry.getInstrumentation().targetContext
 
     @After fun close() { replicas.forEach { it.db.close() } }
+
+    @Test fun pendingQueriesDoNotDecodeUnchangedPayloadsOrOtherTargets() {
+        val replica = replica()
+        val dao = replica.db.syncDeltaDao
+        dao.save(SyncDeltaState("target", "book", "unchanged", remoteJson =
+            "${SyncDeltaPayloadCodec.PREFIX}${"a".repeat(64)}:1:40000"))
+        dao.save(SyncDeltaState("target", "book", "pending", pendingId = "op", pendingJson = "{}"))
+        dao.save(SyncDeltaState("other", "book", "elsewhere", pendingId = "other-op", pendingJson = "{}"))
+        assertEquals(1, replica.local.pendingCount("target"))
+        assertEquals(setOf("pending"), replica.local.pendingBookIds("target"))
+        assertEquals("pending", replica.local.pending("target", 64).single().objectId)
+        assertTrue(replica.local.pending("target", 0).isEmpty())
+    }
 
     @Test fun migrationPreservesExistingOutboxAndAddsDurableCursor() {
         val name = "delta-migration-95-97"

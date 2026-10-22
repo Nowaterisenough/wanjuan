@@ -5,6 +5,15 @@ import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
 import io.wanjuan.app.sync.merge.BookSyncMerge
 import io.wanjuan.app.sync.delta.DeltaRemote
+import io.wanjuan.app.sync.delta.DeltaEngine
+import io.wanjuan.app.sync.delta.DeltaLocal
+import io.wanjuan.app.sync.delta.DeltaCodec
+import io.wanjuan.app.sync.SyncApplyOutcome
+import io.wanjuan.app.sync.SyncClock
+import io.wanjuan.app.sync.SyncIdentity
+import io.wanjuan.app.sync.local.SyncDeltaCursor
+import io.wanjuan.app.sync.local.SyncDeltaState
+import io.wanjuan.app.sync.model.SyncObjectType
 import io.wanjuan.app.sync.model.SyncBook
 import io.wanjuan.app.sync.model.SyncBookPayload
 import io.wanjuan.app.utils.GSON
@@ -22,10 +31,79 @@ class TestGitHubSyncClient {
         Server().use { server ->
             val remote = DeltaRemote(server.client())
             val json = GSON.toJson(mapOf("rules" to "\u4e66\ud83d\udcd6".repeat(260000)))
-            remote.write("delta-v2/blocks/test.json", json)
-            assertEquals(json, remote.read("delta-v2/blocks/test.json"))
+            val path = "delta-v2/blocks/${DeltaRemote.checksum(json.toByteArray())}.json"
+            remote.write(path, json)
+            assertEquals(server.contents.size, server.puts)
+            assertEquals(0, server.contentReads)
+            assertEquals(json, remote.read(path))
             assertTrue(server.contents.keys.any { it.contains("/chunks/") })
             assertTrue(server.contents.values.all { it.toByteArray(Charsets.UTF_8).size <= DeltaRemote.MAX_FILE_BYTES })
+        }
+    }
+
+    @Test fun dailySingleFieldFlushNeedsOnlyOneGetAndTwoPuts() = runBlocking {
+        Server().use { server ->
+            val local = Local()
+            val client = server.client()
+            val engine = DeltaEngine(local, DeltaRemote(client), "target", object : SyncClock { override fun now() = 100L })
+            fun content(tag: String) = DeltaCodec.normalize(SyncObjectType.Book,
+                GSON.toJson(book(1, 1).let { it.copy(book = it.book.copy(customTag = tag)) }))
+            local.value = content("before")
+            engine.flush()
+            server.contentRequests.clear()
+            local.value = content("after")
+            assertEquals(1, engine.flush().uploaded)
+            val requests = server.contentRequests.toList()
+            assertEquals(3, requests.size)
+            assertEquals("GET wanjuan/sync/v1/${DeltaRemote.HEAD}", requests[0])
+            assertTrue(requests[1].startsWith("PUT wanjuan/sync/v1/delta-v2/blocks/"))
+            assertEquals("PUT wanjuan/sync/v1/${DeltaRemote.HEAD}", requests[2])
+            assertEquals(0, engine.flush().uploaded)
+        }
+    }
+
+    @Test fun immutableCreationReadsOnlyAfterConflictAndNeverOverwrites() = runBlocking {
+        for (status in listOf(409, 422)) Server().use { server ->
+            server.conflictStatus = status
+            val client = server.client()
+            val path = "delta-v2/blocks/${"a".repeat(64)}.json"
+            client.uploadImmutableJson(path, "{}")
+            assertEquals(0, server.contentReads)
+            assertEquals(1, server.puts)
+            client.uploadImmutableJson(path, "{}")
+            assertEquals(1, server.contentReads)
+            assertEquals(2, server.puts)
+            assertTrue(runCatching { client.uploadImmutableJson(path, "{\"different\":true}") }.isFailure)
+            assertEquals("{}", client.downloadJson(path))
+            assertTrue(runCatching { client.uploadImmutableJson(DeltaRemote.HEAD, "{}") }.isFailure)
+        }
+    }
+
+    @Test fun missingImmutableObjectRetriesAreBounded() = runBlocking {
+        Server().use { server ->
+            server.alwaysConflict = true
+            val path = "delta-v2/chunks/${"b".repeat(64)}.json"
+            assertTrue(runCatching { server.client().uploadImmutableJson(path, "{}") }.isFailure)
+            assertEquals(3, server.puts)
+            assertEquals(3, server.contentReads)
+            assertTrue(server.contents.isEmpty())
+        }
+    }
+
+    private class Local : DeltaLocal {
+        private val id = SyncIdentity(SyncObjectType.Book, "id")
+        var value: String? = null
+        private var state: SyncDeltaState? = null
+        private var cursor = SyncDeltaCursor("target")
+        override fun transaction(action: () -> Unit) = action()
+        override fun states(target: String) = listOfNotNull(state)
+        override fun save(state: SyncDeltaState) { this.state = state }
+        override fun cursor(target: String) = cursor
+        override fun saveCursor(cursor: SyncDeltaCursor) { this.cursor = cursor }
+        override fun snapshots() = value?.let { mapOf(id to it) } ?: emptyMap()
+        override fun apply(identity: SyncIdentity, json: String?, timestamp: Long): SyncApplyOutcome {
+            value = json
+            return SyncApplyOutcome.Updated
         }
     }
 
@@ -210,6 +288,7 @@ class TestGitHubSyncClient {
         var pushAllowed = true
         var missingBranch = false
         var alwaysConflict = false
+        var conflictStatus = 409
         var failure: Int? = null
         var largeDirectory = false
         var headersValid = true
@@ -218,6 +297,7 @@ class TestGitHubSyncClient {
         var truncatedTree = false
         var omitLargeInlineContent = false
         val refs = mutableListOf<String>()
+        val contentRequests = mutableListOf<String>()
         private val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0).apply {
             createContext("/") { exchange ->
                 try { handle(exchange) } catch (e: Throwable) {
@@ -263,6 +343,7 @@ class TestGitHubSyncClient {
                 return
             }
             val key = path.substringAfter("/contents/")
+            contentRequests += "${exchange.requestMethod} $key"
             refs += exchange.requestURI.rawQuery.orEmpty()
             val sha = (versions[key] ?: 0).toString()
             when (exchange.requestMethod) {
@@ -292,7 +373,7 @@ class TestGitHubSyncClient {
                         return
                     }
                     if (alwaysConflict || (contents.containsKey(key) && body["sha"]?.asString != sha)) {
-                        respond(exchange, 409, "{}")
+                        respond(exchange, conflictStatus, "{}")
                         return
                     }
                     if (exchange.requestMethod == "DELETE") contents.remove(key)

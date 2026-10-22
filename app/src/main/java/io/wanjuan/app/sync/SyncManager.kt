@@ -94,7 +94,7 @@ object SyncManager {
                     val cursor = local.cursor(target.identity)
                     AppLog.put("Sync v2 ${BuildConfig.VERSION_NAME}: ${if (pushChanges) "push" else "pull"}, " +
                         "target=${target.identity.takeLast(8)}, cursor=${cursor.timestamp}, " +
-                        "legacyImported=${cursor.legacyImported}, pending=${appDb.syncDeltaDao.pending(target.identity).size}")
+                        "legacyImported=${cursor.legacyImported}, pending=${appDb.syncDeltaDao.pendingCount(target.identity)}")
                     val delta = engine(target)
                     val completed = if (pushChanges) delta.flush() else delta.pull().copy(pending = 0)
                     repeatChanges = isEnabled && delta.capture() > 0
@@ -106,7 +106,7 @@ object SyncManager {
             } catch (e: Exception) {
                 AppLog.put("Sync v2 failed at ${progressTracker.snapshot().phase}: ${e.localizedMessage}", e)
                 SyncResult(failed = 1, errorMessage = e.localizedMessage ?: e.javaClass.simpleName,
-                    pending = runCatching { targetId?.let { appDb.syncDeltaDao.pending(it).size } ?: 0 }.getOrDefault(0))
+                    pending = runCatching { targetId?.let { appDb.syncDeltaDao.pendingCount(it) } ?: 0 }.getOrDefault(0))
             }
             progressTracker.finish(result)
             AppLog.put("Sync v2 finished: uploaded=${result.uploaded}, downloaded=${result.downloaded}, " +

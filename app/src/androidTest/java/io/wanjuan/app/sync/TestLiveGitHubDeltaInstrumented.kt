@@ -21,6 +21,43 @@ import java.util.UUID
 /** Explicit opt-in only. The real credential stays on the host; a scoped gateway authenticates requests. */
 @RunWith(AndroidJUnit4::class)
 class TestLiveGitHubDeltaInstrumented {
+    @Test fun dailySingleFieldUploadLatencyProbe() = runBlocking {
+        val args = InstrumentationRegistry.getArguments()
+        assumeTrue("Latency probe is opt-in", args.getString("liveLatency") == "true")
+        val apiBase = requireNotNull(args.getString("liveApiBase")).toHttpUrl()
+        require(apiBase.host == "10.0.2.2" || apiBase.host == "127.0.0.1")
+        val branch = requireNotNull(args.getString("liveBranch"))
+        val directory = requireNotNull(args.getString("liveTestDirectory"))
+        require(branch.startsWith("codex/sync-check-") && directory.startsWith("_sync_probe_"))
+        val client = GitHubSyncClient(GitHubSyncConfig(requireNotNull(args.getString("liveOwner")),
+            requireNotNull(args.getString("liveRepo")), requireNotNull(args.getString("liveGatewayKey")), branch, directory),
+            apiBase = apiBase)
+        val cache = File(InstrumentationRegistry.getInstrumentation().targetContext.cacheDir, "live-latency-${UUID.randomUUID()}")
+        val replica = Replica(client, cache, migrate = false)
+        try {
+            withTimeout(180000) {
+                val book = Book(bookUrl = "diagnostic://${UUID.randomUUID()}", origin = "diagnostic-source", name = "Latency probe")
+                replica.db.bookDao.insert(book)
+                var initial = replica.engine.flush()
+                repeat(5) { if (initial.pending > 0) initial = replica.engine.flush() }
+                assertEquals(0, initial.pending)
+                repeat(5) { index ->
+                    val current = replica.db.bookDao.getBook(book.bookUrl)!!
+                    replica.db.bookDao.update(current.copy(customTag = "latency-$index"))
+                    val started = System.nanoTime()
+                    val result = replica.engine.flush()
+                    assertEquals(1, result.uploaded)
+                    assertEquals(0, result.pending)
+                    report("Daily field update ${index + 1}: elapsedMs=${(System.nanoTime() - started) / 1_000_000}")
+                }
+                assertEquals(0, replica.engine.flush().uploaded)
+            }
+        } finally {
+            replica.db.close()
+            cache.deleteRecursively()
+        }
+    }
+
     @Test fun migrateRealLegacyDataThenPublishOnlyToIsolatedDirectory() = runBlocking {
         val args = InstrumentationRegistry.getArguments()
         assumeTrue("Live gateway arguments were not supplied", !args.getString("liveApiBase").isNullOrBlank())

@@ -165,6 +165,24 @@ class GitHubSyncClient(
         }
     }
 
+    override suspend fun uploadImmutableJson(relativePath: String, json: String) = writes.withLock {
+        require(relativePath.matches(Regex("delta-v2/(blocks|chunks)/[a-f0-9]{64}\\.json"))) {
+            "Invalid immutable sync path"
+        }
+        repeat(3) {
+            if (put(relativePath, json, null)) return@withLock
+            // An existing object or a competing branch writer can reject creation. Never
+            // overwrite immutable content; verify duplicates and retry only missing paths.
+            val existing = read(relativePath)
+            if (existing != null) {
+                check(existing.text == json) { "Immutable sync object content mismatch" }
+                written = relativePath to SyncRemoteRead(json, "sha:${existing.sha}")
+                return@withLock
+            }
+        }
+        throw IOException("GitHub 同步对象创建冲突，请稍后重试")
+    }
+
     override suspend fun updateBook(
         id: String,
         transform: (SyncBookPayload?) -> SyncBookPayload?

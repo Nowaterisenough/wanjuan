@@ -19,6 +19,8 @@ interface SyncRemoteStore {
     suspend fun list(relativeDir: String): List<SyncRemoteFile>
     suspend fun downloadJson(relativePath: String): String?
     suspend fun uploadJson(relativePath: String, json: String)
+    /** Content-addressed objects can use a create-first path instead of a read-before-write. */
+    suspend fun uploadImmutableJson(relativePath: String, json: String) = uploadJson(relativePath, json)
     suspend fun delete(relativePath: String): Boolean = false
     suspend fun snapshot(
         directories: List<String>,

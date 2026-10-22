@@ -32,6 +32,7 @@ class SelectedSyncRemoteStore(
     override suspend fun invalidateCached(relativePath: String) = store().invalidateCached(relativePath)
     override suspend fun downloadJson(relativePath: String) = store().downloadJson(relativePath)
     override suspend fun uploadJson(relativePath: String, json: String) = store().uploadJson(relativePath, json)
+    override suspend fun uploadImmutableJson(relativePath: String, json: String) = store().uploadImmutableJson(relativePath, json)
     override suspend fun readForUpdate(path: String) = store().readForUpdate(path)
     override suspend fun compareAndSetJson(path: String, previous: SyncRemoteRead, json: String) =
         store().compareAndSetJson(path, previous, json)

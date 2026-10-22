@@ -43,6 +43,15 @@ interface SyncDeltaDao {
     @Query("select * from sync_delta_state where target = :target and (pendingId is not null or inFlightChange is not null)")
     fun pending(target: String): List<SyncDeltaState>
 
+    @Query("select * from sync_delta_state where target = :target and (pendingId is not null or inFlightChange is not null) order by objectType, objectId limit :limit")
+    fun pendingBatch(target: String, limit: Int): List<SyncDeltaState>
+
+    @Query("select count(*) from sync_delta_state where target = :target and (pendingId is not null or inFlightChange is not null)")
+    fun pendingCount(target: String): Int
+
+    @Query("select objectId from sync_delta_state where target = :target and objectType = 'book' and (pendingId is not null or inFlightChange is not null)")
+    fun pendingBookIds(target: String): List<String>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     fun save(state: SyncDeltaState)
 
