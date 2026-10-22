@@ -68,6 +68,7 @@ import io.wanjuan.app.sync.local.SyncOutboxDao
 import io.wanjuan.app.sync.local.SyncDeltaState
 import io.wanjuan.app.sync.local.SyncDeltaCursor
 import io.wanjuan.app.sync.local.SyncDeltaDao
+import io.wanjuan.app.sync.local.SyncDeltaBlob
 import org.intellij.lang.annotations.Language
 import splitties.init.appCtx
 import java.util.Locale
@@ -82,7 +83,7 @@ val appDb by lazy {
 }
 
 @Database(
-    version = 96,
+    version = 97,
     exportSchema = true,
     entities = [Book::class, BookGroup::class, BookSource::class, BookChapter::class,
         ReplaceRule::class, SearchBook::class, SearchKeyword::class, Cookie::class,
@@ -92,7 +93,7 @@ val appDb by lazy {
         RuleSub::class, DictRule::class, KeyboardAssist::class, Server::class,
         ReadRecentBook::class, ParagraphRule::class, BookParagraphRule::class,
         ParagraphRuleVar::class, SyncMetadata::class, SyncOutbox::class,
-        SyncDeltaState::class, SyncDeltaCursor::class],
+        SyncDeltaState::class, SyncDeltaCursor::class, SyncDeltaBlob::class],
     views = [BookSourcePart::class],
     autoMigrations = [
         AutoMigration(from = 43, to = 44),

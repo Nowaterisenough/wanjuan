@@ -7,6 +7,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import io.wanjuan.app.constant.AppConst
 import io.wanjuan.app.constant.BookSourceType
 import io.wanjuan.app.constant.BookType
+import io.wanjuan.app.sync.local.SyncDeltaPayloadCodec
+import android.content.ContentValues
+import android.database.sqlite.SQLiteDatabase
 
 object DatabaseMigrations {
 
@@ -21,8 +24,42 @@ object DatabaseMigrations {
             migration_35_36, migration_36_37, migration_37_38, migration_38_39,
             migration_39_40, migration_40_41, migration_41_42, migration_42_43,
             migration_90_91, migration_91_92, migration_92_93, migration_93_94,
-            migration_94_95, migration_95_96,
+            migration_94_95, migration_95_96, migration_96_97,
         )
+    }
+
+    private val migration_96_97 = object : Migration(96, 97) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("""CREATE TABLE IF NOT EXISTS `sync_delta_blob` (
+                `blobId` TEXT NOT NULL, `partIndex` INTEGER NOT NULL, `content` TEXT NOT NULL,
+                PRIMARY KEY(`blobId`, `partIndex`))""")
+            // Read only small projections: SELECT * already fails for oversized v96 rows.
+            val keys = arrayListOf<Array<String>>()
+            db.query("SELECT target, objectType, objectId FROM sync_delta_state").use { cursor ->
+                while (cursor.moveToNext()) keys += arrayOf(cursor.getString(0), cursor.getString(1), cursor.getString(2))
+            }
+            val columns = listOf("remoteJson", "observedJson", "pendingJson", "inFlightChange", "inFlightValue")
+            keys.forEach { key -> columns.forEach { column ->
+                val where = "target = ? AND objectType = ? AND objectId = ?"
+                val length = db.query("SELECT length(`$column`) FROM sync_delta_state WHERE $where", key).use {
+                    it.moveToFirst(); if (it.isNull(0)) 0 else it.getInt(0)
+                }
+                if (length <= SyncDeltaPayloadCodec.INLINE_BYTES / 4) return@forEach
+                val value = StringBuilder()
+                var start = 1
+                while (start <= length) {
+                    db.query("SELECT substr(`$column`, ?, 8192) FROM sync_delta_state WHERE $where",
+                        arrayOf<Any>(start, *key)).use { it.moveToFirst(); value.append(it.getString(0)) }
+                    start += 8192
+                }
+                val encoded = SyncDeltaPayloadCodec.encode(value.toString()) { parts ->
+                    parts.forEach { part -> db.insert("sync_delta_blob", SQLiteDatabase.CONFLICT_IGNORE, ContentValues().apply {
+                        put("blobId", part.blobId); put("partIndex", part.partIndex); put("content", part.content)
+                    }) }
+                }
+                db.execSQL("UPDATE sync_delta_state SET `$column` = ? WHERE $where", arrayOf<Any?>(encoded, *key))
+            } }
+        }
     }
 
     private val migration_95_96 = object : Migration(95, 96) {

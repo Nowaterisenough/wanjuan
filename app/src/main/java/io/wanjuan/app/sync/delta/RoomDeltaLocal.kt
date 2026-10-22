@@ -5,6 +5,7 @@ import io.wanjuan.app.data.AppDatabase
 import io.wanjuan.app.sync.*
 import io.wanjuan.app.sync.local.SyncDeltaCursor
 import io.wanjuan.app.sync.local.SyncDeltaState
+import io.wanjuan.app.sync.local.SyncDeltaPayloadStore
 import io.wanjuan.app.sync.model.*
 import io.wanjuan.app.sync.remote.SyncRemoteFile
 import io.wanjuan.app.utils.GSON
@@ -15,9 +16,10 @@ class RoomDeltaLocal(
     private val books: BookshelfSyncCoordinator,
     private val handlers: List<SyncPullHandler>
 ) : DeltaLocal {
+    private val payloads = SyncDeltaPayloadStore(db.syncDeltaDao)
     override fun transaction(action: () -> Unit) = db.runInTransaction(action)
-    override fun states(target: String) = db.syncDeltaDao.states(target)
-    override fun save(state: SyncDeltaState) = db.syncDeltaDao.save(state)
+    override fun states(target: String) = payloads.decode(db.syncDeltaDao.states(target))
+    override fun save(state: SyncDeltaState) = payloads.save(state)
     override fun cursor(target: String) = db.syncDeltaDao.cursor(target) ?: SyncDeltaCursor(target)
     override fun saveCursor(cursor: SyncDeltaCursor) = db.syncDeltaDao.saveCursor(cursor)
 

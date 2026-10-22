@@ -30,10 +30,12 @@ class TestSyncSchema {
         val metadata = File("app/src/main/java/io/wanjuan/app/sync/local/SyncMetadata.kt").readText()
         val outbox = File("app/src/main/java/io/wanjuan/app/sync/local/SyncOutbox.kt").readText()
 
-        assertTrue(database.contains("version = 96"))
+        assertTrue(database.contains("version = 97"))
         assertTrue(database.contains("SyncDeltaState::class"))
         assertTrue(database.contains("SyncDeltaCursor::class"))
         assertTrue(migrations.contains("migration_95_96"))
+        assertTrue(database.contains("SyncDeltaBlob::class"))
+        assertTrue(migrations.contains("migration_96_97"))
         assertTrue(migrations.contains("migration_94_95"))
         assertTrue(migrations.contains("syncId` TEXT NOT NULL DEFAULT ''"))
         assertTrue(group.contains("var syncId: String = \"\""))

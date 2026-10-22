@@ -12,7 +12,7 @@ class TestParagraphRuleMigration {
         val database = repoFile("app/src/main/java/io/wanjuan/app/data/AppDatabase.kt").readText()
         val migrations = repoFile("app/src/main/java/io/wanjuan/app/data/DatabaseMigrations.kt").readText()
 
-        assertTrue(database.contains("version = 96"))
+        assertTrue(database.contains("version = 97"))
         assertTrue(database.contains("ParagraphRule::class"))
         assertTrue(database.contains("BookParagraphRule::class"))
         assertTrue(database.contains("ParagraphRuleVar::class"))

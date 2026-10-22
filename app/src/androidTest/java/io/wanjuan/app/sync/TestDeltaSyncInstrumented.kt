@@ -13,6 +13,8 @@ import io.wanjuan.app.data.entities.RssSource
 import io.wanjuan.app.data.entities.RuleSub
 import io.wanjuan.app.sync.delta.*
 import io.wanjuan.app.sync.remote.*
+import io.wanjuan.app.sync.local.SyncDeltaPayloadStore
+import io.wanjuan.app.sync.local.SyncDeltaPayloadCodec
 import io.wanjuan.app.utils.GSON
 import com.google.gson.JsonObject
 import kotlinx.coroutines.runBlocking
@@ -30,12 +32,49 @@ class TestDeltaSyncInstrumented {
     @After fun close() { replicas.forEach { it.db.close() } }
 
     @Test fun migrationPreservesExistingOutboxAndAddsDurableCursor() {
-        val name = "delta-migration-95-96"
+        val name = "delta-migration-95-97"
+        createOldDatabase(name, 95)
+        context.openOrCreateDatabase(name, 0, null).use { old ->
+            old.execSQL("INSERT INTO sync_outbox (objectType,objectId,operation,createdAt,attemptCount,versionTimestamp,versionDeviceId) VALUES ('book','pending','delete',123,0,123,'device')")
+        }
+        val migrated = Room.databaseBuilder(context, AppDatabase::class.java, name)
+            .addMigrations(*DatabaseMigrations.migrations).build()
+        migrated.openHelper.writableDatabase.apply {
+            query("select count(*) from sync_outbox where objectId = 'pending'").use { assertTrue(it.moveToFirst()); assertEquals(1, it.getInt(0)) }
+            query("select count(*) from sync_delta_cursor").use { assertTrue(it.moveToFirst()); assertEquals(0, it.getInt(0)) }
+        }
+        migrated.close()
+        context.deleteDatabase(name)
+    }
+
+    @Test fun migrationRescuesOversizedV96RowsWithoutReadingThemThroughCursorWindow() {
+        val name = "delta-migration-large-96-97"
+        createOldDatabase(name, 96)
+        val large = "{\"value\":\"" + "\u4e66\ud83d\udcd6".repeat(180000) + "\"}"
+        context.openOrCreateDatabase(name, 0, null).use { old ->
+            old.execSQL("""INSERT INTO sync_delta_state (target,objectType,objectId,remoteJson,observedJson,pendingId,pendingJson,
+                pendingDelete,pendingCreate,inFlightChange,inFlightValue) VALUES ('test','book','large',?,?,'pending',?,0,0,null,null)""",
+                arrayOf(large, large, large))
+            old.execSQL("INSERT INTO sync_delta_cursor VALUES ('test',123,'existing-block',1)")
+        }
+        val db = Room.databaseBuilder(context, AppDatabase::class.java, name).addMigrations(*DatabaseMigrations.migrations).build()
+        val raw = db.syncDeltaDao.states("test")
+        assertTrue(raw.single().remoteJson!!.startsWith(SyncDeltaPayloadCodec.PREFIX))
+        val decoded = SyncDeltaPayloadStore(db.syncDeltaDao).decode(raw).single()
+        assertEquals(large, decoded.remoteJson)
+        assertEquals(large, decoded.pendingJson)
+        assertEquals("pending", decoded.pendingId)
+        assertEquals(123L, db.syncDeltaDao.cursor("test")!!.timestamp)
+        db.close()
+        context.deleteDatabase(name)
+    }
+
+    private fun createOldDatabase(name: String, version: Int) {
         context.deleteDatabase(name)
         // Build the exported old schema directly: the test runtime's Room bundle serializer
         // is incompatible with its transitive kotlinx.serialization runtime.
         val json = InstrumentationRegistry.getInstrumentation().context.assets
-            .open("io.wanjuan.app.data.AppDatabase/95.json").bufferedReader().use { it.readText() }
+            .open("io.wanjuan.app.data.AppDatabase/$version.json").bufferedReader().use { it.readText() }
         val schema = GSON.fromJson(json, JsonObject::class.java).getAsJsonObject("database")
         context.openOrCreateDatabase(name, 0, null).use { old ->
             schema.getAsJsonArray("entities").forEach { entry ->
@@ -51,17 +90,23 @@ class TestDeltaSyncInstrumented {
                 old.execSQL(view["createSql"].asString.replace("\${VIEW_NAME}", view["viewName"].asString))
             }
             schema.getAsJsonArray("setupQueries").forEach { old.execSQL(it.asString) }
-            old.version = 95
-            old.execSQL("INSERT INTO sync_outbox (objectType,objectId,operation,createdAt,attemptCount,versionTimestamp,versionDeviceId) VALUES ('book','pending','delete',123,0,123,'device')")
+            old.version = version
         }
-        val migrated = Room.databaseBuilder(context, AppDatabase::class.java, name)
-            .addMigrations(*DatabaseMigrations.migrations).build()
-        migrated.openHelper.writableDatabase.apply {
-            query("select count(*) from sync_outbox where objectId = 'pending'").use { assertTrue(it.moveToFirst()); assertEquals(1, it.getInt(0)) }
-            query("select count(*) from sync_delta_cursor").use { assertTrue(it.moveToFirst()); assertEquals(0, it.getInt(0)) }
-        }
-        migrated.close()
-        context.deleteDatabase(name)
+    }
+
+    @Test fun largePayloadsRoundTripThroughRealRoomWithoutOversizedStateRows() = runBlocking {
+        val a = replica(); val b = replica()
+        val large = "\u4e66\ud83d\udcd6".repeat(180000)
+        val book = Book(bookUrl = "large-book", origin = "source", name = "Large", customIntro = large)
+        a.db.bookDao.insert(book)
+        var result = a.engine.flush()
+        repeat(10) { if (result.pending > 0) result = a.engine.flush() }
+        assertEquals(0, result.pending)
+        b.engine.pull()
+        assertEquals(large, b.db.bookDao.getBook(book.bookUrl)!!.customIntro)
+        assertEquals(0, a.engine.flush().uploaded)
+        assertEquals(0, b.engine.flush().uploaded)
+        assertTrue(a.db.syncDeltaDao.states("target").all { (it.remoteJson?.length ?: 0) < 40000 })
     }
 
     @Test fun roomProgressCatalogMetadataAndDeletionUseOneDeltaPipeline() = runBlocking {
