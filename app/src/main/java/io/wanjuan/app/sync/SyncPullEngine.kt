@@ -81,7 +81,8 @@ class SyncPullEngine(
     private val remoteStore: SyncRemoteStore,
     private val pullStore: SyncPullStore,
     private val handlers: List<SyncPullHandler>,
-    private val progress: SyncProgressTracker = SyncProgressTracker()
+    private val progress: SyncProgressTracker = SyncProgressTracker(),
+    private val onCandidate: ((SyncRemoteCandidate) -> Unit)? = null
 ) {
     private var unlistedCompanions = emptyMap<SyncIdentity, SyncPullHandler>()
 
@@ -148,7 +149,7 @@ class SyncPullEngine(
                         return@withPermit Result.success(null)
                     }
                     val metadata = pullStore.metadata(identity)
-                    if (file.revision == null && handler.usesModifiedTimeMarker &&
+                    if (onCandidate == null && file.revision == null && handler.usesModifiedTimeMarker &&
                         handler.isLocalObjectPresent(identity) && file.lastModifiedAt > 0L &&
                         metadata?.remoteFileModifiedAt == file.lastModifiedAt
                     ) {
@@ -196,6 +197,7 @@ class SyncPullEngine(
                     downloaded = true
                     val candidate = liveHandler.parse(file, json)
                     require(candidate.identity == identity) { "Remote companion identity mismatch" }
+                    onCandidate?.invoke(candidate)
                     candidates[identity] = liveHandler to candidate
                 } catch (e: CancellationException) {
                     throw e
@@ -254,6 +256,7 @@ class SyncPullEngine(
                         result.downloaded++
                         companion.parse(SyncRemoteFile(path, path.substringAfterLast('/'), 0L), json).also {
                             require(it.identity == identity) { "Remote companion identity mismatch" }
+                            onCandidate?.invoke(it)
                         }
                     }
                 } finally { progress.read(fromCache = false, downloaded = downloaded) }
@@ -339,6 +342,7 @@ class SyncPullEngine(
                     }
                     val candidate = handler.parse(file, json)
                     require(candidate.identity == identity) { "Remote identity changed while parsing ${file.path}" }
+                    onCandidate?.invoke(candidate)
                     return candidate
                 } catch (e: CancellationException) {
                     throw e

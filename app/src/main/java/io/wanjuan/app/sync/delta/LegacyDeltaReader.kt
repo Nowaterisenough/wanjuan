@@ -2,33 +2,27 @@ package io.wanjuan.app.sync.delta
 
 import io.wanjuan.app.constant.BookType
 import io.wanjuan.app.sync.SyncIdentity
-import io.wanjuan.app.sync.SyncPullHandler
 import io.wanjuan.app.sync.SyncRemoteCandidate
 import io.wanjuan.app.sync.model.SyncBookGroupPayload
 import io.wanjuan.app.sync.model.SyncBookPayload
 import io.wanjuan.app.sync.model.SyncObjectType
-import io.wanjuan.app.sync.remote.SyncRemoteStore
 import io.wanjuan.app.utils.GSON
 
-/** One-time, read-only import. New clients publish only the v2 journal after cutover. */
-class LegacyDeltaReader(private val remote: SyncRemoteStore, private val handlers: List<SyncPullHandler>) {
-    suspend fun read(): Map<SyncIdentity, String> {
-        val index = remote.snapshot(handlers.flatMap { it.directories }.distinct())
-        val winners = linkedMapOf<SyncIdentity, SyncRemoteCandidate>()
-        handlers.forEach { handler ->
-            handler.directories.forEach { directory ->
-                index[directory].orEmpty().forEach { file ->
-                    if (handler.identity(file) == null) return@forEach
-                    val json = requireNotNull(remote.readJson(file).json) { "Legacy sync object disappeared during import" }
-                    val candidate = handler.parse(file, json)
-                    val previous = winners[candidate.identity]
-                    if (previous == null || candidate.version > previous.version ||
-                        (candidate.version == previous.version && candidate.deleteVersion != null)) {
-                        winners[candidate.identity] = candidate
-                    }
-                }
-            }
+/** Collect the exact versions already read by the migration pull; never fetch them a second time. */
+class LegacyDeltaReader {
+    private val winners = linkedMapOf<SyncIdentity, SyncRemoteCandidate>()
+
+    @Synchronized
+    fun accept(candidate: SyncRemoteCandidate) {
+        val previous = winners[candidate.identity]
+        if (previous == null || candidate.version > previous.version ||
+            (candidate.version == previous.version && candidate.deleteVersion != null)) {
+            winners[candidate.identity] = candidate
         }
+    }
+
+    @Synchronized
+    fun snapshots(): Map<SyncIdentity, String> {
         val groups = winners.values.filter { it.identity.objectType == SyncObjectType.BookGroup && it.deleteVersion == null }
             .map { GSON.fromJson(it.payloadJson, SyncBookGroupPayload::class.java) }
         return buildMap {

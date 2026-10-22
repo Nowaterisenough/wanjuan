@@ -54,15 +54,18 @@ class DeltaEngine(
     }
 
     suspend fun pull(result: SyncResult.Mutable = SyncResult.Mutable()): SyncResult {
-        progress.phase(SyncPhase.CheckingIndex)
+        progress.phase(SyncPhase.CheckingCursor)
         val (_, head) = remote.head()
         var cursor = local.cursor(target)
         if (!cursor.legacyImported) {
+            val downloadedBefore = progress.snapshot().downloaded
             importLegacy(legacy())
+            result.downloaded += (progress.snapshot().downloaded - downloadedBefore).coerceAtLeast(0)
             cursor = local.cursor(target)
         }
         if (head.timestamp == 0L) {
             check(cursor.timestamp == 0L) { "Remote sync journal was removed; refusing to advance the cursor" }
+            progress.phase(SyncPhase.Capturing)
             recoverMissingBooks()
             return result.toResult()
         }
@@ -71,6 +74,7 @@ class DeltaEngine(
         var next = head
         while (next.timestamp > cursor.timestamp) {
             currentCoroutineContext().ensureActive()
+            progress.phase(SyncPhase.ReadingChanges, blocks.size)
             val block = remote.block(next)
             blocks += next to block
             next = block.previous
@@ -83,6 +87,7 @@ class DeltaEngine(
             applyBlock(position, block, result)
             progress.applied()
         }
+        progress.phase(SyncPhase.Capturing)
         recoverMissingBooks()
         result.pending = pending().size
         return result.toResult()
@@ -170,7 +175,9 @@ class DeltaEngine(
                     pendingCreate = false)
                 local.save(updated)
             }
-            applyStates(local.states(target).filter { it.identity() in objects }, 1L, SyncResult.Mutable())
+            applyStates(local.states(target).filter { it.identity() in objects }, 1L, SyncResult.Mutable()) { completed, total ->
+                progress.phase(SyncPhase.MigratingApplying, completed, total)
+            }
             observeApplied()
             local.saveCursor(local.cursor(target).copy(legacyImported = true))
         }
@@ -222,7 +229,8 @@ class DeltaEngine(
         }
     }
 
-    private fun applyStates(states: List<SyncDeltaState>, timestamp: Long, result: SyncResult.Mutable) {
+    private fun applyStates(states: List<SyncDeltaState>, timestamp: Long, result: SyncResult.Mutable,
+        onApplied: (Int, Int) -> Unit = { _, _ -> }) {
         fun value(state: SyncDeltaState): String? = if (state.pendingId != null) state.pendingJson else state.remoteJson
         states.sortedWith(compareBy<SyncDeltaState> {
             when {
@@ -232,13 +240,14 @@ class DeltaEngine(
                 it.objectType in DeltaCodec.orderTypes -> 4
                 else -> 2
             }
-        }).forEach { state ->
+        }).forEachIndexed { index, state ->
             when (local.apply(state.identity(), value(state), timestamp)) {
                 SyncApplyOutcome.Inserted -> result.inserted++
                 SyncApplyOutcome.Deleted -> result.deleted++
                 SyncApplyOutcome.Updated, SyncApplyOutcome.Merged -> result.updated++
                 SyncApplyOutcome.Skipped -> result.skipped++
             }
+            onApplied(index + 1, states.size)
         }
     }
 

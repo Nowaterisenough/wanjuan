@@ -1,6 +1,7 @@
 package io.wanjuan.app.sync
 
 import io.wanjuan.app.constant.AppLog
+import io.wanjuan.app.BuildConfig
 import io.wanjuan.app.data.appDb
 import io.wanjuan.app.data.entities.Book
 import io.wanjuan.app.data.entities.BookProgress
@@ -18,6 +19,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import splitties.init.appCtx
+import java.io.File
 
 object SyncManager {
     private val syncScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -49,13 +52,12 @@ object SyncManager {
 
     private fun engine(target: SyncRemoteTarget) = DeltaEngine(local, DeltaRemote(target.store), target.identity,
         SystemSyncClock, legacy = {
-            // Read-only migration: resolve v1 clocks/deletes once, never publish v1 objects again.
-            SyncLocalReconciler(snapshots, RoomSyncReconcileStore(appDb), SystemSyncClock,
-                SyncDeviceStore::deviceId, SyncObjectSelection.all).capture()
-            val result = SyncResult.Mutable()
-            SyncPullEngine(target.store, RoomSyncPullStore(appDb), handlers).pullAll(result)
-            check(result.failed == 0) { result.errorMessage ?: "Legacy sync import failed" }
-            LegacyDeltaReader(target.store, handlers).read()
+            val cached = CachingSyncRemoteStore(target.store,
+                FileSyncRemoteContentCache(File(appCtx.cacheDir, "sync-objects/${target.identity}")))
+            LegacySyncImporter(cached, RoomSyncPullStore(appDb), handlers, prepare = {
+                SyncLocalReconciler(snapshots, RoomSyncReconcileStore(appDb), SystemSyncClock,
+                    SyncDeviceStore::deviceId, SyncObjectSelection.all).capture()
+            }, progress = progressTracker).read()
         }, progress = progressTracker)
 
     private val pullFlight by lazy { SingleFlightSync(syncScope) { runSync(pushChanges = false) } }
@@ -70,42 +72,66 @@ object SyncManager {
 
     private suspend fun runSync(pushChanges: Boolean): SyncResult = mutationMutex.withLock {
         progressTracker.begin()
-        var repeatChanges = false
-        var targetId: String? = null
-        val result = try {
-            client.withTarget { target ->
-                targetId = target.identity
-                val delta = engine(target)
-                val completed = if (pushChanges) delta.flush() else delta.pull().copy(pending = 0)
-                repeatChanges = isEnabled && delta.capture() > 0
-                completed
-            }
-        } catch (e: CancellationException) {
-            progressTracker.finish(SyncResult(failed = 1, errorMessage = "Sync cancelled"))
-            throw e
-        } catch (e: Exception) {
-            SyncResult(failed = 1, errorMessage = e.localizedMessage ?: e.javaClass.simpleName,
-                pending = runCatching { targetId?.let { appDb.syncDeltaDao.pending(it).size } ?: 0 }.getOrDefault(0))
-        }
-        progressTracker.finish(result)
-        // Retry real, persisted edits after connectivity returns; a pull itself creates no upload.
-        if (result.failed == 0) {
-            retryJob?.cancel()
-            retryDelayMillis = 5_000L
-            if (repeatChanges) changeFlight.start(rerunIfActive = true)
-        } else if (result.pending > 0 && isEnabled) {
-            retryJob?.cancel()
-            val wait = retryDelayMillis
-            retryDelayMillis = minOf(retryDelayMillis * 2, 300_000L)
-            val failedTarget = targetId
-            retryJob = syncScope.launch {
-                delay(wait)
-                if (isEnabled && runCatching { SyncSettings.target().identity == failedTarget }.getOrDefault(false)) {
-                    changeFlight.start(rerunIfActive = true)
+        val heartbeat = syncScope.launch {
+            var lastReport = 0L
+            while (isActive) {
+                delay(1000)
+                progressTracker.tick()
+                val state = progressTracker.snapshot()
+                if (state.running && state.elapsedMillis - lastReport >= 30_000) {
+                    lastReport = state.elapsedMillis
+                    AppLog.put("Sync v2 ${state.phase}: ${state.completed}/${state.total}, " +
+                        "downloaded=${state.downloaded}, cached=${state.reused}, elapsed=${state.elapsedMillis / 1000}s")
                 }
             }
         }
-        result
+        try {
+            var repeatChanges = false
+            var targetId: String? = null
+            val result = try {
+                client.withTarget { target ->
+                    targetId = target.identity
+                    val cursor = local.cursor(target.identity)
+                    AppLog.put("Sync v2 ${BuildConfig.VERSION_NAME}: ${if (pushChanges) "push" else "pull"}, " +
+                        "target=${target.identity.takeLast(8)}, cursor=${cursor.timestamp}, " +
+                        "legacyImported=${cursor.legacyImported}, pending=${appDb.syncDeltaDao.pending(target.identity).size}")
+                    val delta = engine(target)
+                    val completed = if (pushChanges) delta.flush() else delta.pull().copy(pending = 0)
+                    repeatChanges = isEnabled && delta.capture() > 0
+                    completed
+                }
+            } catch (e: CancellationException) {
+                progressTracker.finish(SyncResult(failed = 1, errorMessage = "Sync cancelled"))
+                throw e
+            } catch (e: Exception) {
+                AppLog.put("Sync v2 failed at ${progressTracker.snapshot().phase}: ${e.localizedMessage}", e)
+                SyncResult(failed = 1, errorMessage = e.localizedMessage ?: e.javaClass.simpleName,
+                    pending = runCatching { targetId?.let { appDb.syncDeltaDao.pending(it).size } ?: 0 }.getOrDefault(0))
+            }
+            progressTracker.finish(result)
+            AppLog.put("Sync v2 finished: uploaded=${result.uploaded}, downloaded=${result.downloaded}, " +
+                "pending=${result.pending}, failed=${result.failed}")
+            // Retry real, persisted edits after connectivity returns; a pull itself creates no upload.
+            if (result.failed == 0) {
+                retryJob?.cancel()
+                retryDelayMillis = 5_000L
+                if (repeatChanges) changeFlight.start(rerunIfActive = true)
+            } else if (result.pending > 0 && isEnabled) {
+                retryJob?.cancel()
+                val wait = retryDelayMillis
+                retryDelayMillis = minOf(retryDelayMillis * 2, 300_000L)
+                val failedTarget = targetId
+                retryJob = syncScope.launch {
+                    delay(wait)
+                    if (isEnabled && runCatching { SyncSettings.target().identity == failedTarget }.getOrDefault(false)) {
+                        changeFlight.start(rerunIfActive = true)
+                    }
+                }
+            }
+            result
+        } finally {
+            heartbeat.cancel()
+        }
     }
 
     fun onAppStart() {

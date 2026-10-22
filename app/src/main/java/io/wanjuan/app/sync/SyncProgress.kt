@@ -2,7 +2,11 @@ package io.wanjuan.app.sync
 
 import io.wanjuan.app.sync.model.SyncResult
 
-enum class SyncPhase { Idle, Connecting, Capturing, CheckingIndex, ReadingChanges, Applying, Uploading, Complete, Failed }
+enum class SyncPhase {
+    Idle, Connecting, Capturing, CheckingIndex, CheckingCursor,
+    MigratingPreparing, MigratingIndex, MigratingReading, MigratingApplying,
+    ReadingChanges, Applying, Uploading, Complete, Failed
+}
 
 data class SyncProgress(
     val phase: SyncPhase = SyncPhase.Idle,
@@ -41,6 +45,28 @@ class SyncProgressTracker(private val publish: (SyncProgress) -> Unit = {}) {
     @Synchronized
     fun phase(phase: SyncPhase, completed: Int = 0, total: Int = 0) {
         state = state.copy(phase = phase, completed = completed, total = total, elapsedMillis = elapsed())
+        publish(state)
+    }
+
+    @Synchronized
+    fun snapshot(): SyncProgress = state
+
+    @Synchronized
+    fun tick() {
+        if (!state.running) return
+        state = state.copy(elapsedMillis = elapsed())
+        publish(state)
+    }
+
+    @Synchronized
+    fun migration(next: SyncProgress) {
+        val phase = when (next.phase) {
+            SyncPhase.CheckingIndex -> SyncPhase.MigratingIndex
+            SyncPhase.ReadingChanges -> SyncPhase.MigratingReading
+            SyncPhase.Applying -> SyncPhase.MigratingApplying
+            else -> SyncPhase.MigratingPreparing
+        }
+        state = next.copy(phase = phase, elapsedMillis = elapsed())
         publish(state)
     }
 

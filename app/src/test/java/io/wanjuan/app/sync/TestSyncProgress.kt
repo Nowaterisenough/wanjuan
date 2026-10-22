@@ -8,6 +8,23 @@ import org.junit.Test
 
 class TestSyncProgress {
     @Test
+    fun migrationProgressAndHeartbeatDoNotPretendToBeAnIndexScan() {
+        val tracker = SyncProgressTracker()
+        tracker.begin()
+        tracker.phase(SyncPhase.CheckingCursor)
+        Thread.sleep(10)
+        tracker.tick()
+        assertTrue(tracker.snapshot().elapsedMillis > 0)
+        tracker.migration(SyncProgress(SyncPhase.ReadingChanges, completed = 40, total = 599, downloaded = 5, reused = 35))
+        assertEquals(SyncPhase.MigratingReading, tracker.snapshot().phase)
+        assertEquals(40, tracker.snapshot().completed)
+        assertEquals(35, tracker.snapshot().reused)
+        tracker.finish(SyncResult())
+        val finished = tracker.snapshot()
+        tracker.tick()
+        assertEquals(finished, tracker.snapshot())
+    }
+    @Test
     fun reportsRealCountsForNetworkCacheAndUploads() {
         val states = mutableListOf<SyncProgress>()
         val tracker = SyncProgressTracker { states += it }

@@ -1,5 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="sync_progress_cursor">正在读取云端增量游标…</string>
+    <string name="sync_progress_migration_preparing">首次升级：正在准备旧同步基线…</string>
+    <string name="sync_progress_migration_index">首次升级：正在读取旧数据清单…</string>
+    <string name="sync_progress_migration_reading">迁移旧数据：%1$d/%2$d，下载 %3$d，复用 %4$d</string>
+    <string name="sync_progress_migration_applying">正在应用旧同步基线：%1$d/%2$d</string>
+    <string name="sync_progress_migration_applying_unknown">正在合并旧同步数据：已处理 %1$d 项</string>
+    <string name="sync_progress_reading_unknown">正在读取增量变更：已读取 %1$d 个日志块</string>
+    <string name="sync_progress_elapsed">%1$s · 已用 %2$d 秒</string>
     <string name="sync_progress_title">同步进度</string>
     <string name="sync_progress_idle">尚未开始同步</string>
     <string name="sync_progress_connecting">正在连接同步服务器…</string>

@@ -209,7 +209,7 @@ class MainViewModel(application: Application) : BaseViewModel(application) {
                 val progressJob = launch {
                     catalogProgress.combine(SyncManager.progress) { catalog, cloud ->
                         val cloudText = if (cloud.running) cloud.displayText(context)
-                            else context.getString(R.string.sync_progress_index)
+                            else context.getString(R.string.sync_progress_cursor)
                         when {
                             catalog.uploading -> if (cloud.running) cloudText else context.getString(R.string.bookshelf_sync_uploading)
                             catalog.syncing && catalog.catalogCompleted < catalog.catalogTotal ->
