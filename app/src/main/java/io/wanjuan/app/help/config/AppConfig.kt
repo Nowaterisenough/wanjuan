@@ -1371,9 +1371,6 @@ object AppConfig : SharedPreferences.OnSharedPreferenceChangeListener {
     // Keep the persisted key for existing users; this now controls the complete object sync.
     val webDavObjectSync get() = appCtx.getPrefBoolean(PreferKey.syncBookProgress, true)
 
-    val webDavReadingSyncEnhancement
-        get() = appCtx.getPrefBoolean(PreferKey.syncBookProgressPlus, false)
-
     val mediaButtonOnExit get() = appCtx.getPrefBoolean("mediaButtonOnExit", true)
 
     val readAloudByMediaButton

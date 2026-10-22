@@ -123,11 +123,17 @@ class GitHubSyncClient(
 
     private suspend fun read(path: String): Content? {
         val file = request("GET", contentUrl(path), allowMissing = true).json?.asJsonObject ?: return null
-        check(file["type"]?.asString == "file" && file["encoding"]?.asString == "base64") {
-            "GitHub 同步文件格式不支持或超过 1 MB：$path"
+        check(file["type"]?.asString == "file") { "Unsupported GitHub sync file: $path" }
+        val text = if (file["encoding"]?.asString == "base64") {
+            val encoded = file["content"].asString.filterNot(Char::isWhitespace)
+            Base64.getDecoder().decode(encoded).toString(Charsets.UTF_8)
+        } else {
+            // Legacy files above 1 MB have no inline base64 content. Pin the raw read to its SHA.
+            val blob = requireNotNull(request("GET", url("git", "blobs", file["sha"].asString)).json).asJsonObject
+            check(blob["encoding"]?.asString == "base64") { "Unsupported GitHub blob encoding" }
+            Base64.getDecoder().decode(blob["content"].asString.filterNot(Char::isWhitespace)).toString(Charsets.UTF_8)
         }
-        val encoded = file["content"].asString.filterNot(Char::isWhitespace)
-        return Content(file["sha"].asString, Base64.getDecoder().decode(encoded).toString(Charsets.UTF_8))
+        return Content(file["sha"].asString, text)
     }
 
     override suspend fun downloadJson(relativePath: String): String? = read(relativePath)?.text
@@ -138,6 +144,12 @@ class GitHubSyncClient(
     }
 
     override fun lastWrittenContent(relativePath: String): SyncRemoteRead? = written?.takeIf { it.first == relativePath }?.second
+
+    override suspend fun compareAndSetJson(path: String, previous: SyncRemoteRead, json: String): Boolean = writes.withLock {
+        val sha = previous.revision?.takeIf { it.startsWith("sha:") }?.removePrefix("sha:")
+        require(previous.json == null || sha != null) { "Missing GitHub write revision" }
+        put(path, json, sha)
+    }
 
     override suspend fun uploadJson(relativePath: String, json: String) {
         writes.withLock {

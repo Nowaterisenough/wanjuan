@@ -284,18 +284,16 @@ object ReadBook : CoroutineScope by MainScope() {
                 }
                 ensureActive()
                 successAction?.invoke()
-                book.update()
             }
         }
     }
 
     /**
      * 同步阅读进度
-     * 如果当前进度快于服务器进度或者没有进度进行上传，如果慢与服务器进度则执行传入动作
+     * 手动拉取统一增量日志，并应用其中的阅读进度。
      */
     fun syncProgress(
         newProgressAction: ((progress: BookProgress) -> Unit)? = null,
-        uploadSuccessAction: (() -> Unit)? = null,
         syncSuccessAction: (() -> Unit)? = null
     ) {
         if (!AppConfig.webDavObjectSync) return
@@ -305,22 +303,14 @@ object ReadBook : CoroutineScope by MainScope() {
         }.onError {
             AppLog.put("拉取阅读进度失败", it)
         }.onSuccess { progress ->
-            if (progress == null) {
-                Coroutine.async {
-                    if (!SyncManager.bookshelf.pushProgress(book)) {
-                        return@async
-                    }
-                    uploadSuccessAction?.invoke()
-                    book.update()
-                }
-            } else {
+            if (progress != null) {
                 if (newProgressAction != null) {
                     newProgressAction(progress)
                 } else {
                     setProgress(progress)
                     syncSuccessAction?.invoke()
                 }
-            }
+            } else syncSuccessAction?.invoke()
         }
     }
 

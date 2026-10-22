@@ -1,6 +1,7 @@
 package io.wanjuan.app.sync
 
 import io.wanjuan.app.data.appDb
+import io.wanjuan.app.data.AppDatabase
 import io.wanjuan.app.data.entities.BookSource
 import io.wanjuan.app.data.entities.BookSourcePart
 import io.wanjuan.app.help.AppCacheManager
@@ -20,7 +21,8 @@ class BookSourceSyncCoordinator(
     private val client: SyncRemoteStore,
     private val repository: SyncRepository,
     private val clock: SyncClock,
-    private val deviceIdProvider: () -> String
+    private val deviceIdProvider: () -> String,
+    private val db: AppDatabase = appDb
 ) {
 
     fun enqueueSource(source: BookSource) {
@@ -65,9 +67,9 @@ class BookSourceSyncCoordinator(
 
     fun applyRemoteSource(payload: SyncBookSourcePayload) {
         repository.applyRemote {
-            appDb.runInTransaction {
-                val dao = appDb.bookSourceDao
-                val metadataDao = appDb.syncMetadataDao
+            db.runInTransaction {
+                val dao = db.bookSourceDao
+                val metadataDao = db.syncMetadataDao
                 val metadata = metadataDao.get(SyncObjectType.BookSource, payload.sourceHash)
                 val source = payload.bookSource.toBookSource().apply {
                     bookSourceUrl = payload.bookSourceUrl
@@ -99,9 +101,9 @@ class BookSourceSyncCoordinator(
 
     fun applyRemoteOrder(payload: SyncOrderPayload) {
         repository.applyRemote {
-            appDb.runInTransaction {
-                val dao = appDb.bookSourceDao
-                val metadataDao = appDb.syncMetadataDao
+            db.runInTransaction {
+                val dao = db.bookSourceDao
+                val metadataDao = db.syncMetadataDao
                 val metadata = metadataDao.get(SyncObjectType.BookSourceOrder, "bookSources")
                 val ordered = StableSyncOrder.merge(
                     remoteIds = payload.items,
@@ -157,8 +159,8 @@ class BookSourceSyncCoordinator(
         if (payload.objectType != SyncObjectType.BookSource) return
         var deletedSourceUrl: String? = null
         repository.applyRemote {
-            appDb.runInTransaction {
-                val metadataDao = appDb.syncMetadataDao
+            db.runInTransaction {
+                val metadataDao = db.syncMetadataDao
                 val metadata = metadataDao.get(SyncObjectType.BookSource, payload.objectId)
                 val localSourceUrl = sourceUrl
                     ?.takeIf { SyncIds.hashKey("book-source", it) == payload.objectId }
@@ -182,8 +184,8 @@ class BookSourceSyncCoordinator(
     }
 
     private fun deleteLocalSourceRows(sourceUrl: String) {
-        appDb.bookSourceDao.delete(sourceUrl)
-        appDb.cacheDao.deleteSourceVariables(sourceUrl)
+        db.bookSourceDao.delete(sourceUrl)
+        db.cacheDao.deleteSourceVariables(sourceUrl)
     }
 
     private fun clearLocalSourceConfig(sourceUrl: String) {
@@ -193,14 +195,14 @@ class BookSourceSyncCoordinator(
     }
 
     private fun findSourceUrlByHash(sourceHash: String): String? {
-        return appDb.bookSourceDao.allPart
+        return db.bookSourceDao.allPart
             .firstOrNull { SyncIds.hashKey("book-source", it.bookSourceUrl) == sourceHash }
             ?.bookSourceUrl
     }
 
     private fun recordLocalSourceClock(payload: SyncBookSourcePayload) {
-        appDb.runInTransaction {
-            val metadataDao = appDb.syncMetadataDao
+        db.runInTransaction {
+            val metadataDao = db.syncMetadataDao
             val metadata = metadataDao.get(SyncObjectType.BookSource, payload.sourceHash)
             metadataDao.insert(
                 metadata.withLocalClock(
@@ -213,8 +215,8 @@ class BookSourceSyncCoordinator(
     }
 
     private fun recordLocalOrderClock(payload: SyncOrderPayload) {
-        appDb.runInTransaction {
-            val metadataDao = appDb.syncMetadataDao
+        db.runInTransaction {
+            val metadataDao = db.syncMetadataDao
             val metadata = metadataDao.get(SyncObjectType.BookSourceOrder, "bookSources")
             metadataDao.insert(
                 metadata?.let {
@@ -237,8 +239,8 @@ class BookSourceSyncCoordinator(
         deletedAt: Long,
         deletedByDeviceId: String
     ) {
-        appDb.runInTransaction {
-            val metadataDao = appDb.syncMetadataDao
+        db.runInTransaction {
+            val metadataDao = db.syncMetadataDao
             val metadata = metadataDao.get(SyncObjectType.BookSource, id)
             metadataDao.insert(
                 metadata.withLocalDelete(

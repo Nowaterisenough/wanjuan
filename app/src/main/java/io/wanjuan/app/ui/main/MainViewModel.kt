@@ -395,9 +395,7 @@ class MainViewModel(application: Application) : BaseViewModel(application) {
             }
             ReadBook.onChapterListUpdated(book)
             ReadManga.onChapterListUpdated(book)
-            if (pullProgressAfterTocBooks.remove(bookUrl)) {
-                pullRemoteProgressAfterToc(book)
-            }
+            pullProgressAfterTocBooks.remove(bookUrl)
             addDownload(source, book)
             success = true
         }.onFailure {
@@ -408,21 +406,6 @@ class MainViewModel(application: Application) : BaseViewModel(application) {
             BookCatalogUpdate.markFailed(appDb, book.bookUrl)
         }
         return success
-    }
-
-    private suspend fun pullRemoteProgressAfterToc(book: Book) {
-        if (!AppConfig.webDavObjectSync) return
-        kotlin.runCatching {
-            SyncManager.bookshelf.pullProgress(book)
-        }.onSuccess { progress ->
-            progress ?: return@onSuccess
-            if (progress.durChapterIndex in 0..book.lastChapterIndex) {
-                SyncManager.bookshelf.applyProgress(book, progress)
-            }
-        }.onFailure {
-            currentCoroutineContext().ensureActive()
-            AppLog.put("拉取阅读进度失败《${book.name}》\n${it.localizedMessage}", it)
-        }
     }
 
     @Synchronized

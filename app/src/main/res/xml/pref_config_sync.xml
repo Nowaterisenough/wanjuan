@@ -84,13 +84,6 @@
             android:key="webDavDeviceName"
             android:title="@string/webdav_device_name"
             app:iconSpaceReserved="false" />
-        <io.wanjuan.app.lib.prefs.SwitchPreference
-            android:defaultValue="false"
-            android:dependency="syncBookProgress"
-            android:key="syncBookProgressPlus"
-            android:title="@string/sync_book_progress_plus_t"
-            android:summary="@string/sync_book_progress_plus_s"
-            app:iconSpaceReserved="false" />
         <io.wanjuan.app.lib.prefs.Preference
             android:key="sync_now"
             android:title="@string/sync_now_title"

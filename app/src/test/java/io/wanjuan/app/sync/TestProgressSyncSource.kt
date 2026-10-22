@@ -40,15 +40,14 @@ class TestProgressSyncSource {
         assertTrue(readMangaViewModel.contains("alertSync?.invoke(progress) ?: ReadManga.setProgress(progress)"))
         assertTrue(!readBookViewModel.contains("ReadBook.callBack?.sureNewProgress(progress)"))
         assertTrue(!readMangaViewModel.contains("ReadManga.mCallback?.sureNewProgress(progress)"))
-        assertTrue(
-            readBookActivity.substringAfter("networkChangedListener.onNetworkChanged = {")
-                .substringBefore("override fun onPause()")
-                .contains("ReadBook.syncProgress()")
-        )
-        assertTrue(
-            readMangaActivity.substringAfter("networkChangedListener.onNetworkChanged = {")
-                .substringBefore("override fun onPause()")
-                .contains("ReadManga.syncProgress()")
-        )
+        assertTrue(!readBookActivity.contains("networkChangedListener"))
+        assertTrue(!readMangaActivity.contains("networkChangedListener"))
+        assertTrue(!readBookActivity.contains("scheduleProgressSync"))
+        assertTrue(!readBookViewModel.contains("ReadBook.syncProgress()"))
+        assertTrue(!readMangaViewModel.contains("ReadManga.syncProgress()"))
+        val manager = File("app/src/main/java/io/wanjuan/app/sync/SyncManager.kt").readText()
+        assertTrue(manager.contains("unifiedPullProgress = ::pullBookProgress"))
+        assertTrue(manager.contains("unifiedPushProgress = ::publishBookProgress"))
+        assertTrue(manager.contains("\"books\", \"book_groups\", \"book_sources\", \"rssSources\", \"ruleSubs\""))
     }
 }

@@ -21,8 +21,22 @@ object DatabaseMigrations {
             migration_35_36, migration_36_37, migration_37_38, migration_38_39,
             migration_39_40, migration_40_41, migration_41_42, migration_42_43,
             migration_90_91, migration_91_92, migration_92_93, migration_93_94,
-            migration_94_95,
+            migration_94_95, migration_95_96,
         )
+    }
+
+    private val migration_95_96 = object : Migration(95, 96) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("""CREATE TABLE IF NOT EXISTS `sync_delta_state` (
+                `target` TEXT NOT NULL, `objectType` TEXT NOT NULL, `objectId` TEXT NOT NULL,
+                `remoteJson` TEXT, `observedJson` TEXT, `pendingId` TEXT, `pendingJson` TEXT,
+                `pendingDelete` INTEGER NOT NULL, `pendingCreate` INTEGER NOT NULL,
+                `inFlightChange` TEXT, `inFlightValue` TEXT,
+                PRIMARY KEY(`target`, `objectType`, `objectId`))""")
+            db.execSQL("""CREATE TABLE IF NOT EXISTS `sync_delta_cursor` (
+                `target` TEXT NOT NULL, `timestamp` INTEGER NOT NULL, `block` TEXT NOT NULL,
+                `legacyImported` INTEGER NOT NULL, PRIMARY KEY(`target`))""")
+        }
     }
 
     private val migration_94_95 = object : Migration(94, 95) {

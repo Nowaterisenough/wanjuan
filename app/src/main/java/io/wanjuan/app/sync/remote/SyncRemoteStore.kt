@@ -36,6 +36,12 @@ interface SyncRemoteStore {
     suspend fun invalidateCached(relativePath: String) = Unit
     fun lastWrittenContent(relativePath: String): SyncRemoteRead? = null
 
+    suspend fun readForUpdate(path: String): SyncRemoteRead = readJson(SyncRemoteFile(path, path.substringAfterLast('/'), 0))
+
+    /** Must be atomic across devices. Never fall back to an unconditional journal-head write. */
+    suspend fun compareAndSetJson(path: String, previous: SyncRemoteRead, json: String): Boolean =
+        error("Conditional sync writes are not supported by this store")
+
     suspend fun updateBook(
         id: String,
         transform: (SyncBookPayload?) -> SyncBookPayload?

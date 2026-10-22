@@ -104,16 +104,7 @@ class ReadMangaViewModel(application: Application) : BaseViewModel(application) 
             ReadManga.loadOrUpContent()
         }
 
-        if (ReadManga.chapterChanged) {
-            // 有章节跳转不同步阅读进度
-            ReadManga.chapterChanged = false
-        } else if (ReadManga.inBookshelf) {
-            if (AppConfig.webDavReadingSyncEnhancement) {
-                ReadManga.syncProgress()
-            } else {
-                syncBookProgress(book)
-            }
-        }
+        ReadManga.chapterChanged = false
 
         //自动换源
         if (!book.isLocal && ReadManga.bookSource == null) {

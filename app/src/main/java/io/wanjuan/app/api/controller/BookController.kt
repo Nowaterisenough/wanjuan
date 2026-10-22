@@ -20,7 +20,6 @@ import io.wanjuan.app.model.ImageProvider
 import io.wanjuan.app.model.ReadBook
 import io.wanjuan.app.model.localBook.LocalBook
 import io.wanjuan.app.model.webBook.WebBook
-import io.wanjuan.app.sync.SyncManager
 import io.wanjuan.app.utils.GSON
 import io.wanjuan.app.utils.cnCompare
 import io.wanjuan.app.utils.fromJsonObject
@@ -228,7 +227,7 @@ object BookController {
     suspend fun saveBook(postData: String?): ReturnData {
         val returnData = ReturnData()
         GSON.fromJsonObject<Book>(postData).getOrNull()?.let { book ->
-            SyncManager.bookshelf.pushProgress(book)
+
             book.save()
             return returnData.setData("")
         }
@@ -261,7 +260,7 @@ object BookController {
                     book.durChapterTitle = bookProgress.durChapterTitle
                     book.durChapterTime = bookProgress.durChapterTime
                     book.syncTime = bookProgress.durChapterTime
-                    SyncManager.bookshelf.pushProgress(book)
+
                     appDb.bookDao.update(book)
                     ReadBook.book?.let {
                         if (it.name == bookProgress.name &&

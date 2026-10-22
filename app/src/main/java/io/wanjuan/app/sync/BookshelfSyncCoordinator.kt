@@ -94,7 +94,9 @@ class BookshelfSyncCoordinator(
     private val deviceIdProvider: () -> String,
     private val groupCoordinator: BookGroupSyncCoordinator = BookGroupSyncCoordinator(),
     private val objectApplier: BookshelfObjectApplier = BookshelfObjectApplier(),
-    private val db: AppDatabase = appDb
+    private val db: AppDatabase = appDb,
+    private val unifiedPullProgress: (suspend (Book) -> BookProgress?)? = null,
+    private val unifiedPushProgress: (suspend (Book, Boolean) -> Boolean)? = null
 ) {
     private val bookState = BookSyncState(db, clock, deviceIdProvider, groupCoordinator)
 
@@ -179,6 +181,7 @@ class BookshelfSyncCoordinator(
     }
 
     suspend fun pullProgress(book: Book): BookProgress? {
+        unifiedPullProgress?.let { return it(book) }
         if (book.isNotShelf) return null
         if (!SyncSettings.isConfigured) return null
         val id = SyncIds.bookId(book)
@@ -204,6 +207,7 @@ class BookshelfSyncCoordinator(
      * existing remote object so a progress upload cannot overwrite newer shelf/catalog fields.
      */
     suspend fun pushProgress(book: Book, toast: Boolean = false, force: Boolean = false): Boolean {
+        unifiedPushProgress?.let { return it(book, force) }
         if (book.isNotShelf) return false
         if (!AppConfig.webDavObjectSync) return false
         if (!SyncSettings.isConfigured) return false
@@ -266,7 +270,15 @@ class BookshelfSyncCoordinator(
         }
     }
 
-    fun applyRemoteBook(payload: SyncBookPayload): SyncApplyOutcome {
+    fun applyRemoteBook(payload: SyncBookPayload): SyncApplyOutcome = applyBook(payload, authoritative = false)
+
+    fun applyDeltaBook(payload: SyncBookPayload): SyncApplyOutcome = applyBook(payload, authoritative = true)
+
+    fun applyDeltaDelete(id: String): SyncApplyOutcome = repository.applyRemote {
+        if (objectApplier.applyRemoteDelete(id)) SyncApplyOutcome.Deleted else SyncApplyOutcome.Skipped
+    }
+
+    private fun applyBook(payload: SyncBookPayload, authoritative: Boolean): SyncApplyOutcome {
         if (payload.book.type and BookType.notShelf != 0) return SyncApplyOutcome.Skipped
         var outcome = SyncApplyOutcome.Updated
         repository.applyRemote {
@@ -288,12 +300,22 @@ class BookshelfSyncCoordinator(
                         groupSyncIds = groupCoordinator.localMaskToRemoteGroupIds(localMask)
                     )
                 )
-                val merged = if (local == null || local.isNotShelf) remote else {
+                val merged = if (authoritative || local == null || local.isNotShelf) remote else {
                     BookSyncMerge.merge(bookState.capture(local, newLocalBook = false), remote)
                 }
                 val book = merged.book.toBook(merged.localGroupMask(groupCoordinator))
                 // A remote catalog/ack must not change this device's refresh throttle.
                 book.lastCheckTime = local?.lastCheckTime ?: 0L
+                if (authoritative) {
+                    book.order = local?.order ?: (dao.all.maxOfOrNull { it.order }?.plus(1) ?: 0)
+                    book.lastCheckCount = local?.lastCheckCount ?: 0
+                    val progressChanged = local == null || local.durChapterIndex != book.durChapterIndex ||
+                        local.durChapterPos != book.durChapterPos || local.durChapterTitle != book.durChapterTitle ||
+                        local.durVolumeIndex != book.durVolumeIndex || local.chapterInVolumeIndex != book.chapterInVolumeIndex
+                    book.syncTime = if (progressChanged) payload.progressUpdatedAt else local?.syncTime ?: 0L
+                    book.durChapterTime = maxOf(local?.durChapterTime ?: 0L, book.syncTime)
+                    book.type = book.type or ((local?.type ?: 0) and BookType.updateError)
+                }
                 if (local == null) {
                     dao.insertFromSync(book)
                     outcome = SyncApplyOutcome.Inserted
@@ -301,7 +323,7 @@ class BookshelfSyncCoordinator(
                     dao.update(book)
                 }
                 bookState.record(merged)
-                if (SyncPayloadHash.book(merged) != SyncPayloadHash.book(remote)) {
+                if (!authoritative && SyncPayloadHash.book(merged) != SyncPayloadHash.book(remote)) {
                     repository.queueBook(merged)
                     outcome = SyncApplyOutcome.Merged
                 }

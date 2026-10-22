@@ -147,16 +147,7 @@ class ReadBookViewModel(application: Application) : BaseViewModel(application) {
                 }
             }
         }
-        if (ReadBook.chapterChanged) {
-            // 有章节跳转不同步阅读进度
-            ReadBook.chapterChanged = false
-        } else if (!(isSameBook && BaseReadAloudService.isRun) && ReadBook.inBookshelf) {
-            if (AppConfig.webDavReadingSyncEnhancement) {
-                ReadBook.syncProgress()
-            } else {
-                syncBookProgress(book)
-            }
-        }
+        ReadBook.chapterChanged = false
         if (!book.isLocal && ReadBook.bookSource == null) {
             autoChangeSource(book.name, book.author)
             return

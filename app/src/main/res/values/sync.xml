@@ -3,11 +3,11 @@
     <string name="sync_settings_title">同步</string>
     <string name="sync_settings_summary">WebDAV / GitHub 仓库双向同步</string>
     <string name="sync_enabled_title">启用同步</string>
-    <string name="sync_triggers_summary">启动、联网、下拉更新和阅读进度变化时同步；书源、书籍、换源和分组变化后自动同步</string>
+    <string name="sync_triggers_summary">本地新增、删除、修改后自动上传字段增量；启动、联网和下拉时按上次游标拉取云端变更</string>
     <string name="sync_provider_title">同步服务器</string>
     <string name="sync_root_directory">根目录</string>
     <string name="sync_now_title">立即同步</string>
-    <string name="sync_now_summary">上传本机变更并拉取云端变更</string>
+    <string name="sync_now_summary">拉取上次成功应用之后的云端变更；本地修改自动增量上传</string>
     <string name="sync_secret_empty">未设置</string>
     <string name="sync_secret_saved">已设置（隐藏）</string>
     <string name="sync_configure_first">请先完成所选同步服务器的配置</string>

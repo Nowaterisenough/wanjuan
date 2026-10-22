@@ -71,7 +71,6 @@ import io.wanjuan.app.utils.isJsonObject
 import io.wanjuan.app.sync.SyncManager
 import io.wanjuan.app.model.localBook.EpubFile
 import io.wanjuan.app.model.localBook.MobiFile
-import io.wanjuan.app.receiver.NetworkChangedListener
 import io.wanjuan.app.receiver.TimeBatteryReceiver
 import io.wanjuan.app.service.BaseReadAloudService
 import io.wanjuan.app.ui.about.AppLogDialog
@@ -258,7 +257,6 @@ class ReadBookActivity : BaseReadBookActivity(),
     }
     private var menu: Menu? = null
     private var modernMenuPopup: PopupWindow? = null
-    private var progressSyncJob: Job? = null
     private var tts: TTS? = null
     private var commentWebViewSession: CommentWebViewSession? = null
     @Volatile
@@ -304,9 +302,6 @@ class ReadBookActivity : BaseReadBookActivity(),
 
     // 恢复全文搜索前进度对话框的交互结果
     private var confirmRestoreSearchProgress: Boolean? = null
-    private val networkChangedListener by lazy {
-        NetworkChangedListener(this)
-    }
     private var justInitData: Boolean = false
     private var syncDialog: AlertDialog? = null
 
@@ -410,35 +405,16 @@ class ReadBookActivity : BaseReadBookActivity(),
         registerReceiver(timeBatteryReceiver, timeBatteryReceiver.filter)
         binding.readView.upTime()
         screenOffTimerStart()
-        // 缃戠粶鐩戝惉锛屽綋浠庢棤缃戝垏鎹㈠埌缃戠粶鐜鏃跺悓姝ヨ繘搴︼紙娉ㄦ剰娉ㄥ唽鐨勫悓鏃跺氨浼氭敹鍒扮洃鍚紝鍥犳鐣岄潰婵€娲绘椂鏃犻渶閲嶅鎵ц鍚屾鎿嶄綔锛?
-        networkChangedListener.register()
-        networkChangedListener.onNetworkChanged = {
-            // 褰撶綉缁滄槸鍙敤鐘舵€佷笖鏃犻渶鍒濆鍖栨椂鍚屾杩涘害锛堝垵濮嬪寲涓凡鏈夊悓姝ヨ繘搴﹂€昏緫锛?
-            if (AppConfig.webDavReadingSyncEnhancement && NetworkUtils.isAvailable() && !justInitData && ReadBook.inBookshelf) {
-                ReadBook.syncProgress()
-            }
-        }
     }
 
     override fun onPause() {
         super.onPause()
         autoPageStop()
-        progressSyncJob?.cancel()
         ReadBook.saveRead()
         ReadBook.cancelPreDownloadTask()
         unregisterReceiver(timeBatteryReceiver)
         upSystemUiVisibility()
-        if (!BuildConfig.DEBUG && ReadBook.inBookshelf) {
-            if (AppConfig.webDavReadingSyncEnhancement) {
-                ReadBook.syncProgress()
-            } else {
-                ReadBook.uploadProgress()
-            }
-        }
-        if (!BuildConfig.DEBUG) {
-        }
         justInitData = false
-        networkChangedListener.unRegister()
     }
 
     override fun onCompatCreateOptionsMenu(menu: Menu): Boolean {
@@ -1199,9 +1175,6 @@ class ReadBookActivity : BaseReadBookActivity(),
         binding.readView.onPageChange()
         handler.post {
             updateChapterProgressMinimap()
-        }
-        executor.execute {
-            scheduleProgressSync()
         }
     }
 
@@ -2166,18 +2139,6 @@ class ReadBookActivity : BaseReadBookActivity(),
         }
     }
 
-    private fun scheduleProgressSync() {
-        progressSyncJob?.cancel()
-        progressSyncJob = lifecycleScope.launch(IO) {
-            delay(300000)
-            ReadBook.book?.let {
-                SyncManager.bookshelf.pushProgress(it)
-                ensureActive()
-                it.update()
-            }
-        }
-    }
-
     override fun sureNewProgress(progress: BookProgress) {
         syncDialog?.dismiss()
         syncDialog = alert(R.string.get_book_progress) {
@@ -2236,8 +2197,6 @@ class ReadBookActivity : BaseReadBookActivity(),
         handler.removeCallbacksAndMessages(null) // 娓呯悊Handler娑堟伅
         if (!ReadBook.inBookshelf && !isChangingConfigurations) {
             viewModel.removeFromBookshelf(null)
-        }
-        if (!BuildConfig.DEBUG) {
         }
     }
 

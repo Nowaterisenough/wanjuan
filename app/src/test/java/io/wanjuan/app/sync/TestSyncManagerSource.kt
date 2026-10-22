@@ -8,6 +8,17 @@ import java.io.File
 class TestSyncManagerSource {
 
     @Test
+    fun lifecycleOnlyPullsAndEveryObjectTableUsesTheSameDeltaEngine() {
+        val source = repoFile("app/src/main/java/io/wanjuan/app/sync/SyncManager.kt").readText()
+        assertTrue(source.contains("runSync(pushChanges = false)"))
+        assertTrue(source.contains("if (pushChanges) delta.flush() else delta.pull()"))
+        assertTrue(source.contains("\"books\", \"book_groups\", \"book_sources\", \"rssSources\", \"ruleSubs\""))
+        assertFalse(source.contains("repository.flushOutbox"))
+        assertFalse(source.contains("private val orchestrator"))
+        assertFalse(source.contains("resetRemoteState"))
+    }
+
+    @Test
     fun managerHasStartupNetworkAndManualEntryPoints() {
         val source = repoFile("app/src/main/java/io/wanjuan/app/sync/SyncManager.kt").readText()
         assertTrue(source.contains("fun onAppStart"))

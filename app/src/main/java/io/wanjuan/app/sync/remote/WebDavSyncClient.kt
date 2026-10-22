@@ -160,6 +160,17 @@ class WebDavSyncClient(
         return SyncRemoteRead(content.bytes.toString(StandardCharsets.UTF_8), content.etag?.let { "etag:$it" })
     }
 
+    override suspend fun compareAndSetJson(path: String, previous: SyncRemoteRead, json: String): Boolean {
+        ensureParent(path)
+        val etag = previous.revision?.takeIf { it.startsWith("etag:") }?.removePrefix("etag:")
+        check(previous.json == null || (etag != null && !etag.startsWith("W/"))) {
+            "WebDAV must provide a strong ETag for safe incremental synchronization"
+        }
+        val old = previous.json?.let { WebDav.VersionedContent(it.toByteArray(StandardCharsets.UTF_8), etag, null) }
+        return WebDav(resolve(path), requireAuthorization())
+            .uploadIfUnchangedVersioned(json.toByteArray(StandardCharsets.UTF_8), old).successful
+    }
+
     suspend inline fun <reified T> download(relativePath: String): T? {
         return GSON.fromJsonObject<T>(downloadJson(relativePath) ?: return null).getOrNull()
     }

@@ -1,6 +1,7 @@
 package io.wanjuan.app.sync
 
 import io.wanjuan.app.data.appDb
+import io.wanjuan.app.data.AppDatabase
 import io.wanjuan.app.data.entities.RuleSub
 import io.wanjuan.app.sync.local.SyncMetadata
 import io.wanjuan.app.sync.mapper.RuleSubSyncMapper
@@ -16,7 +17,8 @@ class RuleSubSyncCoordinator(
     private val client: SyncRemoteStore,
     private val repository: SyncRepository,
     private val clock: SyncClock,
-    private val deviceIdProvider: () -> String
+    private val deviceIdProvider: () -> String,
+    private val db: AppDatabase = appDb
 ) {
 
     fun enqueueRuleSub(ruleSub: RuleSub) {
@@ -64,9 +66,9 @@ class RuleSubSyncCoordinator(
     fun applyRemoteSub(payload: SyncRuleSubPayload) {
         if (payload.ruleSubHash != SyncIds.hashKey("rule-sub", "${payload.type}\n${payload.url}")) return
         repository.applyRemote {
-            appDb.runInTransaction {
-                val dao = appDb.ruleSubDao
-                val metadataDao = appDb.syncMetadataDao
+            db.runInTransaction {
+                val dao = db.ruleSubDao
+                val metadataDao = db.syncMetadataDao
                 val metadata = metadataDao.get(SyncObjectType.RuleSub, payload.ruleSubHash)
                 val local = dao.findByTypeAndUrl(payload.type, payload.url)
                 val sub = payload.ruleSub.toRuleSub(
@@ -107,9 +109,9 @@ class RuleSubSyncCoordinator(
 
     fun applyRemoteOrder(payload: SyncOrderPayload) {
         repository.applyRemote {
-            appDb.runInTransaction {
-                val dao = appDb.ruleSubDao
-                val metadataDao = appDb.syncMetadataDao
+            db.runInTransaction {
+                val dao = db.ruleSubDao
+                val metadataDao = db.syncMetadataDao
                 val metadata = metadataDao.get(SyncObjectType.RuleSubOrder, "ruleSubs")
                 val ordered = StableSyncOrder.merge(
                     remoteIds = payload.items,
@@ -168,14 +170,14 @@ class RuleSubSyncCoordinator(
     fun applyRemoteDelete(payload: SyncTombstonePayload, objectKey: String? = null) {
         if (payload.objectType != SyncObjectType.RuleSub) return
         repository.applyRemote {
-            appDb.runInTransaction {
-                val metadataDao = appDb.syncMetadataDao
+            db.runInTransaction {
+                val metadataDao = db.syncMetadataDao
                 val metadata = metadataDao.get(SyncObjectType.RuleSub, payload.objectId)
                 val ruleSub = findRuleSubByKey(objectKey, payload.objectId)
                     ?: findRuleSubByKey(payload.objectKey, payload.objectId)
                     ?: findRuleSubByHash(payload.objectId)
                 if (ruleSub != null) {
-                    appDb.ruleSubDao.delete(ruleSub)
+                    db.ruleSubDao.delete(ruleSub)
                 }
                 metadataDao.insert(
                     metadata.withRemoteDelete(
@@ -189,7 +191,7 @@ class RuleSubSyncCoordinator(
     }
 
     private fun findRuleSubByHash(ruleSubHash: String): RuleSub? {
-        return appDb.ruleSubDao.all
+        return db.ruleSubDao.all
             .firstOrNull { it.url.isNotBlank() && SyncIds.ruleSubId(it) == ruleSubHash }
     }
 
@@ -199,12 +201,12 @@ class RuleSubSyncCoordinator(
         val type = key.substring(0, separator).toIntOrNull() ?: return null
         val url = key.substring(separator + 1).takeIf { it.isNotBlank() } ?: return null
         if (SyncIds.hashKey("rule-sub", "$type\n$url") != ruleSubHash) return null
-        return appDb.ruleSubDao.findByTypeAndUrl(type, url)
+        return db.ruleSubDao.findByTypeAndUrl(type, url)
     }
 
     private fun recordLocalSubClock(payload: SyncRuleSubPayload) {
-        appDb.runInTransaction {
-            val metadataDao = appDb.syncMetadataDao
+        db.runInTransaction {
+            val metadataDao = db.syncMetadataDao
             val metadata = metadataDao.get(SyncObjectType.RuleSub, payload.ruleSubHash)
             metadataDao.insert(
                 metadata.withLocalClock(
@@ -217,8 +219,8 @@ class RuleSubSyncCoordinator(
     }
 
     private fun recordLocalOrderClock(payload: SyncOrderPayload) {
-        appDb.runInTransaction {
-            val metadataDao = appDb.syncMetadataDao
+        db.runInTransaction {
+            val metadataDao = db.syncMetadataDao
             val metadata = metadataDao.get(SyncObjectType.RuleSubOrder, "ruleSubs")
             metadataDao.insert(
                 metadata?.let {
@@ -241,8 +243,8 @@ class RuleSubSyncCoordinator(
         deletedAt: Long,
         deletedByDeviceId: String
     ) {
-        appDb.runInTransaction {
-            val metadataDao = appDb.syncMetadataDao
+        db.runInTransaction {
+            val metadataDao = db.syncMetadataDao
             val metadata = metadataDao.get(SyncObjectType.RuleSub, id)
             metadataDao.insert(
                 metadata.withLocalDelete(

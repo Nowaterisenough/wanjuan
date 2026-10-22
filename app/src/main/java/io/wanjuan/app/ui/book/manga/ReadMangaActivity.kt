@@ -48,7 +48,6 @@ import io.wanjuan.app.help.config.AppConfig
 import io.wanjuan.app.help.source.getSourceType
 import io.wanjuan.app.lib.dialogs.alert
 import io.wanjuan.app.model.ReadManga
-import io.wanjuan.app.receiver.NetworkChangedListener
 import io.wanjuan.app.ui.book.changesource.ChangeBookSourceDialog
 import io.wanjuan.app.ui.book.info.BookInfoActivity
 import io.wanjuan.app.ui.book.manga.config.MangaColorFilterConfig
@@ -126,9 +125,6 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
 
     private var mMenu: Menu? = null
 
-    private val networkChangedListener by lazy {
-        NetworkChangedListener(this)
-    }
 
     private var justInitData: Boolean = false
     private var doubleColumnEnabled = false
@@ -1403,13 +1399,6 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
         super.onResume()
         mangaPreloadWindow.clear()
         binding.mangaProgressMinimap.resumeThumbnailLoading()
-        networkChangedListener.register()
-        networkChangedListener.onNetworkChanged = {
-            // 当网络是可用状态且无需初始化时同步进度（初始化中已有同步进度逻辑）
-            if (AppConfig.webDavReadingSyncEnhancement && NetworkUtils.isAvailable() && !justInitData && ReadManga.inBookshelf) {
-                ReadManga.syncProgress()
-            }
-        }
         if (enableAutoScrollPage) {
             mScrollTimer.isEnabledPage = true
         }
@@ -1423,18 +1412,8 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
         super.onPause()
         if (ReadManga.inBookshelf) {
             ReadManga.saveRead()
-            if (!BuildConfig.DEBUG) {
-                if (AppConfig.webDavReadingSyncEnhancement) {
-                    ReadManga.syncProgress()
-                } else {
-                    ReadManga.uploadProgress()
-                }
-            }
-        }
-        if (!BuildConfig.DEBUG) {
         }
         ReadManga.cancelPreDownloadTask()
-        networkChangedListener.unRegister()
         mScrollTimer.isEnabledPage = false
         mScrollTimer.isEnabled = false
     }

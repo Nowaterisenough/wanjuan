@@ -32,7 +32,7 @@ class TestBookSourceSyncSource {
     fun sourceSyncUsesStableIdsAndCacheOnlyDeletion() {
         assertTrue(source.contains("SyncIds.hashKey(\"book-source\", sourceUrl)"))
         assertTrue(source.contains("items.sortedBy { it.customOrder }"))
-        assertTrue(source.contains("appDb.cacheDao.deleteSourceVariables(sourceUrl)"))
+        assertTrue(source.contains("db.cacheDao.deleteSourceVariables(sourceUrl)"))
         assertTrue(source.contains("AppCacheManager.clearSourceVariables()"))
         assertTrue(source.contains("SourceConfig.removeSource(sourceUrl)"))
         assertTrue(source.contains("DiscoverSourceUseConfig.removeSource(sourceUrl)"))

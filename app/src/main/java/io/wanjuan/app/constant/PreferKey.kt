@@ -158,7 +158,6 @@ object PreferKey {
     const val importKeepGroup = "importKeepGroup"
     const val screenOrientation = "screenOrientation"
     const val syncBookProgress = "syncBookProgress"
-    const val syncBookProgressPlus = "syncBookProgressPlus"
     const val cronet = "Cronet"
     const val antiAlias = "antiAlias"
     const val highBrush = "highBrush"

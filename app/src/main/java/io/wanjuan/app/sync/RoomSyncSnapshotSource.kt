@@ -18,7 +18,8 @@ class RoomSyncSnapshotSource(
     private val db: AppDatabase,
     private val clock: SyncClock,
     private val deviceIdProvider: () -> String,
-    private val groupCoordinator: BookGroupSyncCoordinator
+    private val groupCoordinator: BookGroupSyncCoordinator,
+    private val trackBookVersions: Boolean = true
 ) : SyncLocalSnapshotSource {
     private val bookState = BookSyncState(db, clock, deviceIdProvider, groupCoordinator)
 
@@ -55,7 +56,9 @@ class RoomSyncSnapshotSource(
                 add(snapshot(SyncObjectType.RuleSub, payload.ruleSubHash, payload, SyncPayloadHash.ruleSub(payload), version))
             }
             if (SyncObjectType.Book in objectTypes) books.forEach { book ->
-                val payload = bookState.capture(book, repairAcknowledgedSnapshot = true)
+                val payload = if (trackBookVersions) bookState.capture(book, repairAcknowledgedSnapshot = true)
+                    else BookSyncMapper.toBookPayload(book, "", 0, 0,
+                        groupSyncIds = groupCoordinator.localMaskToRemoteGroupIds(book.group))
                 add(snapshot(SyncObjectType.Book, payload.bookSyncId, payload, SyncPayloadHash.book(payload), BookSyncMerge.version(payload)))
             }
             if (SyncObjectType.BookGroupOrder in objectTypes) add(orderSnapshot(

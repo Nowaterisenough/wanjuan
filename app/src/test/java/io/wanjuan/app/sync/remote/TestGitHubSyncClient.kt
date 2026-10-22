@@ -4,6 +4,7 @@ import com.google.gson.JsonParser
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
 import io.wanjuan.app.sync.merge.BookSyncMerge
+import io.wanjuan.app.sync.delta.DeltaRemote
 import io.wanjuan.app.sync.model.SyncBook
 import io.wanjuan.app.sync.model.SyncBookPayload
 import io.wanjuan.app.utils.GSON
@@ -16,6 +17,39 @@ import java.net.InetSocketAddress
 import java.util.Base64
 
 class TestGitHubSyncClient {
+    @Test
+    fun multiMegabyteUnicodeDataUsesSmallFilesAndRoundTrips() = runBlocking {
+        Server().use { server ->
+            val remote = DeltaRemote(server.client())
+            val json = GSON.toJson(mapOf("rules" to "\u4e66\ud83d\udcd6".repeat(260000)))
+            remote.write("delta-v2/blocks/test.json", json)
+            assertEquals(json, remote.read("delta-v2/blocks/test.json"))
+            assertTrue(server.contents.keys.any { it.contains("/chunks/") })
+            assertTrue(server.contents.values.all { it.toByteArray(Charsets.UTF_8).size <= DeltaRemote.MAX_FILE_BYTES })
+        }
+    }
+
+    @Test
+    fun journalHeadUsesConditionalShaAndRejectsStaleWriter() = runBlocking {
+        Server().use { server ->
+            val a = server.client(); val b = server.client()
+            val first = a.readForUpdate(DeltaRemote.HEAD)
+            val stale = b.readForUpdate(DeltaRemote.HEAD)
+            assertTrue(a.compareAndSetJson(DeltaRemote.HEAD, first, "{\"revision\":1}"))
+            assertFalse(b.compareAndSetJson(DeltaRemote.HEAD, stale, "{\"revision\":2}"))
+            assertEquals("{\"revision\":1}", a.downloadJson(DeltaRemote.HEAD))
+        }
+    }
+
+    @Test
+    fun legacyLargeFileFallsBackToBlobRead() = runBlocking {
+        Server().use { server ->
+            val json = GSON.toJson(mapOf("old" to "x".repeat(1200000)))
+            server.contents["wanjuan/sync/v1/books/legacy.json"] = json
+            server.omitLargeInlineContent = true
+            assertEquals(json, server.client().downloadJson("books/legacy.json"))
+        }
+    }
     @Test
     fun oneTreeSnapshotIndexesAllObjectDirectoriesWithRevisions() = runBlocking {
         Server().use { server ->
@@ -182,6 +216,7 @@ class TestGitHubSyncClient {
         var treeRequests = 0
         var contentReads = 0
         var truncatedTree = false
+        var omitLargeInlineContent = false
         val refs = mutableListOf<String>()
         private val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0).apply {
             createContext("/") { exchange ->
@@ -221,6 +256,12 @@ class TestGitHubSyncClient {
                 }
                 return
             }
+            if (path.contains("/git/blobs/")) {
+                val value = contents.values.first()
+                respond(exchange, 200, GSON.toJson(mapOf("encoding" to "base64",
+                    "content" to Base64.getEncoder().encodeToString(value.toByteArray(Charsets.UTF_8)))))
+                return
+            }
             val key = path.substringAfter("/contents/")
             refs += exchange.requestURI.rawQuery.orEmpty()
             val sha = (versions[key] ?: 0).toString()
@@ -229,8 +270,9 @@ class TestGitHubSyncClient {
                     contentReads++
                     val value = contents[key]
                     if (value != null) {
-                        respond(exchange, 200, GSON.toJson(mapOf("type" to "file", "encoding" to "base64", "sha" to sha,
-                            "content" to Base64.getEncoder().encodeToString(value.toByteArray(Charsets.UTF_8)))))
+                        val omit = omitLargeInlineContent && value.toByteArray(Charsets.UTF_8).size > 1024 * 1024
+                        respond(exchange, 200, GSON.toJson(mapOf("type" to "file", "encoding" to if (omit) "none" else "base64", "sha" to sha,
+                            "content" to if (omit) "" else Base64.getEncoder().encodeToString(value.toByteArray(Charsets.UTF_8)))))
                     } else {
                         val names = contents.keys.filter { it.startsWith("$key/") }.map { it.removePrefix("$key/") }
                         val entries = if (largeDirectory) List(1000) { mapOf("type" to "file", "name" to "$it.json") }
