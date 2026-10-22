@@ -9,6 +9,8 @@ import io.wanjuan.app.data.entities.Book
 import io.wanjuan.app.data.entities.BookChapter
 import io.wanjuan.app.lib.webdav.Authorization
 import io.wanjuan.app.sync.mapper.BookSyncMapper
+import io.wanjuan.app.sync.merge.BookSyncMerge
+import io.wanjuan.app.sync.model.SyncBook
 import io.wanjuan.app.sync.model.SyncBookPayload
 import io.wanjuan.app.sync.model.SyncObjectType
 import io.wanjuan.app.sync.model.SyncOrderPayload
@@ -302,6 +304,114 @@ class TestBookshelfSyncSafetyInstrumented {
         assertTrue(remote.book(book).shelfUpdatedAt > 200)
     }
 
+    @Test
+    fun repeatedUnchangedCatalogRefreshesDoNotQueueOrUploadBooks() = runBlocking {
+        val a = replica("a")
+        val books = (1..20).map { book("book-$it").copy(name = "Book $it") }
+        a.db.bookDao.insert(*books.toTypedArray())
+        assertEquals(20, a.sync().uploaded)
+        val versions = a.snapshots.currentSnapshots(setOf(SyncObjectType.Book)).associate { it.objectId to it.version }
+        remote.uploads.clear()
+
+        repeat(3) { round ->
+            a.time = 200L + round
+            a.db.bookDao.all.forEach { a.db.bookDao.update(it.copy(lastCheckTime = a.time)) }
+
+            val flushed = a.flush()
+            assertTrue(flushed.isSuccess)
+            assertEquals(0, flushed.uploaded)
+            assertEquals(0, a.db.syncOutboxDao.count())
+            assertEquals(versions, a.snapshots.currentSnapshots(setOf(SyncObjectType.Book)).associate { it.objectId to it.version })
+            assertEquals(0, a.sync().uploaded)
+            assertTrue(a.db.bookDao.all.all { it.lastCheckTime == a.time })
+        }
+        assertTrue(remote.uploads.isEmpty())
+    }
+
+    @Test
+    fun refreshingAllBooksUploadsOnlyTheBookWithNewChapters() = runBlocking {
+        val a = replica("a")
+        val books = (1..20).map { book("book-$it").copy(name = "Book $it") }
+        a.db.bookDao.insert(*books.toTypedArray())
+        assertEquals(20, a.sync().uploaded)
+        remote.uploads.clear()
+        a.time = 300
+        a.db.bookDao.all.forEach { a.db.bookDao.update(it.copy(lastCheckTime = a.time)) }
+        val changed = a.db.bookDao.getBook(books.first().bookUrl)!!.copy(
+            totalChapterNum = 121, latestChapterTitle = "New chapter", latestChapterTime = a.time, lastCheckCount = 1
+        )
+        a.db.bookDao.update(changed)
+
+        val result = a.flush()
+
+        assertTrue(result.isSuccess)
+        assertEquals(1, result.uploaded)
+        assertEquals(listOf("books/${SyncIds.bookId(changed)}.json"), remote.uploads)
+        assertEquals(121, remote.book(changed).book.totalChapterNum)
+        assertEquals(0, a.flush().uploaded)
+        assertEquals(0, a.sync().uploaded)
+    }
+
+    @Test
+    fun checkTimeCannotOverrideNewerRemoteCatalogOrReplaceLocalCheckTime() = runBlocking {
+        val a = replica("a")
+        val book = book()
+        a.db.bookDao.insert(book)
+        assertTrue(a.sync().isSuccess)
+        a.seedLegacyHashes(book)
+        a.time = 900
+        a.db.bookDao.update(a.db.bookDao.all.single().copy(lastCheckTime = a.time))
+        remote.put(remote.book(book).copy(
+            book = remote.book(book).book.copy(totalChapterNum = 121, lastCheckTime = 200),
+            catalogUpdatedAt = 200, catalogUpdatedByDeviceId = "remote"
+        ))
+        remote.uploads.clear()
+
+        val result = a.sync()
+
+        assertTrue(result.isSuccess)
+        assertEquals(0, result.uploaded)
+        assertEquals(121, a.db.bookDao.all.single().totalChapterNum)
+        assertEquals(900L, a.db.bookDao.all.single().lastCheckTime)
+        val captured = a.snapshots.currentSnapshots(setOf(SyncObjectType.Book)).single()
+        val capturedPayload = GSON.fromJsonObject<SyncBookPayload>(captured.payloadJson).getOrThrow()
+        assertEquals(200L, BookSyncMerge.catalogVersion(capturedPayload).timestamp)
+        assertEquals(0, a.flush().uploaded)
+        assertTrue(remote.uploads.isEmpty())
+    }
+
+    @Test
+    fun legacyHashesAreMigratedWithoutReuploadingUnchangedBook() = runBlocking {
+        val a = replica("a")
+        val book = book()
+        a.db.bookDao.insert(book)
+        assertTrue(a.sync().isSuccess)
+        a.seedLegacyHashes(book)
+        a.time = 900
+        a.db.bookDao.update(a.db.bookDao.all.single().copy(lastCheckTime = a.time))
+        remote.uploads.clear()
+
+        assertEquals(0, a.flush().uploaded)
+        assertEquals(0, a.sync().uploaded)
+        assertTrue(remote.uploads.isEmpty())
+        assertEquals(0, a.db.syncOutboxDao.count())
+    }
+
+    @Test
+    fun legacyHashMigrationDoesNotAcknowledgeRealLocalCatalogEdits() = runBlocking {
+        val a = replica("a")
+        val book = book()
+        a.db.bookDao.insert(book)
+        assertTrue(a.sync().isSuccess)
+        a.seedLegacyHashes(book)
+        a.time = 900
+        a.db.bookDao.update(a.db.bookDao.all.single().copy(lastCheckTime = a.time, totalChapterNum = 121))
+
+        assertEquals(1, a.flush().uploaded)
+        assertEquals(121, remote.book(book).book.totalChapterNum)
+        assertEquals(900L, remote.book(book).catalogUpdatedAt)
+    }
+
     private fun replica(id: String) = Replica(id).also { replicas += it }
 
     private fun book(url: String = "book") = Book(
@@ -328,17 +438,40 @@ class TestBookshelfSyncSafetyInstrumented {
         val snapshots = RoomSyncSnapshotSource(db, clock, { id }, groups)
         private val reconciler = SyncLocalReconciler(snapshots, RoomSyncReconcileStore(db), clock, { id }, setOf(SyncObjectType.Book))
 
-        suspend fun sync() = SyncOrchestrator(
+        fun seedLegacyHashes(book: Book) {
+            val payload = remote.book(book)
+            val id = payload.bookSyncId
+            val known = db.syncMetadataDao.get(SyncObjectType.Book, id)!!
+            db.syncMetadataDao.insert(known.copy(lastSyncedHash = SyncCanonicalJson.hash(payload.book)))
+            val catalog = db.syncMetadataDao.get("bookCatalog", id)!!
+            val legacyCatalog = SyncBook(
+                tocUrl = payload.book.tocUrl,
+                latestChapterTitle = payload.book.latestChapterTitle,
+                latestChapterTime = payload.book.latestChapterTime,
+                lastCheckTime = payload.book.lastCheckTime,
+                lastCheckCount = payload.book.lastCheckCount,
+                totalChapterNum = payload.book.totalChapterNum,
+                type = payload.book.type and BookType.updateError
+            )
+            db.syncMetadataDao.insert(catalog.copy(lastSyncedHash = SyncCanonicalJson.hash(legacyCatalog)))
+        }
+
+        private fun orchestrator() = SyncOrchestrator(
             remote, SyncCaptureAction { reconciler.capture() },
             SyncPullAction {
                 SyncPullEngine(remote, RoomSyncPullStore(db), listOf(bookSyncPullHandler(books), bookSyncDeletePullHandler(books))).pullAll(it)
             },
             SyncFlushAction { repository.flushOutbox(remote, it) }
-        ).sync()
+        )
+
+        suspend fun sync() = orchestrator().sync()
+
+        suspend fun flush() = orchestrator().flushPending()
     }
 
     private class MemoryRemote : SyncRemoteStore {
         val objects = linkedMapOf<String, String>()
+        val uploads = arrayListOf<String>()
         var beforeDownload: ((String) -> Unit)? = null
 
         fun put(payload: SyncBookPayload) {
@@ -361,6 +494,9 @@ class TestBookshelfSyncSafetyInstrumented {
             beforeDownload?.invoke(relativePath)
             return objects[relativePath]
         }
-        override suspend fun uploadJson(relativePath: String, json: String) { objects[relativePath] = json }
+        override suspend fun uploadJson(relativePath: String, json: String) {
+            uploads += relativePath
+            objects[relativePath] = json
+        }
     }
 }

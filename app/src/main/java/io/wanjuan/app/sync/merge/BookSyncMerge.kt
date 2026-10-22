@@ -54,6 +54,9 @@ object BookSyncMerge {
     )
 
     fun catalogHash(book: SyncBook): String =
+        legacyCatalogHash(book.copy(lastCheckTime = 0L))
+
+    internal fun legacyCatalogHash(book: SyncBook): String =
         SyncCanonicalJson.hash(SyncBook().withCatalog(book))
 
     fun progressHash(book: SyncBook): String =

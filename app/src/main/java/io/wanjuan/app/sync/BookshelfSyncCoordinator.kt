@@ -292,6 +292,8 @@ class BookshelfSyncCoordinator(
                     BookSyncMerge.merge(bookState.capture(local, newLocalBook = false), remote)
                 }
                 val book = merged.book.toBook(merged.localGroupMask(groupCoordinator))
+                // A remote catalog/ack must not change this device's refresh throttle.
+                book.lastCheckTime = local?.lastCheckTime ?: 0L
                 if (local == null) {
                     dao.insertFromSync(book)
                     outcome = SyncApplyOutcome.Inserted

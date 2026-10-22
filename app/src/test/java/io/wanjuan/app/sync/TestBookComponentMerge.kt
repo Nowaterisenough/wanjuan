@@ -70,6 +70,41 @@ class TestBookComponentMerge {
         assertNotEquals(BookSyncMerge.catalogHash(base), BookSyncMerge.catalogHash(base.copy(totalChapterNum = 100)))
     }
 
+    @Test
+    fun checkingUnchangedCatalogDoesNotChangeContentOrComponentFingerprints() {
+        val before = payload("a", 100, 100, 100).copy(
+            book = SyncBook(lastCheckTime = 100, totalChapterNum = 120, syncTime = 100)
+        )
+        val checked = before.copy(book = before.book.copy(lastCheckTime = 900))
+
+        assertEquals(SyncPayloadHash.book(before), SyncPayloadHash.book(checked))
+        assertEquals(BookSyncMerge.catalogHash(before.book), BookSyncMerge.catalogHash(checked.book))
+        assertEquals(BookSyncMerge.shelfHash(before.book), BookSyncMerge.shelfHash(checked.book))
+        assertEquals(BookSyncMerge.progressHash(before.book), BookSyncMerge.progressHash(checked.book))
+        assertEquals(SyncPayloadHash.book(before.copy(schemaVersion = 1)),
+            SyncPayloadHash.book(checked.copy(schemaVersion = 1)))
+    }
+
+    @Test
+    fun realCatalogShelfAndProgressChangesStillChangeContentFingerprint() {
+        val before = payload("a", 100, 100, 100)
+        val changes = listOf(
+            before.book.copy(tocUrl = "new-toc"),
+            before.book.copy(totalChapterNum = 121),
+            before.book.copy(latestChapterTitle = "New chapter"),
+            before.book.copy(latestChapterTime = 200),
+            before.book.copy(lastCheckCount = 1),
+            before.book.copy(customTag = "Favorite"),
+            before.book.copy(groupSyncIds = listOf("group")),
+            before.book.copy(durChapterIndex = 1),
+            before.book.copy(durChapterPos = 100)
+        )
+
+        changes.forEach { changed ->
+            assertNotEquals(SyncPayloadHash.book(before), SyncPayloadHash.book(before.copy(book = changed)))
+        }
+    }
+
     private fun payload(device: String, shelf: Long, catalog: Long, progress: Long) =
         SyncBookPayload("book-id", SyncBook(syncTime = progress), shelf, catalog, progress, device)
 }

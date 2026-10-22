@@ -8,7 +8,11 @@ import io.wanjuan.app.sync.model.SyncRssSourcePayload
 import io.wanjuan.app.sync.model.SyncRuleSubPayload
 
 object SyncPayloadHash {
-    fun book(payload: SyncBookPayload): String {
+    fun book(payload: SyncBookPayload): String =
+        legacyBook(payload.copy(book = payload.book.copy(lastCheckTime = 0L)))
+
+    // Retained only to recognize acknowledged fingerprints from before check times were excluded.
+    internal fun legacyBook(payload: SyncBookPayload): String {
         val businessBook = if (payload.schemaVersion >= 2) {
             payload.book.copy(
                 group = 0L,

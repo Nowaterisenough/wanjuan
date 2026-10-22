@@ -26,8 +26,20 @@ class BookSyncState(
             book, deviceId, 0L, 0L,
             groupSyncIds = groups.localMaskToRemoteGroupIds(book.group)
         )
-        val known = db.syncMetadataDao.get(SyncObjectType.Book, payload.bookSyncId)
+        var known = db.syncMetadataDao.get(SyncObjectType.Book, payload.bookSyncId)
         val bookHash = SyncPayloadHash.book(payload)
+        if (known?.dirty == false && known.deletedAt == null && known.lastSyncedHash != bookHash) {
+            val previousCheckTime = db.syncMetadataDao.get(Catalog, payload.bookSyncId)?.localUpdatedAt
+            // Old catalog versions normally used lastCheckTime. Only migrate after an exact
+            // legacy hash match, so pending content edits are never acknowledged by inference.
+            if (previousCheckTime != null && known.lastSyncedHash == SyncPayloadHash.legacyBook(
+                    payload.copy(book = payload.book.copy(lastCheckTime = previousCheckTime))
+                )
+            ) {
+                known = known.copy(lastSyncedHash = bookHash)
+                db.syncMetadataDao.insert(known)
+            }
+        }
         val unchangedSinceSync = known?.lastSyncedHash == bookHash
         val initialShelfTime = when {
             unchangedSinceSync -> maxOf(known!!.localUpdatedAt, known.remoteUpdatedAt)
@@ -46,7 +58,10 @@ class BookSyncState(
         }
         val catalog = componentVersion(
             Catalog, payload.bookSyncId, BookSyncMerge.catalogHash(payload.book),
-            book.lastCheckTime
+            book.lastCheckTime,
+            legacyHash = { timestamp ->
+                BookSyncMerge.legacyCatalogHash(payload.book.copy(lastCheckTime = timestamp))
+            }
         )
         val progress = componentVersion(
             Progress, payload.bookSyncId, BookSyncMerge.progressHash(payload.book),
@@ -81,13 +96,20 @@ class BookSyncState(
 
     private fun componentVersion(
         type: String, id: String, hash: String, initialTime: Long,
-        useDetectionTime: Boolean = false
+        useDetectionTime: Boolean = false,
+        legacyHash: ((Long) -> String)? = null
     ): SyncVersion {
         val previous = db.syncMetadataDao.get(type, id)
         val previousVersion = SyncVersion(
             previous?.localUpdatedAt ?: 0L, previous?.localUpdatedByDeviceId.orEmpty()
         )
         if (previous?.lastSyncedHash == hash) return previousVersion
+        if (previous?.lastSyncedHash != null &&
+            previous.lastSyncedHash == legacyHash?.invoke(previousVersion.timestamp)
+        ) {
+            save(type, id, hash, previousVersion)
+            return previousVersion
+        }
         val timestamp = if (previous?.lastSyncedHash != null) {
             maxOf(if (useDetectionTime) clock.now() else initialTime, previousVersion.timestamp + 1)
         } else {
