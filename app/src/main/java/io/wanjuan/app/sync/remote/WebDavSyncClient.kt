@@ -14,6 +14,12 @@ import java.nio.charset.StandardCharsets
 import java.io.File
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
+import java.util.concurrent.atomic.AtomicInteger
 
 internal fun syncRemotePath(directory: String, href: String): String {
     val fileName = href.replace('\\', '/').trimEnd('/').substringAfterLast('/')
@@ -33,11 +39,11 @@ class WebDavSyncClient(
 ) : SyncRemoteStore {
 
     companion object {
-        private const val JSON = "application/json"
         const val SYNC_DIR = "sync/v1/"
         private val SCHEME = Regex("^[A-Za-z][A-Za-z0-9+.-]*:")
         private val ensureDirsMutex = Mutex()
         private var readyEndpoint: String? = null
+        private val readyDirectories = hashSetOf<String>()
     }
 
     private fun baseUrl(): String = rootUrlProvider().trimEnd('/') + "/"
@@ -84,48 +90,74 @@ class WebDavSyncClient(
             WebDav(base, authorization).makeAsDir()
             val syncRoot = base + "sync/"
             val root = syncRoot + "v1/"
-            listOf(
-                syncRoot,
-                root,
-                "${root}devices/",
-                "${root}books/",
-                "${root}bookGroups/",
-                "${root}bookSources/",
-                "${root}rssSources/",
-                "${root}ruleSubs/",
-                "${root}order/",
-                "${root}assets/",
-                "${root}assets/library/",
-                "${root}assets/exports/",
-                "${root}assets/cachePackages/",
-                "${root}tombstones/",
-                "${root}tombstones/books/",
-                "${root}tombstones/bookGroups/",
-                "${root}tombstones/bookSources/",
-                "${root}tombstones/rssSources/",
-                "${root}tombstones/ruleSubs/"
-            ).forEach { WebDav(it, authorization).makeAsDir() }
+            listOf(syncRoot, root).forEach { WebDav(it, authorization).makeAsDir() }
+            readyDirectories.clear()
             readyEndpoint = endpoint
         }
+    }
+
+    private suspend fun ensureParent(relativePath: String) {
+        ensureDirs()
+        val authorization = requireAuthorization()
+        val parents = relativePath.substringBeforeLast('/', "").split('/').filter(String::isNotEmpty)
+        ensureDirsMutex.withLock {
+            var current = ""
+            for (part in parents) {
+                current = if (current.isEmpty()) part else "$current/$part"
+                val url = resolve(current, asDirectory = true)
+                if (url !in readyDirectories) {
+                    WebDav(url, authorization).makeAsDir()
+                    readyDirectories += url
+                }
+            }
+        }
+    }
+
+    suspend fun ensureDirectory(relativeDir: String) {
+        resolve(relativeDir, asDirectory = true)
+        ensureParent(relativeDir.trimEnd('/') + "/")
+    }
+
+    override suspend fun snapshot(directories: List<String>, onProgress: (Int, Int) -> Unit): Map<String, List<SyncRemoteFile>> = coroutineScope {
+        val permits = Semaphore(3)
+        val unique = directories.distinct()
+        val completed = AtomicInteger()
+        onProgress(0, unique.size)
+        unique.map { directory ->
+            async { permits.withPermit {
+                val files = list(directory)
+                onProgress(completed.incrementAndGet(), unique.size)
+                directory to files
+            } }
+        }.awaitAll().toMap()
     }
 
     override suspend fun list(relativeDir: String): List<SyncRemoteFile> {
         val authorization = requireAuthorization()
         val directory = relativeDir.trim('/').takeIf { it.isNotEmpty() }
         val resource = WebDav(resolve(relativeDir, asDirectory = true), authorization)
-        // Some WebDAV servers occasionally return a partial Depth: 1 response. Merge two
-        // consecutive snapshots so a transiently missing entry cannot silently lose a book.
-        val files = buildList {
-            addAll(resource.listFiles())
-            addAll(resource.listFiles())
-        }.associateBy { syncRemotePath(directory.orEmpty(), it.urlName) }.values
-        return files.map { file ->
+        // Absence is never a deletion; tombstones carry deletions explicitly.
+        val files = try {
+            resource.listFiles()
+        } catch (e: ObjectNotFoundException) {
+            emptyList()
+        } catch (e: WebDavException) {
+            if (e.isNotFound()) emptyList() else throw e
+        }
+        return files.filterNot { it.isDir }.map { file ->
             SyncRemoteFile(
                 path = syncRemotePath(directory.orEmpty(), file.urlName),
                 displayName = file.displayName,
-                lastModifiedAt = file.lastModify
+                lastModifiedAt = file.lastModify,
+                revision = file.etag?.let { "etag:$it" }
             )
         }
+    }
+
+    override suspend fun readJson(file: SyncRemoteFile): SyncRemoteRead {
+        val content = WebDav(resolve(file.path), requireAuthorization()).downloadVersioned()
+            ?: return SyncRemoteRead(null)
+        return SyncRemoteRead(content.bytes.toString(StandardCharsets.UTF_8), content.etag?.let { "etag:$it" })
     }
 
     suspend inline fun <reified T> download(relativePath: String): T? {
@@ -155,14 +187,17 @@ class WebDavSyncClient(
     }
 
     suspend fun upload(relativePath: String, bytes: ByteArray, contentType: String) {
+        ensureParent(relativePath)
         WebDav(resolve(relativePath), requireAuthorization()).upload(bytes, contentType)
     }
 
     suspend fun upload(relativePath: String, uri: Uri, contentType: String) {
+        ensureParent(relativePath)
         WebDav(resolve(relativePath), requireAuthorization()).upload(uri, contentType)
     }
 
     suspend fun upload(relativePath: String, file: File, contentType: String) {
+        ensureParent(relativePath)
         WebDav(resolve(relativePath), requireAuthorization()).upload(file, contentType)
     }
 
@@ -171,10 +206,21 @@ class WebDavSyncClient(
     fun authorizationOrNull(): Authorization? = authorizationProvider()
 
     override suspend fun uploadJson(relativePath: String, json: String) {
+        ensureParent(relativePath)
         val authorization = requireAuthorization()
-        WebDav(resolve(relativePath), authorization)
-            .upload(json.toByteArray(StandardCharsets.UTF_8), JSON)
+        val etag = WebDav(resolve(relativePath), authorization)
+            .uploadJsonVersioned(json.toByteArray(StandardCharsets.UTF_8))
+        rememberWrite(relativePath, json, etag)
     }
+
+    @Volatile private var written: Pair<String, SyncRemoteRead>? = null
+
+    private fun rememberWrite(path: String, json: String, etag: String?) {
+        written = null
+        if (!etag.isNullOrBlank()) written = path to SyncRemoteRead(json, "etag:$etag")
+    }
+
+    override fun lastWrittenContent(relativePath: String): SyncRemoteRead? = written?.takeIf { it.first == relativePath }?.second
 
     private val bookUpdateMutex = Mutex()
 
@@ -182,6 +228,7 @@ class WebDavSyncClient(
         id: String,
         transform: (SyncBookPayload?) -> SyncBookPayload?
     ): SyncBookPayload? = bookUpdateMutex.withLock {
+        ensureParent("books/$id.json")
         val resource = WebDav(resolve("books/$id.json"), requireAuthorization())
         repeat(3) {
             val previous = resource.downloadVersioned()
@@ -190,7 +237,14 @@ class WebDavSyncClient(
             }
             require(remote == null || remote.bookSyncId == id) { "Remote book ID mismatch" }
             val updated = transform(remote) ?: return@withLock null
-            if (resource.uploadIfUnchanged(GSON.toJson(updated).toByteArray(StandardCharsets.UTF_8), previous)) {
+            val json = GSON.toJson(updated)
+            if (previous?.bytes?.toString(StandardCharsets.UTF_8) == json) {
+                rememberWrite("books/$id.json", json, previous.etag)
+                return@withLock updated
+            }
+            val write = resource.uploadIfUnchangedVersioned(json.toByteArray(StandardCharsets.UTF_8), previous)
+            if (write.successful) {
+                rememberWrite("books/$id.json", json, write.etag)
                 return@withLock updated
             }
         }

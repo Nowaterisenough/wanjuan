@@ -230,6 +230,13 @@ class TestBookGroupSyncInstrumented {
         private val objects = ConcurrentHashMap<String, String>()
 
         override fun serve(session: IHTTPSession): Response = when (session.method) {
+            Method.PROPFIND -> {
+                val bytes = ByteArray(session.headers["content-length"]?.toIntOrNull() ?: 0)
+                java.io.DataInputStream(session.inputStream).readFully(bytes)
+                newFixedLengthResponse(Response.Status.MULTI_STATUS, "application/xml",
+                    "<d:multistatus xmlns:d=\"DAV:\"></d:multistatus>")
+            }
+            Method.MKCOL -> newFixedLengthResponse(Response.Status.CREATED, MIME_PLAINTEXT, "")
             Method.GET -> objects[session.uri]?.let {
                 newFixedLengthResponse(Response.Status.OK, "application/json", it)
             } ?: newFixedLengthResponse(Response.Status.NOT_FOUND, MIME_PLAINTEXT, "Missing")

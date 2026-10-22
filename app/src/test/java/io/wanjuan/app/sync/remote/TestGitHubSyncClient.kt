@@ -17,6 +17,42 @@ import java.util.Base64
 
 class TestGitHubSyncClient {
     @Test
+    fun oneTreeSnapshotIndexesAllObjectDirectoriesWithRevisions() = runBlocking {
+        Server().use { server ->
+            server.contents["wanjuan/sync/v1/books/a.json"] = "{}"
+            server.contents["wanjuan/sync/v1/bookSources/b.json"] = "{}"
+            server.contents["unrelated/file.json"] = "{}"
+            val client = server.client()
+            val snapshot = client.snapshot(listOf("books", "bookSources", "books"))
+            assertEquals(1, server.treeRequests)
+            assertEquals(setOf("books", "bookSources"), snapshot.keys)
+            assertEquals("sha:0", snapshot.getValue("books").single().revision)
+            assertEquals(0, server.contentReads)
+            assertEquals(2, snapshot.values.sumOf { it.size })
+        }
+    }
+
+    @Test
+    fun emptyTreeIsSupportedAndTruncatedTreeFailsSafely() = runBlocking {
+        Server().use { server ->
+            server.emptyRepository = true
+            assertTrue(server.client().snapshot(listOf("books")).getValue("books").isEmpty())
+        }
+        Server().use { server ->
+            server.truncatedTree = true
+            assertTrue(runCatching { server.client().snapshot(listOf("books")) }.isFailure)
+        }
+    }
+
+    @Test
+    fun successfulPutRecordsBodyAndRevisionForIncrementalReadback() = runBlocking {
+        Server().use { server ->
+            val client = server.client()
+            client.uploadJson("books/a.json", "{}")
+            assertEquals(SyncRemoteRead("{}", "sha:1"), client.lastWrittenContent("books/a.json"))
+        }
+    }
+    @Test
     fun roundTripListDeleteAndNoOpWrite() = runBlocking {
         Server().use { server ->
             val client = server.client(branch = "feature/sync", directory = "阅读 data")
@@ -143,6 +179,9 @@ class TestGitHubSyncClient {
         var failure: Int? = null
         var largeDirectory = false
         var headersValid = true
+        var treeRequests = 0
+        var contentReads = 0
+        var truncatedTree = false
         val refs = mutableListOf<String>()
         private val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0).apply {
             createContext("/") { exchange ->
@@ -172,11 +211,22 @@ class TestGitHubSyncClient {
                 respond(exchange, if (missingBranch) 404 else 200, "{}")
                 return
             }
+            if (path.contains("/git/trees/")) {
+                treeRequests++
+                if (emptyRepository && contents.isEmpty()) {
+                    respond(exchange, 409, "{}")
+                } else {
+                    respond(exchange, 200, GSON.toJson(mapOf("truncated" to truncatedTree,
+                        "tree" to contents.keys.map { mapOf("path" to it, "type" to "blob", "sha" to (versions[it] ?: 0).toString()) })))
+                }
+                return
+            }
             val key = path.substringAfter("/contents/")
             refs += exchange.requestURI.rawQuery.orEmpty()
             val sha = (versions[key] ?: 0).toString()
             when (exchange.requestMethod) {
                 "GET" -> {
+                    contentReads++
                     val value = contents[key]
                     if (value != null) {
                         respond(exchange, 200, GSON.toJson(mapOf("type" to "file", "encoding" to "base64", "sha" to sha,
@@ -206,7 +256,7 @@ class TestGitHubSyncClient {
                     if (exchange.requestMethod == "DELETE") contents.remove(key)
                     else contents[key] = Base64.getDecoder().decode(body["content"].asString).toString(Charsets.UTF_8)
                     versions[key] = (versions[key] ?: 0) + 1
-                    respond(exchange, 200, "{}")
+                    respond(exchange, 200, GSON.toJson(mapOf("content" to mapOf("sha" to versions[key].toString()))))
                 }
                 else -> respond(exchange, 405, "{}")
             }

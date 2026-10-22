@@ -101,6 +101,14 @@ class BookshelfSyncCoordinator(
     fun hasBook(bookSyncId: String): Boolean =
         db.bookDao.all.any { !it.isNotShelf && SyncIds.bookId(it) == bookSyncId }
 
+    fun localBookLocations(): Map<String, String> = db.bookDao.all.filterNot { it.isNotShelf }
+        .associate { SyncIds.bookId(it) to it.bookUrl }
+
+    fun hasBookAt(bookSyncId: String, bookUrl: String?): Boolean {
+        val book = bookUrl?.let { db.bookDao.getBook(it) } ?: return false
+        return !book.isNotShelf && SyncIds.bookId(book) == bookSyncId
+    }
+
     fun deleteLocalBook(book: Book): Boolean {
         var deleted = false
         db.runInTransaction {

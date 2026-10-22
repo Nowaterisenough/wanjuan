@@ -26,7 +26,8 @@ class SyncAssetCoordinator(
         return RemoteBookWebDav(
             rootBookUrl = client.directoryUrl(LibraryDir),
             authorization = authorization,
-            ensureRoot = false
+            ensureRoot = false,
+            prepareRoot = { client.ensureDirectory(LibraryDir) }
         )
     }
 

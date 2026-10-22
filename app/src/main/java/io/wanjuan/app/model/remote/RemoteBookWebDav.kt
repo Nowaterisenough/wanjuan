@@ -21,7 +21,8 @@ class RemoteBookWebDav(
     val rootBookUrl: String,
     val authorization: Authorization,
     val serverID: Long? = null,
-    ensureRoot: Boolean = true
+    ensureRoot: Boolean = true,
+    private val prepareRoot: (suspend () -> Unit)? = null
 ) : RemoteBookManager() {
 
     init {
@@ -36,6 +37,7 @@ class RemoteBookWebDav(
     @Throws(Exception::class)
     override suspend fun getRemoteBookList(path: String): MutableList<RemoteBook> {
         if (!NetworkUtils.isAvailable()) throw NoStackTraceException("网络不可用")
+        prepareRoot?.invoke()
         val remoteBooks = mutableListOf<RemoteBook>()
         //读取文件列表
         val remoteWebDavFileList: List<WebDavFile> = WebDav(path, authorization).listFiles()

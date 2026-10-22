@@ -24,7 +24,8 @@ class SyncOrchestrator(
     private val remoteStore: SyncRemoteStore,
     private val captureAction: SyncCaptureAction,
     private val pullAction: SyncPullAction,
-    private val flushAction: SyncFlushAction
+    private val flushAction: SyncFlushAction,
+    private val progress: SyncProgressTracker = SyncProgressTracker()
 ) {
     private val mutex = Mutex()
 
@@ -34,17 +35,20 @@ class SyncOrchestrator(
 
     private suspend fun runSync(pullRemote: Boolean): SyncResult = mutex.withLock {
         val result = SyncResult.Mutable()
+        progress.begin()
         try {
             remoteStore.ensureDirs()
+            progress.phase(SyncPhase.Capturing)
             captureAction.capture(result)
             if (pullRemote) pullAction.pull(result)
             flushAction.flush(result)
         } catch (e: CancellationException) {
+            progress.finish(SyncResult(failed = 1, errorMessage = "同步已取消"))
             throw e
         } catch (e: Exception) {
             currentCoroutineContext().ensureActive()
             result.fail(e.localizedMessage ?: e.javaClass.simpleName)
         }
-        result.toResult()
+        result.toResult().also(progress::finish)
     }
 }

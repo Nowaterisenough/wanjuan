@@ -26,6 +26,10 @@ class SelectedSyncRemoteStore(
 
     override suspend fun ensureDirs() = store().ensureDirs()
     override suspend fun list(relativeDir: String) = store().list(relativeDir)
+    override suspend fun snapshot(directories: List<String>, onProgress: (Int, Int) -> Unit) =
+        store().snapshot(directories, onProgress)
+    override suspend fun readJson(file: SyncRemoteFile) = store().readJson(file)
+    override suspend fun invalidateCached(relativePath: String) = store().invalidateCached(relativePath)
     override suspend fun downloadJson(relativePath: String) = store().downloadJson(relativePath)
     override suspend fun uploadJson(relativePath: String, json: String) = store().uploadJson(relativePath, json)
     override suspend fun delete(relativePath: String) = store().delete(relativePath)

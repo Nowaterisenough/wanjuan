@@ -10,6 +10,9 @@ import io.wanjuan.app.sync.model.SyncResult
 import io.wanjuan.app.sync.remote.newSyncClient
 import io.wanjuan.app.sync.remote.SelectedSyncRemoteStore
 import io.wanjuan.app.sync.remote.SyncSettings
+import io.wanjuan.app.sync.remote.SyncRemoteTarget
+import io.wanjuan.app.sync.remote.CachingSyncRemoteStore
+import io.wanjuan.app.sync.remote.FileSyncRemoteContentCache
 import io.wanjuan.app.utils.getPrefString
 import io.wanjuan.app.utils.putPrefString
 import kotlinx.coroutines.CancellationException
@@ -22,6 +25,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import splitties.init.appCtx
+import java.io.File
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 object SyncManager {
 
@@ -32,8 +38,15 @@ object SyncManager {
     private val managedTypes = SyncObjectSelection.all
     private val dirty = SyncDirtyTracker()
     private var forcedCapture = emptySet<String>()
+    private val mutableProgress = MutableStateFlow(SyncProgress())
+    val progress = mutableProgress.asStateFlow()
+    private val progressTracker = SyncProgressTracker { mutableProgress.value = it }
 
-    private val client by lazy { SelectedSyncRemoteStore(SyncSettings::target) }
+    private val client by lazy { SelectedSyncRemoteStore {
+        val target = SyncSettings.target()
+        SyncRemoteTarget(target.identity, CachingSyncRemoteStore(target.store,
+            FileSyncRemoteContentCache(File(appCtx.cacheDir, "sync-objects/${target.identity}"))))
+    } }
     private val repository: SyncRepository by lazy {
         SyncRepository(
             db = appDb,
@@ -91,7 +104,8 @@ object SyncManager {
                 bookSources,
                 rssSources,
                 ruleSubs
-            )
+            ),
+            progress = progressTracker
         )
     }
 
@@ -109,7 +123,8 @@ object SyncManager {
                 dirty.capture(forcedCapture) { reconciler.capture(it) }
             },
             pullAction = SyncPullAction(pullEngine::pullAll),
-            flushAction = SyncFlushAction { result -> repository.flushOutbox(client, result) }
+            flushAction = SyncFlushAction { result -> repository.flushOutbox(client, result, progressTracker) },
+            progress = progressTracker
         )
     }
 
@@ -122,14 +137,16 @@ object SyncManager {
 
     private suspend fun runSync(flushOnly: Boolean, captureCatalogChanges: Boolean = false): SyncResult = mutationMutex.withLock {
         forcedCapture = if (captureCatalogChanges) setOf(SyncObjectType.Book, SyncObjectType.BookshelfOrder) else emptySet()
+        progressTracker.begin()
         try {
             client.withTarget {
                 if (flushOnly) orchestrator.flushPending() else orchestrator.sync()
             }
         } catch (e: CancellationException) {
+            progressTracker.finish(SyncResult(failed = 1, errorMessage = "同步已取消"))
             throw e
         } catch (e: Exception) {
-            SyncResult(failed = 1, errorMessage = e.localizedMessage ?: e.javaClass.simpleName)
+            SyncResult(failed = 1, errorMessage = e.localizedMessage ?: e.javaClass.simpleName).also(progressTracker::finish)
         } finally {
             forcedCapture = emptySet()
         }

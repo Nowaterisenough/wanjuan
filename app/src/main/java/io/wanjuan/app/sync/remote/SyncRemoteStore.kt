@@ -8,8 +8,11 @@ import io.wanjuan.app.utils.fromJsonObject
 data class SyncRemoteFile(
     val path: String,
     val displayName: String,
-    val lastModifiedAt: Long
+    val lastModifiedAt: Long,
+    val revision: String? = null
 )
+
+data class SyncRemoteRead(val json: String?, val revision: String? = null, val fromCache: Boolean = false)
 
 interface SyncRemoteStore {
     suspend fun ensureDirs()
@@ -17,6 +20,21 @@ interface SyncRemoteStore {
     suspend fun downloadJson(relativePath: String): String?
     suspend fun uploadJson(relativePath: String, json: String)
     suspend fun delete(relativePath: String): Boolean = false
+    suspend fun snapshot(
+        directories: List<String>,
+        onProgress: (Int, Int) -> Unit = { _, _ -> }
+    ): Map<String, List<SyncRemoteFile>> {
+        val unique = directories.distinct()
+        onProgress(0, unique.size)
+        return unique.mapIndexed { index, directory ->
+            val files = list(directory)
+            onProgress(index + 1, unique.size)
+            directory to files
+        }.toMap()
+    }
+    suspend fun readJson(file: SyncRemoteFile): SyncRemoteRead = SyncRemoteRead(downloadJson(file.path))
+    suspend fun invalidateCached(relativePath: String) = Unit
+    fun lastWrittenContent(relativePath: String): SyncRemoteRead? = null
 
     suspend fun updateBook(
         id: String,

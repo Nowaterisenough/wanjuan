@@ -36,6 +36,8 @@ class GitHubSyncClient(
     private val writes = Mutex()
     private val initialization = Mutex()
     @Volatile private var branch: String? = null
+    @Volatile private var emptyRepositoryHint = false
+    @Volatile private var written: Pair<String, SyncRemoteRead>? = null
 
     override suspend fun ensureDirs() {
         initialize()
@@ -49,12 +51,42 @@ class GitHubSyncClient(
             "GitHub 仓库没有写入权限，请检查 Token 的 Contents 读写权限"
         }
         val selected = config.branch.ifBlank { repo["default_branch"].asString }
+        emptyRepositoryHint = repo["size"]?.asLong == 0L
         // An empty repository has no branch yet; the first Contents PUT initializes it.
         if (repo["size"]?.asLong != 0L) {
             request("GET", url("branches", selected))
         }
         branch = selected
         selected
+    }
+
+    override suspend fun snapshot(directories: List<String>, onProgress: (Int, Int) -> Unit): Map<String, List<SyncRemoteFile>> {
+        onProgress(0, 1)
+        val selected = initialize()
+        val result = request("GET", url("git", "trees", selected).newBuilder()
+            .addQueryParameter("recursive", "1").build(), allowConflict = true)
+        if (result.code == 409 && emptyRepositoryHint) {
+            onProgress(1, 1)
+            return directories.distinct().associateWith { emptyList() }
+        }
+        check(result.code == 200) { "GitHub 无法读取同步索引 (${result.code})" }
+        val tree = requireNotNull(result.json).asJsonObject
+        check(tree["truncated"]?.asBoolean != true) { "GitHub 仓库索引过大，无法安全读取完整变更清单" }
+        val prefix = (config.directoryParts + listOf("sync", "v1")).joinToString("/") + "/"
+        val requested = directories.distinct().associateWith { mutableListOf<SyncRemoteFile>() }
+        for (element in tree.getAsJsonArray("tree")) {
+            val entry = element.asJsonObject
+            if (entry["type"]?.asString != "blob") continue
+            val path = entry["path"].asString
+            if (!path.startsWith(prefix)) continue
+            val relative = path.removePrefix(prefix)
+            syncPathParts(relative)
+            val directory = relative.substringBeforeLast('/', "")
+            requested[directory]?.add(SyncRemoteFile(relative, relative.substringAfterLast('/'), 0L,
+                "sha:${entry["sha"].asString}"))
+        }
+        onProgress(1, 1)
+        return requested
     }
 
     private fun url(vararg segments: String): HttpUrl = apiBase.newBuilder()
@@ -82,7 +114,8 @@ class GitHubSyncClient(
             if (file["type"].asString != "file") return@mapNotNull null
             val name = file["name"].asString
             require(syncPathParts(name).size == 1) { "Invalid GitHub file name" }
-            SyncRemoteFile(listOf(prefix, name).filter(String::isNotEmpty).joinToString("/"), name, 0L)
+            SyncRemoteFile(listOf(prefix, name).filter(String::isNotEmpty).joinToString("/"), name, 0L,
+                file["sha"]?.asString?.let { "sha:$it" })
         }
     }
 
@@ -99,11 +132,21 @@ class GitHubSyncClient(
 
     override suspend fun downloadJson(relativePath: String): String? = read(relativePath)?.text
 
+    override suspend fun readJson(file: SyncRemoteFile): SyncRemoteRead {
+        val content = read(file.path) ?: return SyncRemoteRead(null)
+        return SyncRemoteRead(content.text, "sha:${content.sha}")
+    }
+
+    override fun lastWrittenContent(relativePath: String): SyncRemoteRead? = written?.takeIf { it.first == relativePath }?.second
+
     override suspend fun uploadJson(relativePath: String, json: String) {
         writes.withLock {
             repeat(3) {
                 val previous = read(relativePath)
-                if (previous?.text == json) return@withLock
+                if (previous?.text == json) {
+                    written = relativePath to SyncRemoteRead(json, "sha:${previous.sha}")
+                    return@withLock
+                }
                 if (put(relativePath, json, previous?.sha)) return@withLock
             }
             throw IOException("GitHub 同步写入冲突，请稍后重试")
@@ -121,7 +164,11 @@ class GitHubSyncClient(
             require(remote == null || remote.bookSyncId == id) { "Remote book ID mismatch" }
             val updated = transform(remote) ?: return@withLock null
             val json = GSON.toJson(updated)
-            if (previous?.text == json || put(path, json, previous?.sha)) return@withLock updated
+            if (previous?.text == json) {
+                written = path to SyncRemoteRead(json, "sha:${previous.sha}")
+                return@withLock updated
+            }
+            if (put(path, json, previous?.sha)) return@withLock updated
         }
         throw IOException("GitHub 书籍同步冲突，请稍后重试")
     }
@@ -135,6 +182,13 @@ class GitHubSyncClient(
             sha?.let { addProperty("sha", it) }
         }
         val result = request("PUT", contentUrl(path), body, allowConflict = true)
+        if (result.code in 200..299) {
+            emptyRepositoryHint = false
+            written = null
+            result.json?.asJsonObject?.getAsJsonObject("content")?.get("sha")?.asString?.let {
+                written = path to SyncRemoteRead(json, "sha:$it")
+            }
+        }
         return result.code != 409 && result.code != 422
     }
 
@@ -147,7 +201,10 @@ class GitHubSyncClient(
                 addProperty("branch", initialize())
             }
             val result = request("DELETE", contentUrl(relativePath), body, allowConflict = true)
-            if (result.code != 409 && result.code != 422) return@withLock true
+            if (result.code != 409 && result.code != 422) {
+                if (written?.first == relativePath) written = null
+                return@withLock true
+            }
         }
         throw IOException("GitHub 同步删除冲突，请稍后重试")
     }

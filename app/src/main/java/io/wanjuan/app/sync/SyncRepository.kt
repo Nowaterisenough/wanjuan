@@ -116,7 +116,14 @@ class SyncRepository(
         }
     }
 
-    suspend fun flushOutbox(remoteStore: SyncRemoteStore, result: SyncResult.Mutable) {
+    suspend fun flushOutbox(
+        remoteStore: SyncRemoteStore,
+        result: SyncResult.Mutable,
+        progress: SyncProgressTracker = SyncProgressTracker()
+    ) {
+        val total = db.syncOutboxDao.count()
+        var completed = 0
+        progress.upload(0, total, result.uploaded, result.failed)
         drainOutbox { item ->
             currentCoroutineContext().ensureActive()
             try {
@@ -155,6 +162,9 @@ class SyncRepository(
                 currentCoroutineContext().ensureActive()
                 db.syncOutboxDao.markFailed(item.id, e.localizedMessage ?: e.javaClass.simpleName)
                 result.fail(e.localizedMessage ?: e.javaClass.simpleName)
+            } finally {
+                completed++
+                progress.upload(completed, maxOf(total, completed), result.uploaded, result.failed)
             }
         }
         result.pending = db.syncOutboxDao.count()

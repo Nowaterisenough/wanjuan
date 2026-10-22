@@ -103,6 +103,7 @@ open class WebDav(
                     <a:getcontentlength/>
                     <a:creationdate/>
                     <a:getlastmodified/>
+                    <a:getetag/>
                     %s
                 </a:prop>
             </a:propfind>"""
@@ -284,7 +285,8 @@ open class WebDav(
                     size = size,
                     contentType = contentType,
                     resourceType = resourceType,
-                    lastModify = lastModify
+                    lastModify = lastModify,
+                    etag = element.findNS("getetag", ns).firstOrNull()?.text()?.takeIf(String::isNotBlank)
                 )
                 list.add(webDavFile)
             } catch (e: MalformedURLException) {
@@ -420,7 +422,12 @@ open class WebDav(
         }
     }
 
-    suspend fun uploadIfUnchanged(bytes: ByteArray, previous: VersionedContent?): Boolean = withContext(IO) {
+    data class WriteResult(val successful: Boolean, val etag: String? = null)
+
+    suspend fun uploadIfUnchanged(bytes: ByteArray, previous: VersionedContent?): Boolean =
+        uploadIfUnchangedVersioned(bytes, previous).successful
+
+    suspend fun uploadIfUnchangedVersioned(bytes: ByteArray, previous: VersionedContent?): WriteResult = withContext(IO) {
         replayableRequest {
             url(httpUrl ?: throw WebDavException("url不能为空"))
             put(bytes.toRequestBody("application/json".toMediaType()))
@@ -430,9 +437,19 @@ open class WebDav(
                 previous.lastModified != null -> header("If-Unmodified-Since", previous.lastModified)
             }
         }.use { response ->
-            if (response.code == 412 || response.code == 409) return@withContext false
+            if (response.code == 412 || response.code == 409) return@withContext WriteResult(false)
             checkResult(response)
-            true
+            WriteResult(true, response.header("ETag"))
+        }
+    }
+
+    suspend fun uploadJsonVersioned(bytes: ByteArray): String? = withContext(IO) {
+        replayableRequest {
+            url(httpUrl ?: throw WebDavException("url不能为空"))
+            put(bytes.toRequestBody("application/json".toMediaType()))
+        }.use { response ->
+            checkResult(response)
+            response.header("ETag")
         }
     }
 

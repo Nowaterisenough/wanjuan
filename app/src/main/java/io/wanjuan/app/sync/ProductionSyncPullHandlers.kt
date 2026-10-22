@@ -96,17 +96,20 @@ fun productionSyncPullHandlers(
     return objects + tombstones
 }
 
-fun bookSyncPullHandler(bookshelfCoordinator: BookshelfSyncCoordinator): SyncPullHandler =
-    entityHandler<SyncBookPayload>(
+fun bookSyncPullHandler(bookshelfCoordinator: BookshelfSyncCoordinator): SyncPullHandler {
+    var locations = emptyMap<String, String>()
+    return entityHandler<SyncBookPayload>(
         directory = "books",
         objectType = SyncObjectType.Book,
         objectId = { it.bookSyncId },
         version = BookSyncMerge::version,
         contentHash = SyncPayloadHash::book,
         mergesComponents = true,
-        localObjectPresent = bookshelfCoordinator::hasBook,
+        prepare = { locations = bookshelfCoordinator.localBookLocations() },
+        localObjectPresent = { bookshelfCoordinator.hasBookAt(it, locations[it]) },
         apply = bookshelfCoordinator::applyRemoteBook
     )
+}
 
 fun bookSyncDeletePullHandler(bookshelfCoordinator: BookshelfSyncCoordinator): SyncPullHandler =
     tombstoneHandler("tombstones/books", SyncObjectType.Book, bookshelfCoordinator::applyRemoteDelete)
@@ -118,12 +121,14 @@ private inline fun <reified T> entityHandler(
     crossinline version: (T) -> SyncVersion,
     crossinline contentHash: (T) -> String,
     mergesComponents: Boolean = false,
+    crossinline prepare: () -> Unit = {},
     crossinline localObjectPresent: (String) -> Boolean = { true },
     crossinline apply: (T) -> SyncApplyOutcome
 ): SyncPullHandler = object : SyncPullHandler {
+    override fun prepare() = prepare.invoke()
     override val mergesComponents = mergesComponents
     override val conflictGroup = objectType.takeIf { it == SyncObjectType.Book }
-    override val usesModifiedTimeMarker = !mergesComponents
+    override val usesModifiedTimeMarker = false
     override val directories: List<String> = listOf(directory)
 
     override fun identity(file: SyncRemoteFile): SyncIdentity? =
@@ -156,6 +161,7 @@ private fun tombstoneHandler(
     objectType: String,
     apply: (SyncTombstonePayload) -> SyncApplyOutcome
 ): SyncPullHandler = object : SyncPullHandler {
+    override val isTombstone = true
     override val directories: List<String> = listOf(directory)
     override val conflictGroup = objectType.takeIf { it == SyncObjectType.Book }
     override val usesModifiedTimeMarker: Boolean = false
@@ -194,6 +200,7 @@ private class SyncOrderPullHandler(
     private val rssSources: RssSourceSyncCoordinator,
     private val ruleSubs: RuleSubSyncCoordinator
 ) : SyncPullHandler {
+    override val usesModifiedTimeMarker = false
     override val directories: List<String> = listOf("order")
 
     override fun identity(file: SyncRemoteFile): SyncIdentity? = when (file.fileName()) {
