@@ -17,6 +17,9 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import splitties.init.appCtx
@@ -30,6 +33,12 @@ object SyncManager {
     private var retryDelayMillis = 5_000L
     private val mutableProgress = MutableStateFlow(SyncProgress())
     val progress = mutableProgress.asStateFlow()
+    private val bookshelfRefreshActive = MutableStateFlow(false)
+    val bookProgress = combine(progress, bookshelfRefreshActive) { state, refreshing ->
+        if (refreshing) emptyMap() else state.books
+    }.stateIn(syncScope, SharingStarted.Eagerly, emptyMap())
+
+    fun setBookshelfRefreshActive(active: Boolean) { bookshelfRefreshActive.value = active }
     private val progressTracker = SyncProgressTracker { mutableProgress.value = it }
     private val client by lazy { SelectedSyncRemoteStore { SyncSettings.target() } }
     private val repository by lazy {
@@ -81,7 +90,7 @@ object SyncManager {
                 if (state.running && state.elapsedMillis - lastReport >= 30_000) {
                     lastReport = state.elapsedMillis
                     AppLog.put("Sync v2 ${state.phase}: ${state.completed}/${state.total}, " +
-                        "downloaded=${state.downloaded}, cached=${state.reused}, elapsed=${state.elapsedMillis / 1000}s")
+                        "downloaded=${state.downloaded}, cached=${state.reused}, phaseMs=${state.phaseElapsedMillis}, elapsed=${state.elapsedMillis / 1000}s")
                 }
             }
         }
@@ -110,7 +119,7 @@ object SyncManager {
             }
             progressTracker.finish(result)
             AppLog.put("Sync v2 finished: uploaded=${result.uploaded}, downloaded=${result.downloaded}, " +
-                "pending=${result.pending}, failed=${result.failed}")
+                "pending=${result.pending}, failed=${result.failed}, phaseMs=${progressTracker.phaseTimings()}")
             // Retry real, persisted edits after connectivity returns; a pull itself creates no upload.
             if (result.failed == 0) {
                 retryJob?.cancel()

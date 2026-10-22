@@ -24,10 +24,14 @@ fun SyncProgress.displayText(context: Context): String {
             context.getString(R.string.sync_progress_reading, completed, total, downloaded, reused)
             else context.getString(R.string.sync_progress_reading_unknown, completed)
         SyncPhase.Applying -> context.getString(R.string.sync_progress_applying, completed)
+        SyncPhase.PreparingUpload -> context.getString(R.string.sync_progress_preparing_upload)
         SyncPhase.Uploading -> context.getString(R.string.sync_progress_uploading, completed, total, failed)
+        SyncPhase.Publishing -> context.getString(R.string.sync_progress_publishing)
+        SyncPhase.Confirming -> context.getString(R.string.sync_progress_confirming)
         SyncPhase.Complete -> context.getString(R.string.sync_progress_complete, downloaded, uploaded, reused, elapsedMillis / 1000.0)
         SyncPhase.Failed -> context.getString(R.string.sync_incomplete, errorMessage ?:
             if (pending > 0) context.getString(R.string.sync_pending_count, pending) else context.getString(R.string.unknown_error))
     }
-    return if (running) context.getString(R.string.sync_progress_elapsed, text, elapsedMillis / 1000) else text
+    return if (running) context.getString(R.string.sync_progress_elapsed, text,
+        phaseElapsedMillis / 1000.0, elapsedMillis / 1000.0) else text
 }

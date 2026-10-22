@@ -203,6 +203,7 @@ class MainViewModel(application: Application) : BaseViewModel(application) {
         bookshelfRefreshInProgress = true
         showBookshelfRefreshStatus(BookshelfRefreshStatus(true))
         withContext(Dispatchers.IO) {
+            SyncManager.setBookshelfRefreshActive(true)
             try {
                 val positions = displayedBooks.mapIndexed { index, book -> book.bookUrl to index }.toMap()
                 val catalogProgress = MutableStateFlow(BookshelfRefreshTask.Progress())
@@ -261,6 +262,7 @@ class MainViewModel(application: Application) : BaseViewModel(application) {
                 )
             } finally {
                 bookshelfRefreshInProgress = false
+                SyncManager.setBookshelfRefreshActive(false)
             }
         }
     }

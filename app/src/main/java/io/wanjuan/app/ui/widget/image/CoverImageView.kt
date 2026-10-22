@@ -56,7 +56,7 @@ import splitties.init.appCtx
  * 封面
  */
 @Suppress("unused")
-class CoverImageView @JvmOverloads constructor(
+open class CoverImageView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null
 ) : AppCompatImageView(context, attrs) {
@@ -332,7 +332,7 @@ class CoverImageView @JvmOverloads constructor(
         )
     }
 
-    fun load(
+    open fun load(
         book: Book,
         loadOnlyWifi: Boolean = false,
         fragment: Fragment? = null,
@@ -359,7 +359,7 @@ class CoverImageView @JvmOverloads constructor(
         )
     }
 
-    fun loadThumb(
+    open fun loadThumb(
         book: Book,
         loadOnlyWifi: Boolean = false,
         fragment: Fragment? = null,

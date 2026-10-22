@@ -7,7 +7,12 @@
     <string name="sync_progress_migration_applying">正在应用旧同步基线：%1$d/%2$d</string>
     <string name="sync_progress_migration_applying_unknown">正在合并旧同步数据：已处理 %1$d 项</string>
     <string name="sync_progress_reading_unknown">正在读取增量变更：已读取 %1$d 个日志块</string>
-    <string name="sync_progress_elapsed">%1$s · 已用 %2$d 秒</string>
+    <string name="sync_progress_elapsed">%1$s · 本阶段 %2$.1f 秒 · 总计 %3$.1f 秒</string>
+    <string name="sync_progress_preparing_upload">正在生成上传补丁…</string>
+    <string name="sync_progress_publishing">正在确认云端提交…</string>
+    <string name="sync_progress_confirming">正在确认本地同步状态…</string>
+    <string name="sync_cover_running">云端同步中</string>
+    <string name="sync_cover_failed">同步失败</string>
     <string name="sync_progress_title">同步进度</string>
     <string name="sync_progress_idle">尚未开始同步</string>
     <string name="sync_progress_connecting">正在连接同步服务器…</string>

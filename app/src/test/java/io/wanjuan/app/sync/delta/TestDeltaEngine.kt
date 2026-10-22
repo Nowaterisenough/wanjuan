@@ -61,6 +61,21 @@ class TestDeltaEngine {
         assertTrue(GSON.toJson(block).toByteArray().size < 10000)
     }
 
+    @Test fun bookFeedbackWaitsForCommitAndKeepsEditsMadeDuringUploadPending() = runBlocking {
+        val remote = Remote(); val local = Local()
+        val tracker = SyncProgressTracker().apply { begin() }
+        val engine = DeltaEngine(local, DeltaRemote(remote), "target", clock(100), progress = tracker)
+        local.values[id] = content()
+        remote.beforeCas = {
+            assertTrue(tracker.snapshot().books.getValue(id.objectId).fraction < 1f)
+            local.values[id] = content(tag = "second")
+        }
+        engine.flush()
+        assertTrue(id.objectId in tracker.snapshot().books)
+        engine.flush()
+        assertTrue(tracker.snapshot().books.isEmpty())
+    }
+
     @Test fun readingAndCheckTimestampsAreNotEdits() {
         assertEquals(content(check = 100, read = 100), content(check = 900, read = 900))
         assertNotEquals(content(chapter = 1), content(chapter = 2))

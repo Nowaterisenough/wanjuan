@@ -28,7 +28,7 @@
             android:layout_height="wrap_content"
             android:scrollbars="none">
 
-            <io.wanjuan.app.ui.widget.image.CoverImageView
+            <io.wanjuan.app.ui.widget.image.BookshelfCoverImageView
                 android:id="@+id/iv_cover"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

@@ -7,6 +7,26 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class TestSyncProgress {
+    @Test fun phaseTimingAndBookFailuresAreIndependentOfOverallElapsedTime() {
+        val tracker = SyncProgressTracker()
+        tracker.begin()
+        tracker.pendingBooks(setOf("book"))
+        tracker.phase(SyncPhase.Uploading)
+        Thread.sleep(20)
+        tracker.tick()
+        val uploading = tracker.snapshot()
+        tracker.phase(SyncPhase.Publishing)
+        assertTrue(tracker.snapshot().phaseElapsedMillis < uploading.phaseElapsedMillis)
+        assertTrue(tracker.phaseTimings().getValue(SyncPhase.Uploading) >= 20)
+        tracker.booksStage(listOf("book"), 0.65f)
+        tracker.finish(SyncResult(failed = 1, pending = 1))
+        assertTrue(tracker.snapshot().books.getValue("book").failed)
+        tracker.begin()
+        tracker.booksStage(listOf("book"), 0.12f)
+        assertFalse(tracker.snapshot().books.getValue("book").failed)
+        tracker.pendingBooks(emptySet())
+        assertTrue(tracker.snapshot().books.isEmpty())
+    }
     @Test
     fun migrationProgressAndHeartbeatDoNotPretendToBeAnIndexScan() {
         val tracker = SyncProgressTracker()

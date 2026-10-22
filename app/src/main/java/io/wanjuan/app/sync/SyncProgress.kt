@@ -5,8 +5,10 @@ import io.wanjuan.app.sync.model.SyncResult
 enum class SyncPhase {
     Idle, Connecting, Capturing, CheckingIndex, CheckingCursor,
     MigratingPreparing, MigratingIndex, MigratingReading, MigratingApplying,
-    ReadingChanges, Applying, Uploading, Complete, Failed
+    ReadingChanges, Applying, PreparingUpload, Uploading, Publishing, Confirming, Complete, Failed
 }
+
+data class BookSyncProgress(val fraction: Float = 0f, val failed: Boolean = false)
 
 data class SyncProgress(
     val phase: SyncPhase = SyncPhase.Idle,
@@ -18,7 +20,9 @@ data class SyncProgress(
     val failed: Int = 0,
     val pending: Int = 0,
     val elapsedMillis: Long = 0,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val phaseElapsedMillis: Long = 0,
+    val books: Map<String, BookSyncProgress> = emptyMap()
 ) {
     val running: Boolean get() = phase != SyncPhase.Idle && phase != SyncPhase.Complete && phase != SyncPhase.Failed
 }
@@ -29,8 +33,38 @@ class SyncProgressTracker(private val publish: (SyncProgress) -> Unit = {}) {
     private var applyCompleted = 0
     private var readTotal = 0
     private var startedAt = 0L
+    private var phaseStartedAt = 0L
+    private val phaseMillis = linkedMapOf<SyncPhase, Long>()
 
     private fun elapsed() = if (startedAt == 0L) 0L else (System.nanoTime() - startedAt) / 1_000_000L
+
+    private fun emit(next: SyncProgress) {
+        val now = elapsed()
+        if (next.phase != state.phase) {
+            if (state.running) phaseMillis[state.phase] = (phaseMillis[state.phase] ?: 0) + now - phaseStartedAt
+            phaseStartedAt = now
+        }
+        state = next.copy(elapsedMillis = now, phaseElapsedMillis = now - phaseStartedAt)
+        publish(state)
+    }
+
+    @Synchronized
+    fun phaseTimings(): Map<SyncPhase, Long> = phaseMillis.toMutableMap().apply {
+        if (state.running) put(state.phase, (get(state.phase) ?: 0) + elapsed() - phaseStartedAt)
+    }
+
+    @Synchronized
+    fun pendingBooks(ids: Set<String>) {
+        val books = ids.associateWith { state.books[it] ?: BookSyncProgress() }
+        if (books != state.books) emit(state.copy(books = books))
+    }
+
+    @Synchronized
+    fun booksStage(ids: Collection<String>, fraction: Float) {
+        val books = state.books.toMutableMap()
+        ids.forEach { if (it in books) books[it] = BookSyncProgress(fraction.coerceIn(0f, 0.95f)) }
+        emit(state.copy(books = books))
+    }
 
     @Synchronized
     fun begin() {
@@ -38,14 +72,15 @@ class SyncProgressTracker(private val publish: (SyncProgress) -> Unit = {}) {
         applyCompleted = 0
         readTotal = 0
         startedAt = System.nanoTime()
-        state = SyncProgress(SyncPhase.Connecting)
+        phaseStartedAt = 0
+        phaseMillis.clear()
+        state = SyncProgress(SyncPhase.Connecting, books = state.books)
         publish(state)
     }
 
     @Synchronized
     fun phase(phase: SyncPhase, completed: Int = 0, total: Int = 0) {
-        state = state.copy(phase = phase, completed = completed, total = total, elapsedMillis = elapsed())
-        publish(state)
+        emit(state.copy(phase = phase, completed = completed, total = total))
     }
 
     @Synchronized
@@ -54,8 +89,7 @@ class SyncProgressTracker(private val publish: (SyncProgress) -> Unit = {}) {
     @Synchronized
     fun tick() {
         if (!state.running) return
-        state = state.copy(elapsedMillis = elapsed())
-        publish(state)
+        emit(state)
     }
 
     @Synchronized
@@ -66,8 +100,7 @@ class SyncProgressTracker(private val publish: (SyncProgress) -> Unit = {}) {
             SyncPhase.Applying -> SyncPhase.MigratingApplying
             else -> SyncPhase.MigratingPreparing
         }
-        state = next.copy(phase = phase, elapsedMillis = elapsed())
-        publish(state)
+        emit(next.copy(phase = phase, books = state.books))
     }
 
     @Synchronized
@@ -82,11 +115,9 @@ class SyncProgressTracker(private val publish: (SyncProgress) -> Unit = {}) {
     @Synchronized
     fun read(fromCache: Boolean, downloaded: Boolean = !fromCache) {
         readCompleted++
-        state = state.copy(phase = SyncPhase.ReadingChanges, completed = readCompleted, total = readTotal,
-            elapsedMillis = elapsed(),
+        emit(state.copy(phase = SyncPhase.ReadingChanges, completed = readCompleted, total = readTotal,
             downloaded = state.downloaded + if (downloaded) 1 else 0,
-            reused = state.reused + if (fromCache) 1 else 0)
-        publish(state)
+            reused = state.reused + if (fromCache) 1 else 0))
     }
 
     @Synchronized
@@ -96,18 +127,16 @@ class SyncProgressTracker(private val publish: (SyncProgress) -> Unit = {}) {
     }
 
     @Synchronized
-    fun upload(completed: Int, total: Int, uploaded: Int, failed: Int) {
-        state = state.copy(phase = SyncPhase.Uploading, completed = completed, total = total,
-            elapsedMillis = elapsed(),
-            uploaded = uploaded, failed = failed)
-        publish(state)
+    fun upload(completed: Int, total: Int, uploaded: Int, failed: Int, phase: SyncPhase = SyncPhase.Uploading) {
+        emit(state.copy(phase = phase, completed = completed, total = total,
+            uploaded = uploaded, failed = failed))
     }
 
     @Synchronized
     fun finish(result: SyncResult) {
-        state = state.copy(phase = if (result.isSuccess) SyncPhase.Complete else SyncPhase.Failed,
+        emit(state.copy(phase = if (result.isSuccess) SyncPhase.Complete else SyncPhase.Failed,
             uploaded = result.uploaded, failed = result.failed, pending = result.pending,
-            elapsedMillis = elapsed(), errorMessage = result.errorMessage)
-        publish(state)
+            books = if (result.failed > 0) state.books.mapValues { it.value.copy(failed = true) } else state.books,
+            errorMessage = result.errorMessage))
     }
 }

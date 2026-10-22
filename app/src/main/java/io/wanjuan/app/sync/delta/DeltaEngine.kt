@@ -51,6 +51,7 @@ class DeltaEngine(
             }
             local.consumeLegacyQueue()
         }
+        progress.pendingBooks(local.pendingBookIds(target))
         return pendingCount()
     }
 
@@ -112,6 +113,7 @@ class DeltaEngine(
             if (!hasPending()) return result.toResult().copy(pending = 0)
             val cursor = local.cursor(target)
             check(head.timestamp == cursor.timestamp && head.block == cursor.block) { "Pulled sync head does not match local cursor" }
+            progress.phase(SyncPhase.PreparingUpload)
             var bytes = 0L
             val queued = arrayListOf<SyncDeltaState>()
             val changes = arrayListOf<DeltaChange>()
@@ -127,6 +129,8 @@ class DeltaEngine(
                 changes += change
             }
             if (queued.isEmpty()) return result.toResult().copy(pending = 0)
+            val bookIds = changes.filter { it.type == SyncObjectType.Book }.map { it.objectId }
+            progress.booksStage(bookIds, 0.12f)
             val bootstrap = if (head.timestamp == 0L) local.states(target).mapNotNull { state ->
                 state.remoteJson?.let { DeltaChange("bootstrap:${state.objectType}:${state.objectId}",
                     state.objectType, state.objectId, create = true, fields = DeltaCodec.fields(state.objectType, null, it)) }
@@ -156,14 +160,18 @@ class DeltaEngine(
                 check(published.timestamp < Long.MAX_VALUE) { "Sync timestamp overflow" }
                 val block = DeltaBlock(maxOf(clock.now(), published.timestamp + 1), published, batch)
                 published = DeltaHead(block.timestamp, remote.writeBlock(block))
+                progress.booksStage(batch.filter { it.type == SyncObjectType.Book }.map { it.objectId }, 0.65f)
                 published to block
             }
+            progress.phase(SyncPhase.Publishing)
             if (remote.publish(revision, published)) {
+                progress.phase(SyncPhase.Confirming)
+                progress.booksStage(bookIds, 0.9f)
                 prepared.forEach { (position, block) -> applyBlock(position, block, result) }
                 recoverMissingBooks()
                 result.uploaded += changes.size
                 result.pending = pendingCount()
-                progress.upload(changes.size, changes.size, result.uploaded, result.failed)
+                progress.upload(changes.size, changes.size, result.uploaded, result.failed, SyncPhase.Confirming)
                 return result.toResult()
             }
         }
@@ -236,6 +244,7 @@ class DeltaEngine(
             observeApplied()
             local.saveCursor(local.cursor(target).copy(timestamp = head.timestamp, block = head.block, legacyImported = true))
         }
+        progress.pendingBooks(local.pendingBookIds(target))
     }
 
     private fun applyStates(states: List<SyncDeltaState>, timestamp: Long, result: SyncResult.Mutable,
