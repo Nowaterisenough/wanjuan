@@ -12,6 +12,7 @@ import io.wanjuan.app.sync.model.SyncObjectType
 import io.wanjuan.app.sync.remote.CachingSyncRemoteStore
 import io.wanjuan.app.sync.remote.FileSyncRemoteContentCache
 import io.wanjuan.app.sync.remote.WebDavSyncClient
+import io.wanjuan.app.ui.main.bookshelf.displayText
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.Test
@@ -79,6 +80,17 @@ class TestIncrementalWebDavInstrumented {
             assertEquals(setOf(SyncObjectType.Book, SyncObjectType.BookshelfOrder), snapshots.map { it.objectType }.toSet())
             assertEquals(0, sourceQueries.get())
         } finally { db.close() }
+    }
+
+    @Test
+    fun progressPresentationContainsStageAndActualTransferCounts() {
+        val reading = SyncProgress(SyncPhase.ReadingChanges, completed = 20, total = 500, downloaded = 1, reused = 19)
+            .displayText(context)
+        assertTrue(reading.contains("20/500"))
+        assertTrue(reading.contains("1"))
+        assertTrue(reading.contains("19"))
+        val uploading = SyncProgress(SyncPhase.Uploading, completed = 2, total = 3).displayText(context)
+        assertTrue(uploading.contains("2/3"))
     }
 
     private class DavServer : NanoHTTPD("127.0.0.1", 0) {

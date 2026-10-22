@@ -29,6 +29,8 @@ import io.wanjuan.app.service.CacheBookService
 import io.wanjuan.app.sync.SyncManager
 import io.wanjuan.app.sync.SingleFlightSync
 import io.wanjuan.app.ui.main.bookshelf.BookshelfRefreshTask
+import io.wanjuan.app.ui.main.bookshelf.displayText
+import io.wanjuan.app.sync.SyncPhase
 import io.wanjuan.app.utils.onEachParallel
 import io.wanjuan.app.utils.postEvent
 import kotlinx.coroutines.Job
@@ -49,6 +51,9 @@ import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
 import java.util.LinkedList
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
@@ -70,6 +75,17 @@ class MainViewModel(application: Application) : BaseViewModel(application) {
     private var dismissRefreshStatusJob: Job? = null
     private var bookshelfRefreshAction: suspend () -> Unit = {}
     private val bookshelfRefreshFlight = SingleFlightSync(viewModelScope) { bookshelfRefreshAction() }
+    @Volatile private var bookshelfRefreshInProgress = false
+
+    init {
+        viewModelScope.launch {
+            SyncManager.progress.collect { progress ->
+                if (!bookshelfRefreshInProgress && progress.phase != SyncPhase.Idle) {
+                    showBookshelfRefreshStatus(BookshelfRefreshStatus(progress.running, progress.displayText(context)))
+                }
+            }
+        }
+    }
     private val eventListenerSource = ConcurrentHashMap<BookSource, Boolean>()
     val onUpBooksLiveData = MutableLiveData<Int>()
     private var upTocJob: Job? = null
@@ -184,11 +200,26 @@ class MainViewModel(application: Application) : BaseViewModel(application) {
         updateCatalog: Boolean
     ) {
         LocalConfig.bookshelfLastRefreshTime = System.currentTimeMillis()
+        bookshelfRefreshInProgress = true
         showBookshelfRefreshStatus(BookshelfRefreshStatus(true))
         withContext(Dispatchers.IO) {
             try {
                 val positions = displayedBooks.mapIndexed { index, book -> book.bookUrl to index }.toMap()
-                val result = BookshelfRefreshTask(
+                val catalogProgress = MutableStateFlow(BookshelfRefreshTask.Progress())
+                val progressJob = launch {
+                    catalogProgress.combine(SyncManager.progress) { catalog, cloud ->
+                        val cloudText = if (cloud.running) cloud.displayText(context)
+                            else context.getString(R.string.sync_progress_index)
+                        when {
+                            catalog.uploading -> if (cloud.running) cloudText else context.getString(R.string.bookshelf_sync_uploading)
+                            catalog.syncing && catalog.catalogCompleted < catalog.catalogTotal ->
+                                context.getString(R.string.sync_progress_parallel, cloudText, catalog.catalogCompleted, catalog.catalogTotal)
+                            catalog.syncing -> cloudText
+                            else -> context.getString(R.string.bookshelf_sync_catalog, catalog.catalogCompleted, catalog.catalogTotal)
+                        }
+                    }.collect { message -> showBookshelfRefreshStatus(BookshelfRefreshStatus(true, message)) }
+                }
+                val result = try { BookshelfRefreshTask(
                     loadBooks = {
                         if (updateCatalog) appDb.bookDao.flowByGroup(groupId).first()
                             .filter { !it.isLocal && it.canUpdate && (tag.isBlank() || BookTagHelper.has(it.customTag, tag)) }
@@ -199,16 +230,7 @@ class MainViewModel(application: Application) : BaseViewModel(application) {
                     queueCatalogs = { addToWaitUp(it, onlyUpdateRead, false, true) },
                     syncCloud = SyncManager::syncAwait,
                     flushChanges = SyncManager::flushPending
-                ).run { progress ->
-                    val message = when {
-                        progress.uploading -> context.getString(R.string.bookshelf_sync_uploading)
-                        progress.syncing && progress.catalogCompleted < progress.catalogTotal ->
-                            context.getString(R.string.bookshelf_sync_parallel, progress.catalogCompleted, progress.catalogTotal)
-                        progress.syncing -> context.getString(R.string.bookshelf_sync_pulling)
-                        else -> context.getString(R.string.bookshelf_sync_catalog, progress.catalogCompleted, progress.catalogTotal)
-                    }
-                    showBookshelfRefreshStatus(BookshelfRefreshStatus(true, message))
-                }
+                ).run { catalogProgress.value = it } } finally { progressJob.cancelAndJoin() }
                 val syncFailure = when {
                     !result.upload.isSuccess -> result.upload
                     result.cloud.failed > 0 -> result.cloud
@@ -237,6 +259,8 @@ class MainViewModel(application: Application) : BaseViewModel(application) {
                     BookshelfRefreshStatus(false, context.getString(R.string.bookshelf_sync_failed, e.localizedMessage.orEmpty())),
                     dismissAfterMillis = 5_000L
                 )
+            } finally {
+                bookshelfRefreshInProgress = false
             }
         }
     }

@@ -9,6 +9,9 @@ import android.view.MenuItem
 import android.view.View
 import androidx.core.view.MenuProvider
 import androidx.fragment.app.activityViewModels
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.preference.EditTextPreference
 import androidx.preference.Preference
 import io.wanjuan.app.R
@@ -18,6 +21,8 @@ import io.wanjuan.app.lib.theme.primaryColor
 import io.wanjuan.app.sync.SyncManager
 import io.wanjuan.app.sync.remote.SyncSettings
 import io.wanjuan.app.ui.about.AppLogDialog
+import io.wanjuan.app.ui.main.bookshelf.displayText
+import kotlinx.coroutines.launch
 import io.wanjuan.app.utils.applyTint
 import io.wanjuan.app.utils.getPrefString
 import io.wanjuan.app.utils.setEdgeEffectColor
@@ -47,6 +52,14 @@ class SyncConfigFragment : PreferenceFragment(),
         listView.setEdgeEffectColor(primaryColor)
         activity?.addMenuProvider(this, viewLifecycleOwner)
         preferenceManager.sharedPreferences?.registerOnSharedPreferenceChangeListener(this)
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                SyncManager.progress.collect { progress ->
+                    findPreference<Preference>("sync_status")?.summary = progress.displayText(requireContext())
+                    findPreference<Preference>("sync_now")?.isEnabled = !progress.running
+                }
+            }
+        }
     }
 
     override fun onDestroyView() {

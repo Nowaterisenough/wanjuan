@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="sync_progress_title">同步进度</string>
+    <string name="sync_progress_idle">尚未开始同步</string>
+    <string name="sync_progress_connecting">正在连接同步服务器…</string>
+    <string name="sync_progress_capturing">正在整理本地变更…</string>
+    <string name="sync_progress_index">正在检查云端版本索引…</string>
+    <string name="sync_progress_index_counts">检查云端索引：%1$d/%2$d</string>
+    <string name="sync_progress_reading">核对增量：%1$d/%2$d · 下载 %3$d · 复用 %4$d</string>
+    <string name="sync_progress_applying">应用/核对云端对象：%1$d 项</string>
+    <string name="sync_progress_uploading">上传变更：%1$d/%2$d · 失败 %3$d</string>
+    <string name="sync_progress_complete">同步完成 · 下载 %1$d · 上传 %2$d · 复用 %3$d · %4$.1f 秒</string>
+    <string name="sync_progress_parallel">%1$s · 目录 %2$d/%3$d</string>
+</resources>

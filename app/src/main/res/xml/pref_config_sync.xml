@@ -74,6 +74,12 @@
     <io.wanjuan.app.lib.prefs.PreferenceCategory
         android:title="@string/sync_settings_title"
         app:iconSpaceReserved="false">
+        <io.wanjuan.app.lib.prefs.Preference
+            android:key="sync_status"
+            android:title="@string/sync_progress_title"
+            android:summary="@string/sync_progress_idle"
+            android:selectable="false"
+            app:iconSpaceReserved="false" />
         <io.wanjuan.app.lib.prefs.EditTextPreference
             android:key="webDavDeviceName"
             android:title="@string/webdav_device_name"
