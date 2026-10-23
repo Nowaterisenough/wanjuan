@@ -59,7 +59,10 @@ class SyncDeltaPayloadStore(private val dao: SyncDeltaDao) {
 
     fun save(state: SyncDeltaState) {
         val previous = dao.get(state.target, state.objectType, state.objectId)
-        fun store(value: String?) = SyncDeltaPayloadCodec.encode(value, dao::insertParts)
+        val encoded = hashMapOf<String, String>()
+        fun store(value: String?) = value?.let { encoded.getOrPut(it) {
+            requireNotNull(SyncDeltaPayloadCodec.encode(it, dao::insertParts))
+        } }
         dao.save(state.copy(remoteJson = store(state.remoteJson), observedJson = store(state.observedJson),
             pendingJson = store(state.pendingJson), inFlightChange = store(state.inFlightChange), inFlightValue = store(state.inFlightValue)))
         previous?.values()?.mapNotNull(SyncDeltaPayloadCodec::id)?.distinct()?.forEach { id ->

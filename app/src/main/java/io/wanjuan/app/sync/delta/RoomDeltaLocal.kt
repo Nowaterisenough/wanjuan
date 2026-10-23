@@ -7,6 +7,10 @@ import io.wanjuan.app.sync.local.SyncDeltaCursor
 import io.wanjuan.app.sync.local.SyncDeltaState
 import io.wanjuan.app.sync.local.SyncDeltaPayloadStore
 import io.wanjuan.app.sync.model.*
+import io.wanjuan.app.sync.mapper.BookGroupSyncMapper
+import io.wanjuan.app.sync.mapper.BookSourceSyncMapper
+import io.wanjuan.app.sync.mapper.RssSourceSyncMapper
+import io.wanjuan.app.sync.mapper.RuleSubSyncMapper
 import io.wanjuan.app.sync.remote.SyncRemoteFile
 import io.wanjuan.app.utils.GSON
 
@@ -70,8 +74,27 @@ class RoomDeltaLocal(
             ?: return@remoteApply SyncApplyOutcome.Skipped
         val payload = if (json == null) GSON.toJson(SyncTombstonePayload(identity.objectType, identity.objectId, timestamp, "delta"))
             else DeltaCodec.preserveLocalFields(identity.objectType, DeltaCodec.payload(identity.objectType, json, timestamp),
-                snapshots.currentSnapshots(setOf(identity.objectType)).firstOrNull { it.objectId == identity.objectId }?.payloadJson)
+                localPayload(identity, json))
         handler.applyRemote(handler.parse(file, payload))
+    }
+
+    private fun localPayload(identity: SyncIdentity, json: String): String? {
+        val payload: Any? = when (identity.objectType) {
+            SyncObjectType.BookGroup -> db.bookGroupDao.getBySyncId(identity.objectId)?.let {
+                BookGroupSyncMapper.toPayload(it, SyncVersion(0, ""))
+            }
+            SyncObjectType.BookSource -> GSON.fromJson(json, SyncBookSourcePayload::class.java).let { remote ->
+                db.bookSourceDao.getBookSource(remote.bookSourceUrl)?.let { BookSourceSyncMapper.toPayload(it, "", 0) }
+            }
+            SyncObjectType.RssSource -> GSON.fromJson(json, SyncRssSourcePayload::class.java).let { remote ->
+                db.rssSourceDao.getByKey(remote.sourceUrl)?.let { RssSourceSyncMapper.toPayload(it, SyncVersion(0, "")) }
+            }
+            SyncObjectType.RuleSub -> GSON.fromJson(json, SyncRuleSubPayload::class.java).let { remote ->
+                db.ruleSubDao.findByTypeAndUrl(remote.type, remote.url)?.let { RuleSubSyncMapper.toPayload(it, "", 0) }
+            }
+            else -> null
+        }
+        return payload?.let(GSON::toJson)
     }
 }
 

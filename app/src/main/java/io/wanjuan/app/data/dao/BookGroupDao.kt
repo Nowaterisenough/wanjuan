@@ -17,6 +17,9 @@ interface BookGroupDao {
     @Query("select * from book_groups where groupId = :id")
     fun getByID(id: Long): BookGroup?
 
+    @Query("select * from book_groups where syncId = :syncId limit 1")
+    fun getBySyncId(syncId: String): BookGroup?
+
     @Query("select * from book_groups where groupName = :groupName")
     fun getByName(groupName: String): BookGroup?
 
