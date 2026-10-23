@@ -1,77 +1,30 @@
 package io.wanjuan.app.help.update
 
 import androidx.annotation.Keep
-import io.wanjuan.app.BuildConfig
 import io.wanjuan.app.constant.AppConst
 import io.wanjuan.app.exception.NoStackTraceException
 import io.wanjuan.app.help.coroutine.Coroutine
-import io.wanjuan.app.help.http.newCallResponse
-import io.wanjuan.app.help.http.okHttpClient
-import io.wanjuan.app.help.http.text
-import io.wanjuan.app.utils.GSON
-import io.wanjuan.app.utils.fromJsonObject
 import kotlinx.coroutines.CoroutineScope
 
 @Keep
-@Suppress("unused")
 object AppUpdateGitHub : AppUpdate.AppUpdateInterface {
+    private val releaseClient by lazy { GitHubReleaseClient() }
 
-    private suspend fun getLatestRelease(): List<AppReleaseInfo> {
-        val releaseUrl = "https://api.github.com/repos/${BuildConfig.GITHUB_REPO}/releases/latest"
-        val res = okHttpClient.newCallResponse {
-            url(releaseUrl)
-        }
-        if (!res.isSuccessful) {
-            throw NoStackTraceException("获取新版本出错(${res.code})")
-        }
-        val body = res.body.text()
-        if (body.isBlank()) {
-            throw NoStackTraceException("获取新版本出错")
-        }
-        return GSON.fromJsonObject<GithubRelease>(body)
-            .getOrElse {
-                throw NoStackTraceException("获取新版本出错 " + it.localizedMessage)
-            }
-            .gitReleaseToAppReleaseInfo()
-            .filter { it.appVariant == AppVariant.OFFICIAL }
-            .sortedByDescending { it.createdAt }
+    override fun check(scope: CoroutineScope): Coroutine<AppUpdate.UpdateInfo?> = Coroutine.async(scope) {
+        selectUpdate(releaseClient.fetchLatest(), AppConst.appInfo.versionName)
     }
 
-    override fun check(scope: CoroutineScope): Coroutine<AppUpdate.UpdateInfo> {
-        return Coroutine.async(scope) {
-            getLatestRelease()
-                .firstOrNull { it.versionName > AppConst.appInfo.versionName }
-                ?.let {
-                    return@async AppUpdate.UpdateInfo(
-                        it.versionName,
-                        it.note,
-                        it.downloadUrl,
-                        it.name
-                    )
-                }
-                ?: throw NoStackTraceException("已是最新版本")
-        }.timeout(10000)
+    fun getChangeLog(scope: CoroutineScope): Coroutine<String> = Coroutine.async(scope) {
+        releaseClient.fetchLatest().body.orEmpty()
     }
 
-    fun getChangeLog(scope: CoroutineScope): Coroutine<String> {
-        return Coroutine.async(scope) {
-            val releaseUrl = "https://api.github.com/repos/${BuildConfig.GITHUB_REPO}/releases/latest"
-            val res = okHttpClient.newCallResponse {
-                url(releaseUrl)
-            }
-            if (!res.isSuccessful) {
-                throw NoStackTraceException("获取更新日志失败(${res.code})")
-            }
-            val body = res.body.text()
-            if (body.isBlank()) {
-                throw NoStackTraceException("获取更新日志失败")
-            }
-            GSON.fromJsonObject<GithubRelease>(body)
-                .getOrElse {
-                    throw NoStackTraceException("解析更新日志失败: " + it.localizedMessage)
-                }
-                .body
-                .orEmpty()
-        }.timeout(10000)
+    internal fun selectUpdate(release: GithubRelease, currentVersion: String): AppUpdate.UpdateInfo? {
+        if (release.isPreRelease) throw NoStackTraceException("尚未发布可用的正式版本")
+        val latest = release.gitReleaseToAppReleaseInfo()
+            .filter { it.appVariant == AppVariant.OFFICIAL && it.versionName.isNotBlank() }
+            .maxWithOrNull { left, right -> ReleaseVersion.compare(left.versionName, right.versionName) }
+            ?: throw NoStackTraceException("最新发布中没有可识别的 APK 附件，请到发布页面检查")
+        if (ReleaseVersion.compare(latest.versionName, currentVersion) <= 0) return null
+        return AppUpdate.UpdateInfo(latest.versionName, latest.note, latest.downloadUrl, latest.name)
     }
 }

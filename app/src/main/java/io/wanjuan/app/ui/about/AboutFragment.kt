@@ -95,6 +95,7 @@ class AboutFragment : PreferenceFragmentCompat() {
                     TextDialog(getString(R.string.update_log), changeLog, TextDialog.Mode.MD)
                 )
             }.onError {
+                AppLog.put("获取 GitHub 更新日志失败", it)
                 appCtx.toastOnUi("从 GitHub 获取失败，显示本地日志")
                 showMdFile(getString(R.string.update_log), "updateLog.md")
             }.onFinally {
@@ -109,8 +110,13 @@ class AboutFragment : PreferenceFragmentCompat() {
         waitDialog.show()
         AppUpdate.gitHubUpdate.check(lifecycleScope)
             .onSuccess {
-                showDialogFragment(UpdateDialog(it))
+                if (it == null) {
+                    appCtx.toastOnUi("已是最新版本")
+                } else {
+                    showDialogFragment(UpdateDialog(it))
+                }
             }.onError {
+                AppLog.put("检查 GitHub 更新失败", it)
                 appCtx.toastOnUi("${getString(R.string.check_update)}\n${it.localizedMessage}")
             }.onFinally {
                 waitDialog.dismiss()

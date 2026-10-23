@@ -170,3 +170,10 @@ cn.hutool.core.util.**{*;}
     public <init>(android.content.Context, android.util.AttributeSet);
     public <init>(android.content.Context, android.util.AttributeSet, int);
 }
+# Cronet discovers these providers by class name. Keep outside generated upstream rules.
+-keep class org.chromium.net.impl.HttpEngineNativeProvider {
+    public <init>(android.content.Context);
+}
+-keep class org.chromium.net.impl.JavaCronetProvider {
+    public <init>(android.content.Context);
+}

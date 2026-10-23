@@ -13,7 +13,7 @@ data class AppReleaseInfo(
     val downloadUrl: String,
     val assetUrl: String
 ) {
-    val versionName: String = name.split("_").getOrNull(2)?.removeSuffix(".apk") ?: ""
+    val versionName: String = ReleaseVersion.fromAssetName(name)
 }
 
 enum class AppVariant {
@@ -59,7 +59,8 @@ data class Asset(
     val url: String
 ) {
     val isValid: Boolean
-        get() = contentType == "application/vnd.android.package-archive" && state == "uploaded"
+        get() = name.endsWith(".apk", ignoreCase = true) && state == "uploaded" &&
+            contentType in setOf("application/vnd.android.package-archive", "application/octet-stream")
 
     fun assetToAppReleaseInfo(preRelease: Boolean, note: String): AppReleaseInfo {
         val instant = Instant.parse(createdAt)

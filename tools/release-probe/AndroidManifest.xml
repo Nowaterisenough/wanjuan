@@ -1,0 +1,11 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="io.wanjuan.app.releaseprobe"
+    android:versionCode="1"
+    android:versionName="1.0-release-probe">
+    <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="36" />
+    <application android:debuggable="false" android:label="Wanjuan release probe" />
+    <instrumentation
+        android:name=".ReleaseProbe"
+        android:targetPackage="io.wanjuan.app"
+        android:functionalTest="true" />
+</manifest>

@@ -3,6 +3,7 @@ package io.wanjuan.app.lib.cronet
 import android.annotation.SuppressLint
 import android.os.Build
 import androidx.annotation.Keep
+import io.wanjuan.app.help.config.AppConfig
 import io.wanjuan.app.help.http.CookieManager
 import io.wanjuan.app.help.http.CookieManager.cookieJarHeader
 import io.wanjuan.app.utils.printOnDebug
@@ -24,50 +25,31 @@ class CronetInterceptor(private val cookieJar: CookieJar) : Interceptor {
             throw IOException("Canceled")
         }
         val original: Request = chain.request()
-        //Cronet未初始化
-        if (!CronetLoader.install() || cronetEngine == null) {
-            return chain.proceed(original)
-        }
-        val cronetException: Exception
-        try {
-            val builder: Request.Builder = original.newBuilder()
-            //移除Keep-Alive,手动设置会导致400 BadRequest
-            builder.removeHeader("Keep-Alive")
-            builder.removeHeader("Accept-Encoding")
-
-            // https://github.com/gedoor/wanjuan/issues/5025#issuecomment-2851156500
-            if (!original.isHttps &&
-                original.header("User-Agent")?.startsWith("Mozilla", true) == true
-            ) {
-                val referer = original.header("Referer")
-                if (referer != null && referer.startsWith("https:", true)) {
-                    builder.header("Referer", "http" + referer.substring(5))
+        if (!AppConfig.isCronet) return chain.proceed(original)
+        return CronetSafety.request(
+            cronet = {
+                if (!CronetLoader.install() || cronetEngine == null) {
+                    null
+                } else {
+                    val builder = original.newBuilder()
+                        .removeHeader("Keep-Alive")
+                        .removeHeader("Accept-Encoding")
+                    if (!original.isHttps && original.header("User-Agent")?.startsWith("Mozilla", true) == true) {
+                        original.header("Referer")?.takeIf { it.startsWith("https:", true) }?.let {
+                            builder.header("Referer", "http" + it.substring(5))
+                        }
+                    }
+                    var request = builder.build()
+                    if (request.header(cookieJarHeader) != null) request = CookieManager.loadRequest(request)
+                    proceedWithCronet(request, chain.call(), chain.readTimeoutMillis())
                 }
-            }
-
-            var newReq = builder.build()
-
-            if (newReq.header(cookieJarHeader) != null) {
-                newReq = CookieManager.loadRequest(newReq)
-            }
-
-            return proceedWithCronet(newReq, chain.call(), chain.readTimeoutMillis())!!
-        } catch (e: Exception) {
-            cronetException = e
-            //不能抛出错误,抛出错误会导致应用崩溃
-            //遇到Cronet处理有问题时的情况，如证书过期等等，回退到okhttp处理
-            if (!e.message.toString().contains("ERR_CERT_", true)
-                && !e.message.toString().contains("ERR_SSL_", true)
-            ) {
-                e.printOnDebug()
-            }
-        }
-        try {
-            return chain.proceed(original)
-        } catch (e: Exception) {
-            e.addSuppressed(cronetException)
-            throw e
-        }
+            },
+            fallback = {
+                if (chain.call().isCanceled()) throw IOException("Canceled")
+                chain.proceed(original)
+            },
+            onFailure = { it.printOnDebug() }
+        )
     }
 
     @SuppressLint("ObsoleteSdkInt")

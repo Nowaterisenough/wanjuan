@@ -21,6 +21,7 @@ import io.wanjuan.app.databinding.DialogEditCodeBinding
 import io.wanjuan.app.databinding.DialogEditTextBinding
 import io.wanjuan.app.help.AppFreezeMonitor
 import io.wanjuan.app.help.DispatchersMonitor
+import io.wanjuan.app.help.http.Cronet
 import io.wanjuan.app.help.config.AppConfig
 import io.wanjuan.app.help.config.LocalConfig
 import io.wanjuan.app.lib.dialogs.alert
@@ -192,6 +193,8 @@ class OtherConfigFragment : PreferenceFragment(),
 
     override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences?, key: String?) {
         when (key) {
+            PreferKey.cronet -> if (AppConfig.isCronet) Cronet.preDownload()
+
             PreferKey.preDownloadNum -> {
                 upPreferenceSummary(key, AppConfig.preDownloadNum.toString())
             }

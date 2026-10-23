@@ -27,27 +27,19 @@ import splitties.init.appCtx
 internal const val BUFFER_SIZE = 32 * 1024
 
 val cronetEngine: ExperimentalCronetEngine? by lazy {
-    CronetLoader.preDownload()
-    disableCertificateVerify()
-    val builder = ExperimentalCronetEngine.Builder(appCtx).apply {
-        if (CronetLoader.install()) {
-            setLibraryLoader(CronetLoader)//设置自定义so库加载
+    CronetSafety.initialize({ AppLog.put("Cronet 初始化失败，改用 OkHttp", it) }) {
+        disableCertificateVerify()
+        val builder = ExperimentalCronetEngine.Builder(appCtx).apply {
+            if (CronetLoader.install()) setLibraryLoader(CronetLoader)
+            setStoragePath(appCtx.externalCache.absolutePath)
+            enableHttpCache(HTTP_CACHE_DISK, (1024 * 1024 * 50).toLong())
+            enableQuic(true)
+            enableHttp2(true)
+            enablePublicKeyPinningBypassForLocalTrustAnchors(true)
+            enableBrotli(true)
+            setExperimentalOptions(options)
         }
-        setStoragePath(appCtx.externalCache.absolutePath)//设置缓存路径
-        enableHttpCache(HTTP_CACHE_DISK, (1024 * 1024 * 50).toLong())//设置50M的磁盘缓存
-        enableQuic(true)//设置支持http/3
-        enableHttp2(true)  //设置支持http/2
-        enablePublicKeyPinningBypassForLocalTrustAnchors(true)
-        enableBrotli(true)//Brotli压缩
-        setExperimentalOptions(options)
-    }
-    try {
-        val engine = builder.build()
-        DebugLog.d("Cronet Version:", engine.versionString)
-        return@lazy engine
-    } catch (e: Throwable) {
-        AppLog.put("初始化cronetEngine出错", e)
-        return@lazy null
+        builder.build().also { DebugLog.d("Cronet Version:", it.versionString) }
     }
 }
 

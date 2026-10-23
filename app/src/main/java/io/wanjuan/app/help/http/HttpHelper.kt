@@ -105,13 +105,8 @@ val okHttpClient: OkHttpClient by lazy {
             cachedAddress ?: Dns.SYSTEM.lookup(hostname)
         }
     }
-    if (AppConfig.isCronet) {
-        if (Cronet.loader?.install() == true) {
-            Cronet.interceptor?.let {
-                builder.addInterceptor(it)
-            }
-        }
-    }
+    // The interceptor checks the current preference on each request, not at client creation.
+    Cronet.interceptor?.let { builder.addInterceptor(it) }
     builder.addInterceptor(DecompressInterceptor)
     builder.build().apply {
         val okHttpName =
