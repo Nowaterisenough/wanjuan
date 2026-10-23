@@ -193,7 +193,7 @@ class GitHubSyncClient(
     }
 
     override suspend fun uploadImmutableJson(relativePath: String, json: String) = writes.withLock {
-        require(relativePath.matches(Regex("delta-v2/(blocks|chunks)/[a-f0-9]{64}\\.json"))) {
+        require(relativePath.matches(Regex("delta-v2/(blocks|chunks|indexes)/[a-f0-9]{64}\\.json"))) {
             "Invalid immutable sync path"
         }
         repeat(3) {

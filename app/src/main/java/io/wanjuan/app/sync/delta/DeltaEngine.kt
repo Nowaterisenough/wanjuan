@@ -24,40 +24,47 @@ class DeltaEngine(
     fun hasPending(): Boolean = pendingCount() > 0
 
     fun capture(): Int {
-        local.transaction {
-            val current = local.snapshots()
-            val states = local.states(target).associateBy { it.identity() }
-            val deletions = local.deletions()
-            for (id in states.keys + current.keys + deletions) {
-                val previous = states[id] ?: SyncDeltaState(target, id.objectType, id.objectId)
-                val value = current[id]
-                if (value == previous.observedJson && id !in deletions) continue
-                if (value == null && !local.canDelete(id)) {
-                    val replaced = id.objectType == SyncObjectType.Book && previous.observedJson != null &&
-                        current.any { (other, json) -> other.objectType == SyncObjectType.Book && other != id &&
-                            DeltaCodec.sameBookTitle(previous.observedJson, json) }
-                    if (!replaced) continue
-                }
-                val explicitDelete = id in deletions && !(previous.pendingCreate && previous.remoteJson == null && previous.inFlightChange == null)
-                val same = previous.inFlightChange == null && !explicitDelete && (value == previous.remoteJson ||
-                    (previous.remoteJson == null && value != null && DeltaCodec.isEmptyOrder(id.objectType, value)))
-                local.save(previous.copy(
-                    observedJson = value,
-                    pendingId = if (same) null else UUID.randomUUID().toString(),
-                    pendingJson = if (same) null else value,
-                    pendingDelete = !same && value == null,
-                    pendingCreate = !same && value != null && ((previous.pendingId != null && previous.pendingCreate) || previous.observedJson == null)
-                ))
-            }
-            local.consumeLegacyQueue()
-        }
+        local.transaction { captureStates() }
         progress.pendingBooks(local.pendingBookIds(target))
         return pendingCount()
     }
 
+    private fun captureStates(): MutableMap<SyncIdentity, SyncDeltaState> {
+        val current = local.snapshots()
+        val states = local.states(target).associateBy { it.identity() }.toMutableMap()
+        val deletions = local.deletions()
+        for (id in states.keys + current.keys + deletions) {
+            val previous = states[id] ?: SyncDeltaState(target, id.objectType, id.objectId)
+            val value = current[id]
+            if (value == previous.observedJson && id !in deletions) continue
+            if (value == null && !local.canDelete(id)) {
+                val replaced = id.objectType == SyncObjectType.Book && previous.observedJson != null &&
+                    current.any { (other, json) -> other.objectType == SyncObjectType.Book && other != id &&
+                        DeltaCodec.sameBookTitle(previous.observedJson, json) }
+                if (!replaced) continue
+            }
+            val explicitDelete = id in deletions && !(previous.pendingCreate && previous.remoteJson == null && previous.inFlightChange == null)
+            val same = previous.inFlightChange == null && !explicitDelete && (value == previous.remoteJson ||
+                (previous.remoteJson == null && value != null && DeltaCodec.isEmptyOrder(id.objectType, value)))
+            val updated = previous.copy(
+                observedJson = value,
+                pendingId = if (same) null else UUID.randomUUID().toString(),
+                pendingJson = if (same) null else value,
+                pendingDelete = !same && value == null,
+                pendingCreate = !same && value != null && ((previous.pendingId != null && previous.pendingCreate) || previous.observedJson == null)
+            )
+            local.save(updated)
+            states[id] = updated
+        }
+        local.consumeLegacyQueue()
+        return states
+    }
+
     suspend fun pull(result: SyncResult.Mutable = SyncResult.Mutable()): SyncResult {
-        pullHead(result)
-        return result.toResult()
+        try {
+            pullHead(result)
+            return result.toResult()
+        } finally { remote.trimCache() }
     }
 
     private suspend fun pullHead(result: SyncResult.Mutable): Pair<SyncRemoteRead, DeltaHead> {
@@ -78,30 +85,36 @@ class DeltaEngine(
             return versionedHead
         }
         check(head.timestamp >= cursor.timestamp) { "Remote sync journal moved backwards" }
-        val blocks = arrayListOf<Pair<DeltaHead, DeltaBlock>>()
-        var next = head
-        while (next.timestamp > cursor.timestamp) {
-            currentCoroutineContext().ensureActive()
-            progress.phase(SyncPhase.ReadingChanges, blocks.size)
-            val block = remote.block(next)
-            blocks += next to block
-            next = block.previous
-            progress.read(fromCache = false)
-            result.downloaded++
+        val chain = remote.chain(head, DeltaHead(cursor.timestamp, cursor.block)) { value ->
+            progress.read(fromCache = value.reused)
+            if (!value.reused) result.downloaded++
         }
-        check(next.timestamp == cursor.timestamp && next.block == cursor.block) { "Remote sync journal does not match the saved cursor" }
-        blocks.asReversed().forEach { (position, block) ->
+        val batch = arrayListOf<Pair<DeltaHead, DeltaBlock>>()
+        var batchBytes = 0L
+        suspend fun applyBatch() {
+            if (batch.isEmpty()) return
             currentCoroutineContext().ensureActive()
-            applyBlock(position, block, result)
-            progress.applied()
+            applyBlocks(batch, result)
+            repeat(batch.size) { progress.applied() }
+            batch.clear()
+            batchBytes = 0
         }
+        chain.asReversed().forEach { position ->
+            val value = remote.readBlock(position)
+            if (batch.size >= 16 || (batch.isNotEmpty() && batchBytes + value.bytes > 2 * 1024 * 1024)) applyBatch()
+            batch += position to value.block
+            batchBytes += value.bytes
+        }
+        applyBatch()
         progress.phase(SyncPhase.Capturing)
         recoverMissingBooks()
         result.pending = pendingCount()
         return versionedHead
     }
 
-    suspend fun flush(): SyncResult {
+    suspend fun flush(): SyncResult = try { flushChanges() } finally { remote.trimCache() }
+
+    private suspend fun flushChanges(): SyncResult {
         val result = SyncResult.Mutable()
         progress.phase(SyncPhase.Capturing)
         if (!local.cursor(target).legacyImported) pull(result)
@@ -164,10 +177,10 @@ class DeltaEngine(
                 published to block
             }
             progress.phase(SyncPhase.Publishing)
-            if (remote.publish(revision, published)) {
+            if (remote.publish(revision, published, prepared)) {
                 progress.phase(SyncPhase.Confirming)
                 progress.booksStage(bookIds, 0.9f)
-                prepared.forEach { (position, block) -> applyBlock(position, block, result) }
+                prepared.chunked(16).forEach { applyBlocks(it, result) }
                 recoverMissingBooks()
                 result.uploaded += changes.size
                 result.pending = pendingCount()
@@ -200,49 +213,52 @@ class DeltaEngine(
         }
     }
 
-    private fun applyBlock(head: DeltaHead, block: DeltaBlock, result: SyncResult.Mutable) {
+    private fun applyBlocks(blocks: List<Pair<DeltaHead, DeltaBlock>>, result: SyncResult.Mutable) {
         local.transaction {
-            capture()
-            val states = local.states(target).associateBy { it.identity() }.toMutableMap()
-            val affected = linkedSetOf<SyncIdentity>()
-            block.changes.forEach { change ->
-                require(change.type in SyncObjectSelection.all && change.objectId.matches(Regex("[A-Za-z0-9_.-]+")) && change.id.isNotBlank()) { "Invalid delta identity" }
-                val id = SyncIdentity(change.type, change.objectId)
-                val old = states[id] ?: SyncDeltaState(target, id.objectType, id.objectId)
-                val flight = old.inFlightChange?.let { GSON.fromJson(it, DeltaChange::class.java) }
-                val cloud = when {
-                    change.delete -> null
-                    old.remoteJson == null && !change.create -> null // A stale edit must not resurrect a deleted object.
-                    else -> DeltaCodec.normalize(id.objectType, DeltaJson.apply(old.remoteJson?.let(DeltaJson::parse), change.fields).toString())
+            // Room serializes this bounded transaction against user edits. Capture once, replay
+            // every operation in order, then observe once; never collapse delete/re-add history.
+            val states = captureStates()
+            blocks.forEach { (head, block) ->
+                val affected = linkedSetOf<SyncIdentity>()
+                block.changes.forEach { change ->
+                    require(change.type in SyncObjectSelection.all && change.objectId.matches(Regex("[A-Za-z0-9_.-]+")) && change.id.isNotBlank()) { "Invalid delta identity" }
+                    val id = SyncIdentity(change.type, change.objectId)
+                    val old = states[id] ?: SyncDeltaState(target, id.objectType, id.objectId)
+                    val flight = old.inFlightChange?.let { GSON.fromJson(it, DeltaChange::class.java) }
+                    val cloud = when {
+                        change.delete -> null
+                        old.remoteJson == null && !change.create -> null // A stale edit must not resurrect a deleted object.
+                        else -> DeltaCodec.normalize(id.objectType, DeltaJson.apply(old.remoteJson?.let(DeltaJson::parse), change.fields).toString())
+                    }
+                    val acknowledged = old.pendingId == change.id
+                    val discardEdit = change.delete && old.pendingId != null && !old.pendingCreate && !old.pendingDelete
+                    var pendingId = old.pendingId?.takeUnless { acknowledged || discardEdit }
+                    val flightAcknowledged = flight?.id == change.id
+                    val remainingFlight = old.inFlightChange.takeUnless { flightAcknowledged || discardEdit }
+                    var desired = when {
+                        pendingId == null -> cloud
+                        old.pendingDelete -> null
+                        cloud == null && !old.pendingCreate -> null
+                        else -> DeltaCodec.rebase(id.objectType, old.remoteJson, requireNotNull(old.pendingJson), cloud)
+                    }
+                    if (pendingId != null && !old.pendingDelete && flight != null && old.pendingId != flight.id &&
+                        old.pendingJson != null && desired != null) {
+                        desired = DeltaCodec.rebase(id.objectType, old.inFlightValue, old.pendingJson, desired)
+                    }
+                    if (desired == cloud && remainingFlight == null) pendingId = null
+                    val updated = old.copy(remoteJson = cloud, pendingId = pendingId,
+                        pendingJson = desired.takeIf { pendingId != null },
+                        pendingDelete = pendingId != null && old.pendingDelete,
+                        pendingCreate = pendingId != null && old.pendingCreate && cloud == null,
+                        inFlightChange = remainingFlight, inFlightValue = old.inFlightValue.takeIf { remainingFlight != null })
+                    local.save(updated)
+                    states[id] = updated
+                    affected += id
                 }
-                val acknowledged = old.pendingId == change.id
-                val discardEdit = change.delete && old.pendingId != null && !old.pendingCreate && !old.pendingDelete
-                var pendingId = old.pendingId?.takeUnless { acknowledged || discardEdit }
-                val flightAcknowledged = flight?.id == change.id
-                val remainingFlight = old.inFlightChange.takeUnless { flightAcknowledged || discardEdit }
-                var desired = when {
-                    pendingId == null -> cloud
-                    old.pendingDelete -> null
-                    cloud == null && !old.pendingCreate -> null
-                    else -> DeltaCodec.rebase(id.objectType, old.remoteJson, requireNotNull(old.pendingJson), cloud)
-                }
-                if (pendingId != null && !old.pendingDelete && flight != null && old.pendingId != flight.id &&
-                    old.pendingJson != null && desired != null) {
-                    desired = DeltaCodec.rebase(id.objectType, old.inFlightValue, old.pendingJson, desired)
-                }
-                if (desired == cloud && remainingFlight == null) pendingId = null
-                val updated = old.copy(remoteJson = cloud, pendingId = pendingId,
-                    pendingJson = desired.takeIf { pendingId != null },
-                    pendingDelete = pendingId != null && old.pendingDelete,
-                    pendingCreate = pendingId != null && old.pendingCreate && cloud == null,
-                    inFlightChange = remainingFlight, inFlightValue = old.inFlightValue.takeIf { remainingFlight != null })
-                local.save(updated)
-                states[id] = updated
-                affected += id
+                applyStates(affected.map { states.getValue(it) }, block.timestamp, result)
+                local.saveCursor(local.cursor(target).copy(timestamp = head.timestamp, block = head.block, legacyImported = true))
             }
-            applyStates(affected.map { states.getValue(it) }, block.timestamp, result)
-            observeApplied()
-            local.saveCursor(local.cursor(target).copy(timestamp = head.timestamp, block = head.block, legacyImported = true))
+            observeApplied(states)
         }
         progress.pendingBooks(local.pendingBookIds(target))
     }
@@ -269,15 +285,13 @@ class DeltaEngine(
         }
     }
 
-    private fun observeApplied() {
+    private fun observeApplied(states: Map<SyncIdentity, SyncDeltaState> = local.states(target).associateBy { it.identity() }) {
         val current = local.snapshots()
-        val states = local.states(target)
-        states.forEach { state ->
+        states.values.forEach { state ->
             val observed = current[state.identity()]
             if (state.observedJson != observed) local.save(state.copy(observedJson = observed))
         }
-        val known = states.mapTo(hashSetOf()) { it.identity() }
-        current.filterKeys { it !in known }.forEach { (id, json) ->
+        current.filterKeys { it !in states }.forEach { (id, json) ->
             local.save(SyncDeltaState(target, id.objectType, id.objectId, observedJson = json))
         }
     }

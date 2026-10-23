@@ -12,6 +12,26 @@ import org.junit.Test
 import java.io.IOException
 
 class TestDeltaEngine {
+    @Test fun hundredBlocksAreAppliedInBoundedBatchesWithoutPerBlockFullScans() = runBlocking {
+        val remote = Remote(); val a = Local(); val ae = engine(a, remote)
+        repeat(100) { a.values[id] = content(tag = "tag-$it"); ae.flush() }
+        val b = Local().apply { saveCursor(SyncDeltaCursor("target", legacyImported = true)) }
+        engine(b, remote).pull()
+        assertEquals(a.values, b.values)
+        assertTrue("Full scans: ${b.snapshotReads}", b.snapshotReads <= 15)
+        assertEquals(0, engine(b, remote).flush().uploaded)
+    }
+
+    @Test fun missingIndexedBlockDoesNotAdvanceCursorOrApplyAnyChanges() = runBlocking {
+        val remote = Remote(); val a = Local(); val ae = engine(a, remote)
+        repeat(20) { a.values[id] = content(tag = "x".repeat(12000) + it); ae.flush() }
+        remote.objects.remove(remote.objects.keys.first { "/blocks/" in it })
+        val b = Local().apply { saveCursor(SyncDeltaCursor("target", legacyImported = true)) }
+        assertTrue(runCatching { engine(b, remote).pull() }.isFailure)
+        assertEquals(0L, b.cursor("target").timestamp)
+        assertTrue(b.values.isEmpty())
+    }
+
     private val id = SyncIdentity(SyncObjectType.Book, "book")
     private fun content(tag: String = "old", chapter: Int = 1, check: Long = 100, read: Long = 100): String =
         DeltaCodec.normalize(id.objectType, GSON.toJson(SyncBookPayload("book",
@@ -259,6 +279,7 @@ class TestDeltaEngine {
         private val states = linkedMapOf<Triple<String, String, String>, SyncDeltaState>()
         private val cursors = hashMapOf<String, SyncDeltaCursor>()
         var failApply = false
+        var snapshotReads = 0
         override fun transaction(action: () -> Unit) {
             val oldValues = values.toMap(); val oldStates = states.toMap(); val oldCursors = cursors.toMap()
             try { action() } catch (e: Exception) {
@@ -270,7 +291,7 @@ class TestDeltaEngine {
         override fun save(state: SyncDeltaState) { states[Triple(state.target, state.objectType, state.objectId)] = state }
         override fun cursor(target: String) = cursors[target] ?: SyncDeltaCursor(target)
         override fun saveCursor(cursor: SyncDeltaCursor) { cursors[cursor.target] = cursor }
-        override fun snapshots() = values.toMap()
+        override fun snapshots() = values.toMap().also { snapshotReads++ }
         override fun apply(identity: SyncIdentity, json: String?, timestamp: Long): SyncApplyOutcome {
             check(!failApply) { "Injected apply failure" }
             if (json == null) { values.remove(identity); return SyncApplyOutcome.Deleted }

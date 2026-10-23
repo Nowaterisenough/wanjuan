@@ -8,6 +8,8 @@ import io.wanjuan.app.data.AppDatabase
 import io.wanjuan.app.data.entities.Book
 import io.wanjuan.app.sync.delta.*
 import io.wanjuan.app.sync.remote.*
+import io.wanjuan.app.sync.model.SyncObjectType
+import io.wanjuan.app.utils.GSON
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import okhttp3.HttpUrl.Companion.toHttpUrl
@@ -21,6 +23,68 @@ import java.util.UUID
 /** Explicit opt-in only. The real credential stays on the host; a scoped gateway authenticates requests. */
 @RunWith(AndroidJUnit4::class)
 class TestLiveGitHubDeltaInstrumented {
+    @Test fun indexedSmallHistoryNeedsOneHeadReadInsteadOfTwentyBlockReads() = runBlocking {
+        val args = InstrumentationRegistry.getArguments()
+        assumeTrue("Read probe is opt-in", args.getString("liveReadProbe") == "true")
+        val apiBase = requireNotNull(args.getString("liveApiBase")).toHttpUrl()
+        require(apiBase.host == "10.0.2.2" || apiBase.host == "127.0.0.1")
+        val branch = requireNotNull(args.getString("liveBranch"))
+        val directory = requireNotNull(args.getString("liveTestDirectory"))
+        require(branch.startsWith("codex/sync-check-") && directory.startsWith("_sync_probe_"))
+        val config = GitHubSyncConfig(requireNotNull(args.getString("liveOwner")), requireNotNull(args.getString("liveRepo")),
+            requireNotNull(args.getString("liveGatewayKey")), branch, directory)
+        val client = GitHubSyncClient(config, apiBase = apiBase)
+        val cache = File(InstrumentationRegistry.getInstrumentation().targetContext.cacheDir, "live-read-${UUID.randomUUID()}")
+        val writer = Replica(client, cache, migrate = false)
+        val receiverClient = GitHubSyncClient(config, apiBase = apiBase)
+        val receiver = Replica(receiverClient, cache, migrate = false)
+        try {
+            withTimeout(300000) {
+                writer.engine.pull()
+                receiverClient.ensureDirs()
+                receiver.engine.pull()
+                val baseline = DeltaRemote(client).head().second
+                val runId = UUID.randomUUID().toString()
+                val book = Book(bookUrl = "diagnostic://$runId", origin = "diagnostic-source", name = "Read probe $runId")
+                writer.db.bookDao.insert(book)
+                assertEquals(0, writer.engine.flush().pending)
+                val remote = DeltaRemote(client)
+                val (revision, oldHead) = remote.head()
+                var head = oldHead
+                val prepared = (1..19).map { index ->
+                    val change = DeltaChange("read-$index", SyncObjectType.Book, SyncIds.bookId(book),
+                        fields = listOf(DeltaField(listOf("b", "h"), value = GSON.toJsonTree("read-$index"))))
+                    val block = DeltaBlock(head.timestamp + 1, head, listOf(change))
+                    head = DeltaHead(block.timestamp, remote.writeBlock(block))
+                    head to block
+                }
+                assertTrue(remote.publish(revision, head, prepared))
+                receiverClient.ensureDirs()
+                var started = System.nanoTime()
+                val result = receiver.engine.pull()
+                assertEquals(0, result.downloaded)
+                assertEquals("read-19", receiver.db.bookDao.getBook(book.bookUrl)!!.customTag)
+                report("Indexed 20-block pull and Room apply: elapsedMs=${(System.nanoTime() - started) / 1_000_000}")
+                started = System.nanoTime()
+                var cursor = head
+                var count = 0
+                while (cursor.timestamp > baseline.timestamp) {
+                    val json = requireNotNull(client.downloadJson(cursor.block))
+                    cursor = GSON.fromJson(json, DeltaBlock::class.java).previous
+                    count++
+                }
+                assertEquals(20, count)
+                assertEquals(baseline, cursor)
+                report("Legacy serial 20-block download only: elapsedMs=${(System.nanoTime() - started) / 1_000_000}")
+                assertEquals(0, receiver.engine.flush().uploaded)
+            }
+        } finally {
+            writer.db.close()
+            receiver.db.close()
+            cache.deleteRecursively()
+        }
+    }
+
     @Test fun dailySingleFieldUploadLatencyProbe() = runBlocking {
         val args = InstrumentationRegistry.getArguments()
         assumeTrue("Latency probe is opt-in", args.getString("liveLatency") == "true")
@@ -149,7 +213,8 @@ class TestLiveGitHubDeltaInstrumented {
         var migrationRuns = 0
         private val snapshots = RoomSyncSnapshotSource(db, clock, { "live-test" }, groups)
         private val local = RoomDeltaLocal(db, RoomSyncSnapshotSource(db, clock, { "live-test" }, groups, false), books, handlers)
-        val engine = DeltaEngine(local, DeltaRemote(remote), "live", clock, legacy = {
+        val engine = DeltaEngine(local, DeltaRemote(remote,
+            FileDeltaContentCache(File(cacheRoot, "journal-${UUID.randomUUID()}"))), "live", clock, legacy = {
             migrationRuns++
             if (!migrate) emptyMap() else LegacySyncImporter(
                 CachingSyncRemoteStore(remote, FileSyncRemoteContentCache(cacheRoot)), RoomSyncPullStore(db), handlers,

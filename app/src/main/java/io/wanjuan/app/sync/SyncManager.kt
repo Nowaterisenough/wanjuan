@@ -59,7 +59,8 @@ object SyncManager {
         RoomSyncSnapshotSource(appDb, SystemSyncClock, SyncDeviceStore::deviceId, groups, trackBookVersions = false),
         bookshelf, handlers) }
 
-    private fun engine(target: SyncRemoteTarget) = DeltaEngine(local, DeltaRemote(target.store), target.identity,
+    private fun engine(target: SyncRemoteTarget) = DeltaEngine(local, DeltaRemote(target.store,
+        FileDeltaContentCache(File(appCtx.cacheDir, "sync-delta/${target.identity}"))), target.identity,
         SystemSyncClock, legacy = {
             val cached = CachingSyncRemoteStore(target.store,
                 FileSyncRemoteContentCache(File(appCtx.cacheDir, "sync-objects/${target.identity}")))
