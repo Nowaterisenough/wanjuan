@@ -507,6 +507,12 @@ class ReadBookActivity : BaseReadBookActivity(),
      */
     override fun onCompatOptionsItemSelected(item: MenuItem): Boolean {
         when (item.itemId) {
+            R.id.menu_read_ai -> {
+                binding.readMenu.runMenuOut()
+                ReadAiActions.show(this) { question, webSearch, _ -> openReadingAi(question, webSearch) }
+                return true
+            }
+
             R.id.menu_change_source,
             R.id.menu_book_change_source -> {
                 binding.readMenu.runMenuOut()
@@ -972,34 +978,34 @@ class ReadBookActivity : BaseReadBookActivity(),
 
     private fun askAiBySelection() {
         val prompt = selectedText.trim()
-        if (prompt.isEmpty()) return
-        if (AppConfig.aiCurrentProvider?.baseUrl.isNullOrBlank() || AppConfig.aiCurrentModelConfig == null) {
-            toastOnUi(R.string.ai_missing_config)
+        if (prompt.isEmpty() || !ReadAiActions.checkConfig(this)) return
+        ReadAiActions.confirm(this, false) { openReadingAi("请解释这段选文：$prompt", false) }
+    }
+
+    private fun openReadingAi(question: String, webSearch: Boolean) {
+        val book = ReadBook.book ?: return
+        val textChapter = ReadBook.curTextChapter
+        val content = textChapter?.takeIf { it.isCompleted }?.getContent().orEmpty()
+        if (textChapter == null || content.isBlank()) {
+            toastOnUi(R.string.ai_read_content_missing)
             return
         }
-        if (!AppConfig.aiAssistantEnabled) {
-            toastOnUi(R.string.ai_not_enabled)
-            return
-        }
-        val book = ReadBook.book
-        val chapter = ReadBook.curTextChapter?.chapter
-        val anchor = lastTextMenuAnchor
-            ?: ReadAiFloatingPanel.Anchor(
-                centerX = binding.root.width / 2,
-                topY = binding.root.height / 3,
-                bottomY = binding.root.height / 2
-            )
         binding.readAiPanel.open(
             ReadAiFloatingPanel.ReadContext(
-                bookUrl = book?.bookUrl.orEmpty().ifBlank { book?.name.orEmpty() },
-                bookName = book?.name.orEmpty(),
-                author = book?.author.orEmpty(),
+                bookUrl = book.bookUrl,
+                bookName = book.name,
+                author = book.author,
                 sourceName = ReadBook.bookSource?.bookSourceName.orEmpty(),
-                chapterTitle = chapter?.title.orEmpty(),
-                chapterIndex = chapter?.index ?: ReadBook.durChapterIndex,
-                selectedText = prompt
+                chapterTitle = textChapter.chapter.title,
+                chapterIndex = textChapter.chapter.index,
+                selectedText = question,
+                chapterContent = content,
+                contentScope = "当前章节正文" + if (content.length > 60000) "（仅前 60000 字）" else "",
+                webSearch = webSearch
             ),
-            anchor = anchor
+            anchor = lastTextMenuAnchor ?: ReadAiFloatingPanel.Anchor(
+                binding.root.width / 2, binding.root.height / 5, binding.root.height / 4
+            )
         )
     }
 

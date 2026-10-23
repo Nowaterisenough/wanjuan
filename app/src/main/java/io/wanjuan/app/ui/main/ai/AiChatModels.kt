@@ -13,7 +13,8 @@ data class AiChatMessage(
     val kind: Kind? = Kind.TEXT,
     val statusName: String? = null,
     val statusStage: String? = null,
-    val statusSuccess: Boolean = true
+    val statusSuccess: Boolean = true,
+    @Transient val imageDataUrls: List<String>? = null
 ) {
     @Keep
     enum class Role {

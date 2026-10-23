@@ -37,11 +37,7 @@ object AiSettingsTool {
         SettingDef(PreferKey.defaultHomePage, "string", values = setOf("bookshelf", "explore", "rss", "my")),
         SettingDef(PreferKey.aiAssistantEnabled, "boolean"),
         SettingDef(PreferKey.aiShowToolSummary, "boolean"),
-        SettingDef(PreferKey.aiEnterToSend, "boolean"),
-        SettingDef(PreferKey.aiTavilyEnabled, "boolean"),
-        SettingDef(PreferKey.aiTavilyTopic, "string", values = setOf("general", "news", "finance")),
-        SettingDef(PreferKey.aiTavilySearchDepth, "string", values = setOf("basic", "advanced", "ultra-fast")),
-        SettingDef(PreferKey.aiTavilyMaxResults, "int", min = 1, max = 10)
+        SettingDef(PreferKey.aiEnterToSend, "boolean")
     )
     private val settingDefMap = settingDefs.associateBy { it.key }
 
@@ -265,11 +261,7 @@ object AiSettingsTool {
             "ai" -> listOf(
                 PreferKey.aiAssistantEnabled,
                 PreferKey.aiShowToolSummary,
-                PreferKey.aiEnterToSend,
-                PreferKey.aiTavilyEnabled,
-                PreferKey.aiTavilyTopic,
-                PreferKey.aiTavilySearchDepth,
-                PreferKey.aiTavilyMaxResults
+                PreferKey.aiEnterToSend
             )
 
             else -> listOf(

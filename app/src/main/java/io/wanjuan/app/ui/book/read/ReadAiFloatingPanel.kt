@@ -22,6 +22,8 @@ import androidx.core.view.doOnLayout
 import androidx.core.view.isGone
 import androidx.core.view.isVisible
 import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.lifecycleScope
+import io.wanjuan.app.help.ai.AiReadingImages
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import io.wanjuan.app.R
@@ -43,10 +45,8 @@ import io.noties.markwon.Markwon
 import io.noties.markwon.ext.tables.TablePlugin
 import io.noties.markwon.html.HtmlPlugin
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
@@ -67,7 +67,12 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
         val sourceName: String,
         val chapterTitle: String,
         val chapterIndex: Int,
-        val selectedText: String
+        val selectedText: String,
+        val chapterContent: String = "",
+        val contentScope: String = "",
+        val imageUrls: List<String> = emptyList(),
+        val sourceOrigin: String? = null,
+        val webSearch: Boolean = false
     )
 
     data class Anchor(
@@ -88,7 +93,10 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
     private var lifecycleOwner: LifecycleOwner? = null
     private var readContext: ReadContext? = null
     private var currentSessionId: String = ""
+    private var draftSession: ReadAiSession? = null
     private var answerJob: Job? = null
+    private var requestGeneration = 0
+    private var preparedImages: List<String>? = null
     private var showingHistory = false
     private var streamingAssistantContent: String? = null
     private var streamingAssistantMessageId: String? = null
@@ -130,8 +138,10 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
     }
 
     fun open(readContext: ReadContext, anchor: Anchor? = null) {
+        stopAnswer()
         this.readContext = readContext
-        currentSessionId = ensureSession(readContext, createNew = false).id
+        preparedImages = null
+        currentSessionId = ensureSession(readContext, createNew = true).id
         showingHistory = false
         showMessages()
         binding.tvContext.text = buildContextLabel(readContext)
@@ -163,13 +173,18 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
     }
 
     fun close() {
+        stopAnswer()
+        preparedImages = null
         updateSendButtonState()
         visibility = GONE
     }
 
     private fun stopAnswer() {
         val context = readContext
+        val partial = streamingAssistantContent
+        requestGeneration++
         answerJob?.cancel()
+        answerJob = null
         streamingAssistantContent = null
         streamingAssistantMessageId = null
         if (context != null) {
@@ -180,7 +195,9 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
             if (pending?.role == ReadAiMessage.Role.ASSISTANT &&
                 pending.content == resources.getString(R.string.ai_chat_thinking)
             ) {
-                replaceMessage(context, pending.id, resources.getString(R.string.ai_chat_cancelled))
+                replaceMessage(context, pending.id, listOfNotNull(
+                    partial?.takeIf { it.isNotBlank() }, resources.getString(R.string.ai_chat_cancelled)
+                ).joinToString("\n\n"))
             }
         }
         updateSendButtonState()
@@ -189,9 +206,7 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
 
     private fun startNewChat() {
         val context = readContext ?: return
-        answerJob?.cancel()
-        streamingAssistantContent = null
-        streamingAssistantMessageId = null
+        stopAnswer()
         currentSessionId = ensureSession(context, createNew = true).id
         showingHistory = false
         showMessages()
@@ -209,59 +224,66 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
 
     private fun ask(question: String) {
         val context = readContext ?: return
-        answerJob?.cancel()
+        val owner = lifecycleOwner ?: return
+        stopAnswer()
+        val generation = ++requestGeneration
         val requestSessionId = currentSessionId
         appendMessage(context, ReadAiMessage.Role.USER, question)
         val pendingAssistantId = appendMessage(
-            context,
-            ReadAiMessage.Role.ASSISTANT,
-            resources.getString(R.string.ai_chat_thinking)
+            context, ReadAiMessage.Role.ASSISTANT, resources.getString(R.string.ai_chat_thinking)
         )
         val requestMessages = buildRequestMessages(context, question)
         streamingAssistantMessageId = pendingAssistantId
-        answerJob = requestScope.launch {
-            post { updateSendButtonState() }
-            val result = runCatching {
-                withContext(IO) {
+        answerJob = owner.lifecycleScope.launch {
+            try {
+                val images = preparedImages ?: withContext(IO) {
+                    AiReadingImages.load(context.imageUrls, context.sourceOrigin)
+                }
+                preparedImages = images
+                val result = withContext(IO) {
+                    val messages = requestMessages.dropLast(1) + requestMessages.last().copy(imageDataUrls = images)
                     AiChatService.chatStream(
-                        messages = requestMessages,
+                        messages = messages,
                         onPartial = { partial ->
-                            if (partial.isNotBlank()) {
-                                post {
+                            post {
+                                if (generation == requestGeneration) {
                                     streamingAssistantContent = partial
                                     if (!showingHistory) renderCurrentSession()
                                 }
                             }
                         },
-                        includeStructuredBlocks = false
+                        includeStructuredBlocks = false,
+                        reading = true,
+                        webSearch = context.webSearch
                     )
                 }
-            }
-            post {
-                streamingAssistantContent = null
-                streamingAssistantMessageId = null
-                val content = result.fold(
-                    onSuccess = { it.ifBlank { resources.getString(R.string.ai_chat_cancelled) } },
-                    onFailure = { throwable ->
-                        if (throwable is CancellationException) {
-                            resources.getString(R.string.ai_chat_cancelled)
-                        } else {
-                            resources.getString(
-                                R.string.ai_request_failed,
-                                throwable.localizedMessage
-                                    ?: throwable.message
-                                    ?: resources.getString(R.string.ai_request_cancelled)
-                            )
-                        }
-                    }
-                )
-                replaceMessage(context, pendingAssistantId, content, requestSessionId)
-                answerJob = null
-                updateSendButtonState()
-                if (!showingHistory) renderCurrentSession()
+                if (generation == requestGeneration) {
+                    replaceMessage(context, pendingAssistantId, result, requestSessionId)
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (generation == requestGeneration) {
+                    replaceMessage(context, pendingAssistantId,
+                        resources.getString(R.string.ai_request_failed, e.localizedMessage.orEmpty()), requestSessionId)
+                }
+            } finally {
+                if (generation == requestGeneration) {
+                    streamingAssistantContent = null
+                    streamingAssistantMessageId = null
+                    answerJob = null
+                    updateSendButtonState()
+                    if (!showingHistory) renderCurrentSession()
+                }
             }
         }
         updateSendButtonState()
+    }
+
+    override fun onDetachedFromWindow() {
+        stopAnswer()
+        preparedImages = null
+        super.onDetachedFromWindow()
     }
 
     private fun showMessages() {
@@ -369,6 +391,7 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
         }
         row.addView(deleteView, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.MATCH_PARENT))
         row.setOnClickListener {
+            stopAnswer()
             currentSessionId = session.id
             setCurrentSession(readContext ?: return@setOnClickListener, session.id)
             showingHistory = false
@@ -405,21 +428,15 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
             chapterTitle = context.chapterTitle,
             chapterIndex = context.chapterIndex
         )
-        saveBookHistory(
-            context,
-            history.copy(
-                updatedAt = System.currentTimeMillis(),
-                currentSessionId = session.id,
-                sessions = listOf(session) + history.sessions
-            )
-        )
+        // Empty sessions are intentionally excluded from persisted history by AppConfig.
+        draftSession = session
         return session
     }
 
     private fun appendMessage(context: ReadContext, role: ReadAiMessage.Role, content: String): String {
         val message = ReadAiMessage(role = role, content = content)
         updateCurrentSession(context) { session ->
-            val title = if (session.title.isBlank() && role == ReadAiMessage.Role.USER) {
+            val title = if (session.messages.none { it.role == ReadAiMessage.Role.USER } && role == ReadAiMessage.Role.USER) {
                 content.lineSequence().firstOrNull().orEmpty().take(24)
             } else {
                 session.title
@@ -451,6 +468,7 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
     }
 
     private fun deleteMessage(context: ReadContext, messageId: String) {
+        stopAnswer()
         updateSession(context, currentSessionId) { session ->
             session.copy(
                 updatedAt = System.currentTimeMillis(),
@@ -461,6 +479,7 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
     }
 
     private fun deleteSession(sessionId: String) {
+        stopAnswer()
         val context = readContext ?: return
         val history = currentBookHistory(context)
         val sessions = history.sessions.filterNot { it.id == sessionId }
@@ -488,6 +507,7 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
             .setMessage(R.string.ai_read_clear_history_confirm)
             .setNegativeButton(R.string.dialog_cancel, null)
             .setPositiveButton(R.string.dialog_confirm) { _, _ ->
+                stopAnswer()
                 AppConfig.aiReadHistoryList =
                     AppConfig.aiReadHistoryList.filterNot { it.bookUrl == context.bookUrl }
                 currentSessionId = ""
@@ -507,8 +527,10 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
     ) {
         val history = currentBookHistory(context)
         val session = history.sessions.firstOrNull { it.id == sessionId }
-            ?: ensureSession(context, createNew = false)
+            ?: draftSession?.takeIf { it.id == sessionId }
+            ?: ensureSession(context, createNew = true)
         val mapped = mapper(session)
+        draftSession = null
         saveBookHistory(
             context,
             history.copy(
@@ -622,19 +644,21 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
         return buildString {
             append(context.bookName.ifBlank { resources.getString(R.string.book_name) })
             if (context.chapterTitle.isNotBlank()) append(" · ").append(context.chapterTitle)
+            if (context.contentScope.isNotBlank()) append("\n").append(context.contentScope)
+            if (context.webSearch) append(" · 联网检索")
         }
     }
 
-    private fun buildPrompt(context: ReadContext, question: String): String {
-        return resources.getString(
-            R.string.ai_read_prompt_template,
-            context.bookName,
-            context.author.ifBlank { resources.getString(R.string.unknown) },
-            context.sourceName.ifBlank { resources.getString(R.string.unknown) },
-            context.chapterTitle.ifBlank { resources.getString(R.string.unknown) },
-            context.chapterIndex + 1,
-            question
-        )
+    private fun buildPrompt(context: ReadContext, question: String): String = buildString {
+        append("书名：").append(context.bookName).append("；作者：").append(context.author)
+        append("\n当前章节：").append(context.chapterIndex + 1).append(" ").append(context.chapterTitle)
+        append("\n资料范围：").append(context.contentScope)
+        if (context.chapterContent.length > 60000) append("（正文过长，本次仅提供前 60000 字，不代表整章）")
+        if (context.imageUrls.isNotEmpty()) append("；附图按阅读顺序排列，共 ${context.imageUrls.size} 页，不得推断未提供页面")
+        append("\n<chapter_data>\n").append(context.chapterContent.take(60000)).append("\n</chapter_data>")
+        append("\n用户问题：").append(question)
+        append(if (context.webSearch) "\n本轮允许联网；必须实际检索并提供来源，不能把记忆当检索结果。"
+            else "\n本轮不联网，仅依据提供的正文、图像和对话回答，不编造未提供的人物生平或情节。")
     }
 
     private fun buildRequestMessages(context: ReadContext, question: String): List<AiChatMessage> {
@@ -786,7 +810,6 @@ class ReadAiFloatingPanel @JvmOverloads constructor(
     }
 
     companion object {
-        private val requestScope = CoroutineScope(SupervisorJob() + IO)
         private const val actionCopyMessage = 1
         private const val actionDeleteMessage = 2
     }

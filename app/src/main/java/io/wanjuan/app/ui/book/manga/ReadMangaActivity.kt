@@ -61,6 +61,9 @@ import io.wanjuan.app.ui.book.manga.recyclerview.MangaAdapter
 import io.wanjuan.app.ui.book.manga.recyclerview.MangaLayoutManager
 import io.wanjuan.app.ui.book.manga.recyclerview.ScrollTimer
 import io.wanjuan.app.ui.book.manga.recyclerview.MangaPreloadWindow
+import io.wanjuan.app.ui.book.read.ReadAiActions
+import io.wanjuan.app.ui.book.read.ReadAiFloatingPanel
+import io.wanjuan.app.help.ai.AiReadingImages
 import io.wanjuan.app.ui.book.read.MangaMenu
 import io.wanjuan.app.ui.book.read.ReadBookActivity.Companion.RESULT_DELETED
 import io.wanjuan.app.ui.book.read.applyMinimapChapterNavigationStyle
@@ -222,6 +225,7 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
 
     override fun onActivityCreated(savedInstanceState: Bundle?) {
         ReadManga.register(this)
+        binding.readAiPanel.attach(this)
         upSystemUiVisibility(false)
         initRecyclerView()
         bindMangaProgressMinimap()
@@ -1513,6 +1517,13 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
     @SuppressLint("StringFormatMatches", "NotifyDataSetChanged")
     override fun onCompatOptionsItemSelected(item: MenuItem): Boolean {
         when (item.itemId) {
+            R.id.menu_read_ai -> {
+                binding.mangaMenu.runMenuOut()
+                setAutoScrollEnabled(false)
+                ReadAiActions.show(this, manga = true, open = ::openReadingAi)
+                return true
+            }
+
             R.id.menu_change_source -> {
                 binding.mangaMenu.runMenuOut()
                 ReadManga.book?.let {
@@ -1687,6 +1698,28 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
             }
         }
         return super.onCompatOptionsItemSelected(item)
+    }
+
+    private fun openReadingAi(question: String, webSearch: Boolean, wholeChapter: Boolean) {
+        val book = ReadManga.book ?: return
+        val chapter = ReadManga.curMangaChapter?.chapter ?: return
+        val pages = ReadManga.curMangaChapter?.pages?.filterIsInstance<MangaPage>().orEmpty()
+        val selected = if (wholeChapter) pages.take(AiReadingImages.MAX_PAGES)
+            else listOfNotNull(currentVisibleMangaPage())
+        if (selected.isEmpty() || selected.any { it.mImageUrl.isBlank() }) {
+            toastOnUi(R.string.ai_read_content_missing)
+            return
+        }
+        val scope = if (wholeChapter) "本章前 ${selected.size} 页 / 共 ${pages.size} 页" +
+            if (pages.size > selected.size) "（仅分析已提供页面）" else ""
+            else "当前漫画第 ${selected.first().index + 1} 页 / 共 ${pages.size} 页"
+        binding.readAiPanel.open(ReadAiFloatingPanel.ReadContext(
+            bookUrl = book.bookUrl, bookName = book.name, author = book.author,
+            sourceName = ReadManga.bookSource?.bookSourceName.orEmpty(),
+            chapterTitle = chapter.title, chapterIndex = chapter.index,
+            selectedText = question, contentScope = scope,
+            imageUrls = selected.map { it.mImageUrl }, sourceOrigin = book.origin, webSearch = webSearch
+        ), ReadAiFloatingPanel.Anchor(binding.root.width / 2, binding.root.height / 5, binding.root.height / 4))
     }
 
     override fun openBookInfoActivity() {
@@ -2029,6 +2062,10 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
     }
 
     override fun finish() {
+        if (binding.readAiPanel.isVisible) {
+            binding.readAiPanel.close()
+            return
+        }
         if (binding.mangaMenu.hideChapterList()) return
         val book = ReadManga.book ?: return super.finish()
 

@@ -22,17 +22,7 @@
             android:title="@string/ai_system_prompt"
             app:iconSpaceReserved="false" />
 
-        <io.wanjuan.app.lib.prefs.Preference
-            android:key="aiImportDefaultSkill"
-            android:summary="@string/ai_import_default_skill_summary"
-            android:title="@string/ai_import_default_skill"
-            app:iconSpaceReserved="false" />
 
-        <io.wanjuan.app.lib.prefs.Preference
-            android:key="aiSkillPrompt"
-            android:summary="@string/ai_skill_prompt_summary_empty"
-            android:title="@string/ai_skill_prompt"
-            app:iconSpaceReserved="false" />
 
         <io.wanjuan.app.lib.prefs.SwitchPreference
             android:key="aiShowToolSummary"
@@ -57,7 +47,7 @@
     </io.wanjuan.app.lib.prefs.PreferenceCategory>
 
     <io.wanjuan.app.lib.prefs.PreferenceCategory
-        android:title="@string/ai_provider"
+        android:title="@string/ai_responses_config"
         app:allowDividerAbove="false"
         app:allowDividerBelow="false"
         app:iconSpaceReserved="false"
@@ -65,7 +55,7 @@
 
         <io.wanjuan.app.lib.prefs.Preference
             android:key="aiAddProvider"
-            android:summary="@string/ai_add_provider_summary"
+            android:summary="@string/ai_responses_summary"
             android:title="@string/ai_add_provider"
             app:iconSpaceReserved="false" />
 
@@ -100,73 +90,6 @@
             android:key="aiManageModels"
             android:summary="@string/ai_no_models"
             android:title="@string/ai_manage_models"
-            app:iconSpaceReserved="false" />
-
-    </io.wanjuan.app.lib.prefs.PreferenceCategory>
-
-    <io.wanjuan.app.lib.prefs.PreferenceCategory
-        android:title="@string/ai_mcp"
-        app:allowDividerAbove="false"
-        app:allowDividerBelow="false"
-        app:iconSpaceReserved="false"
-        app:layout="@layout/view_preference_category">
-
-        <io.wanjuan.app.lib.prefs.Preference
-            android:key="aiAddMcpServer"
-            android:summary="@string/ai_add_mcp_server_summary"
-            android:title="@string/ai_add_mcp_server"
-            app:iconSpaceReserved="false" />
-
-        <io.wanjuan.app.lib.prefs.Preference
-            android:key="aiManageMcpServers"
-            android:summary="@string/ai_no_mcp_servers"
-            android:title="@string/ai_manage_mcp_servers"
-            app:iconSpaceReserved="false" />
-
-    </io.wanjuan.app.lib.prefs.PreferenceCategory>
-
-    <io.wanjuan.app.lib.prefs.PreferenceCategory
-        android:title="@string/ai_web_tools"
-        app:allowDividerAbove="false"
-        app:allowDividerBelow="false"
-        app:iconSpaceReserved="false"
-        app:layout="@layout/view_preference_category">
-
-        <io.wanjuan.app.lib.prefs.SwitchPreference
-            android:key="aiTavilyEnabled"
-            android:defaultValue="false"
-            android:title="@string/ai_tavily_enable"
-            android:summary="@string/ai_tavily_enable_summary"
-            app:iconSpaceReserved="false" />
-
-        <io.wanjuan.app.lib.prefs.Preference
-            android:key="aiTavilyApiKey"
-            android:title="@string/ai_tavily_api_key"
-            android:summary="@string/ai_tavily_api_key_summary"
-            app:iconSpaceReserved="false" />
-
-        <io.wanjuan.app.lib.prefs.Preference
-            android:key="aiTavilyBaseUrl"
-            android:title="@string/ai_tavily_base_url"
-            android:summary="https://api.tavily.com/search"
-            app:iconSpaceReserved="false" />
-
-        <io.wanjuan.app.lib.prefs.Preference
-            android:key="aiTavilyTopic"
-            android:title="@string/ai_tavily_topic"
-            android:summary="@string/ai_tavily_topic_general"
-            app:iconSpaceReserved="false" />
-
-        <io.wanjuan.app.lib.prefs.Preference
-            android:key="aiTavilySearchDepth"
-            android:title="@string/ai_tavily_search_depth"
-            android:summary="@string/ai_tavily_search_depth_basic"
-            app:iconSpaceReserved="false" />
-
-        <io.wanjuan.app.lib.prefs.Preference
-            android:key="aiTavilyMaxResults"
-            android:title="@string/ai_tavily_max_results"
-            android:summary="5"
             app:iconSpaceReserved="false" />
 
     </io.wanjuan.app.lib.prefs.PreferenceCategory>

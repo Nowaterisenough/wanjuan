@@ -4,6 +4,12 @@
     tools:context=".ui.main.MainActivity"
     tools:ignore="AlwaysShowAction">
 
+    <item
+        android:id="@+id/menu_read_ai"
+        android:icon="@drawable/ic_bottom_ai_assistant"
+        android:title="@string/ai_read_actions"
+        app:showAsAction="ifRoom" />
+
     <group android:id="@+id/menu_group_on_line">
         <item
             android:id="@+id/menu_login"

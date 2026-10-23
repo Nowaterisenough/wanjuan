@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ai_responses_config">OpenAI Responses 接口</string>
+    <string name="ai_responses_summary">仅支持 Responses 协议；保留原有地址、密钥和模型。旧 /chat/completions 地址自动转为 /responses，不回退旧协议。</string>
+    <string name="ai_read_actions">AI 阅读助手</string>
+    <string name="ai_read_loading">正在准备阅读内容…</string>
+    <string name="ai_read_content_missing">本章内容尚未加载完成，请加载后重试</string>
+</resources>
