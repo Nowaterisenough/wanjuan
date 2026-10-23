@@ -49,7 +49,7 @@ jobs:
           disable-animations: true
           script: |
             chmod +x gradlew
-            ./gradlew :app:connectedAppDebugAndroidTest "-Pandroid.testInstrumentationRunnerArguments.class=io.wanjuan.app.TestBookSourceSampleInstrumented" --no-daemon --stacktrace --warning-mode all
+            ./gradlew :app:connectedAppReleaseAndroidTest -PreleaseInstrumentation "-PVERSION_NAME=$(date -u -d '8 hour' +${APP_MAJOR_VERSION}.%y.%m%d%H%M)" "-PVERSION_CODE=$(($(date -u +%s) / 60))" -PRELEASE_STORE_FILE=./ci-release.keystore -PRELEASE_STORE_PASSWORD=wanjuan-ci-release -PRELEASE_KEY_ALIAS=wanjuan-ci-release -PRELEASE_KEY_PASSWORD=wanjuan-ci-release "-Pandroid.testInstrumentationRunnerArguments.class=io.wanjuan.app.TestBookSourceSampleInstrumented" --no-daemon --stacktrace --warning-mode all
 
   build:
     name: Build
