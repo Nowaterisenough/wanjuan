@@ -9,6 +9,7 @@ import io.wanjuan.app.utils.GSON
 import io.wanjuan.app.utils.fromJsonObject
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.delay
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType.Companion.toMediaType
@@ -18,6 +19,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
 import java.util.Base64
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicLong
 
 class GitHubSyncClient(
     private val config: GitHubSyncConfig,
@@ -35,6 +37,7 @@ class GitHubSyncClient(
 
     private val writes = Mutex()
     private val initialization = Mutex()
+    private val rateLimitUntil = AtomicLong()
     @Volatile private var branch: String? = null
     @Volatile private var emptyRepositoryHint = false
     @Volatile private var written: Pair<String, SyncRemoteRead>? = null
@@ -120,9 +123,15 @@ class GitHubSyncClient(
     }
 
     private data class Content(val sha: String, val text: String)
+    private data class ValidatedHead(val etag: String, val content: Content)
+    @Volatile private var validatedHead: ValidatedHead? = null
 
     private suspend fun read(path: String): Content? {
         val file = request("GET", contentUrl(path), allowMissing = true).json?.asJsonObject ?: return null
+        return parseContent(path, file)
+    }
+
+    private suspend fun parseContent(path: String, file: JsonObject): Content {
         check(file["type"]?.asString == "file") { "Unsupported GitHub sync file: $path" }
         val text = if (file["encoding"]?.asString == "base64") {
             val encoded = file["content"].asString.filterNot(Char::isWhitespace)
@@ -140,6 +149,24 @@ class GitHubSyncClient(
 
     override suspend fun readJson(file: SyncRemoteFile): SyncRemoteRead {
         val content = read(file.path) ?: return SyncRemoteRead(null)
+        return SyncRemoteRead(content.text, "sha:${content.sha}")
+    }
+
+    override suspend fun readForUpdate(path: String): SyncRemoteRead {
+        if (path != "delta-v2/head.json") return readJson(SyncRemoteFile(path, path.substringAfterLast('/'), 0))
+        val cached = validatedHead
+        val result = request("GET", contentUrl(path), allowMissing = true, ifNoneMatch = cached?.etag)
+        if (result.code == 304) {
+            val content = requireNotNull(cached).content
+            return SyncRemoteRead(content.text, "sha:${content.sha}", fromCache = true)
+        }
+        val file = result.json?.asJsonObject
+        if (file == null) {
+            validatedHead = null
+            return SyncRemoteRead(null)
+        }
+        val content = parseContent(path, file)
+        validatedHead = result.etag?.let { ValidatedHead(it, content) }
         return SyncRemoteRead(content.text, "sha:${content.sha}")
     }
 
@@ -239,25 +266,45 @@ class GitHubSyncClient(
         throw IOException("GitHub 同步删除冲突，请稍后重试")
     }
 
-    private data class ApiResult(val code: Int, val json: JsonElement?)
+    private data class ApiResult(val code: Int, val json: JsonElement?, val etag: String? = null)
 
     private suspend fun request(
         method: String,
         url: HttpUrl,
         body: JsonObject? = null,
         allowMissing: Boolean = false,
-        allowConflict: Boolean = false
+        allowConflict: Boolean = false,
+        ifNoneMatch: String? = null
     ): ApiResult {
+        while (true) {
+            val remaining = rateLimitUntil.get() - System.nanoTime()
+            if (remaining <= 0) break
+            delay(maxOf(1L, TimeUnit.NANOSECONDS.toMillis(remaining)))
+        }
         val request = Request.Builder().url(url)
             .header("Authorization", "Bearer ${config.token}")
             .header("Accept", "application/vnd.github+json")
             .header("X-GitHub-Api-Version", "2022-11-28")
             .header("User-Agent", "wanjuan-sync")
+            .apply { ifNoneMatch?.let { header("If-None-Match", it) } }
             .method(method, body?.toString()?.toRequestBody(jsonType)).build()
         return http.newCall(request).await().use { response ->
+            if (ifNoneMatch != null && response.code == 304) return@use ApiResult(304, null)
             if (allowMissing && response.code == 404) return@use ApiResult(404, null)
             if (allowConflict && response.code in listOf(409, 422)) return@use ApiResult(response.code, null)
             if (!response.isSuccessful) {
+                if (response.code == 429 || response.code == 403) {
+                    val seconds = response.header("Retry-After")?.toLongOrNull()
+                    val reset = response.header("X-RateLimit-Reset")?.toLongOrNull()
+                    val waitMillis = when {
+                        seconds != null -> seconds.coerceIn(1, 86400) * 1000
+                        response.header("X-RateLimit-Remaining") == "0" && reset != null ->
+                            (reset * 1000 - System.currentTimeMillis()).coerceAtLeast(1000)
+                        else -> 60_000L
+                    }
+                    val until = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(waitMillis)
+                    rateLimitUntil.updateAndGet { maxOf(it, until) }
+                }
                 val reason = when (response.code) {
                     401 -> "Token 无效或已过期"
                     403, 429 -> if (response.header("X-RateLimit-Remaining") == "0" || response.code == 429)
@@ -268,7 +315,7 @@ class GitHubSyncClient(
                 // Do not include remote bodies or credential-bearing request details in logs.
                 throw IOException("GitHub $reason (${response.code})")
             }
-            ApiResult(response.code, response.body?.string()?.takeIf(String::isNotBlank)?.let(JsonParser::parseString))
+            ApiResult(response.code, response.body?.string()?.takeIf(String::isNotBlank)?.let(JsonParser::parseString), response.header("ETag"))
         }
     }
 }

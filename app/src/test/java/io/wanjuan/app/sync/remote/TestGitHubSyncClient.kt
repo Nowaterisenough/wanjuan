@@ -26,6 +26,38 @@ import java.net.InetSocketAddress
 import java.util.Base64
 
 class TestGitHubSyncClient {
+    @Test fun retriesHonorTheServersRateLimitCooldown() = runBlocking {
+        Server().use { server ->
+            server.failure = 429
+            server.retryAfter = "1"
+            val client = server.client()
+            assertTrue(runCatching { client.ensureDirs() }.isFailure)
+            server.failure = null
+            val started = System.nanoTime()
+            client.ensureDirs()
+            assertTrue((System.nanoTime() - started) / 1_000_000 >= 900)
+        }
+    }
+
+    @Test fun headCacheRequiresServerValidationAndKeepsTheFileShaForWrites() = runBlocking {
+        Server().use { server ->
+            val a = server.client(); val b = server.client()
+            a.uploadJson(DeltaRemote.HEAD, "{\"version\":1}")
+            val first = a.readForUpdate(DeltaRemote.HEAD)
+            val cached = a.readForUpdate(DeltaRemote.HEAD)
+            assertTrue(cached.fromCache)
+            assertEquals(first.json, cached.json)
+            assertEquals(first.revision, cached.revision)
+            assertEquals(1, server.notModified)
+            assertTrue(b.compareAndSetJson(DeltaRemote.HEAD, first, "{\"version\":2}"))
+            val changed = a.readForUpdate(DeltaRemote.HEAD)
+            assertFalse(changed.fromCache)
+            assertEquals("{\"version\":2}", changed.json)
+            assertFalse(a.compareAndSetJson(DeltaRemote.HEAD, cached, "stale"))
+            assertTrue(a.compareAndSetJson(DeltaRemote.HEAD, changed, "{\"version\":3}"))
+        }
+    }
+
     @Test
     fun multiMegabyteUnicodeDataUsesSmallFilesAndRoundTrips() = runBlocking {
         Server().use { server ->
@@ -290,10 +322,12 @@ class TestGitHubSyncClient {
         var alwaysConflict = false
         var conflictStatus = 409
         var failure: Int? = null
+        var retryAfter: String? = null
         var largeDirectory = false
         var headersValid = true
         var treeRequests = 0
         var contentReads = 0
+        var notModified = 0
         var truncatedTree = false
         var omitLargeInlineContent = false
         val refs = mutableListOf<String>()
@@ -315,7 +349,10 @@ class TestGitHubSyncClient {
         private fun handle(exchange: HttpExchange) {
             headersValid = headersValid && exchange.requestHeaders.getFirst("Authorization") == "Bearer secret-token" &&
                 exchange.requestHeaders.getFirst("X-GitHub-Api-Version") == "2022-11-28"
-            failure?.let { respond(exchange, it, "{}"); return }
+            failure?.let {
+                retryAfter?.let { value -> exchange.responseHeaders.set("Retry-After", value) }
+                respond(exchange, it, "{}"); return
+            }
             val path = exchange.requestURI.path
             if (path == "/repos/owner/repo") {
                 respond(exchange, 200, """{"default_branch":"main","size":${if (emptyRepository) 0 else 1},"permissions":{"push":$pushAllowed}}""")
@@ -351,6 +388,13 @@ class TestGitHubSyncClient {
                     contentReads++
                     val value = contents[key]
                     if (value != null) {
+                        val etag = "\"$sha\""
+                        exchange.responseHeaders.set("ETag", etag)
+                        if (exchange.requestHeaders.getFirst("If-None-Match") == etag) {
+                            notModified++
+                            exchange.sendResponseHeaders(304, -1)
+                            return
+                        }
                         val omit = omitLargeInlineContent && value.toByteArray(Charsets.UTF_8).size > 1024 * 1024
                         respond(exchange, 200, GSON.toJson(mapOf("type" to "file", "encoding" to if (omit) "none" else "base64", "sha" to sha,
                             "content" to if (omit) "" else Base64.getEncoder().encodeToString(value.toByteArray(Charsets.UTF_8)))))
