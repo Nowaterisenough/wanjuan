@@ -134,6 +134,7 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
     private var doubleColumnEnabled = false
     private var doubleColumnSyncing = false
     private var doubleColumnProgressSeeking = false
+    private var doubleColumnSeekRatio: Float? = null
     private var doubleColumnProgressSeekPending = false
     private var doubleColumnPairSyncScheduled = false
     private var doubleColumnPairAllowPositionJump = false
@@ -449,6 +450,7 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
     private fun beginDoubleColumnScroll(source: RecyclerView) {
         if (!doubleColumnEnabled) return
         doubleColumnProgressSeeking = false
+        doubleColumnSeekRatio = null
         doubleColumnPairSource = source
         val follower = if (source === binding.recyclerView) {
             binding.recyclerViewDoubleRight
@@ -1032,6 +1034,7 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
     }
 
     private fun scrollToMangaProgress(ratio: Float, commit: Boolean) {
+        doubleColumnSeekRatio = ratio.takeIf { doubleColumnEnabled && it > 0f && it < 1f }
         if (commit || doubleColumnEnabled) {
             doubleColumnPairSource = binding.recyclerView
             binding.recyclerView.stopScroll()
@@ -1278,6 +1281,24 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
         binding.mangaColumnsContainer.doOnPreDraw {
             doubleColumnProgressSeekPending = false
             if (doubleColumnProgressSeeking) {
+                // A distant seek starts with placeholder heights. When images grow, restore the
+                // requested page and fraction before aligning the follower to the new viewport.
+                val target = doubleColumnSeekRatio?.let(::targetMangaChapterScrollOffsetForProgress)
+                if (target != null) {
+                    val position = adapterPositionForMangaPage(target.pageIndex)
+                    if (position >= 0) {
+                        val view = mLayoutManager.findViewByPosition(position)
+                        if (view == null || kotlin.math.abs(mangaPageScrollStart(view) + target.offsetPx) >
+                            DOUBLE_COLUMN_ALIGNMENT_TOLERANCE_PX) {
+                            val left = binding.recyclerView
+                            val height = left.height - left.paddingTop - left.paddingBottom
+                            mLayoutManager.scrollToPositionWithOffset(position, -target.offsetPx)
+                            mDoubleRightLayoutManager.scrollToPositionWithOffset(position, -target.offsetPx - height)
+                            scheduleDoubleColumnPairSync(allowPositionJump = true)
+                            return@doOnPreDraw
+                        }
+                    }
+                }
                 syncDoubleColumnPair(binding.recyclerView, allowPositionJump = true)
             }
         }
@@ -1486,6 +1507,7 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
             binding.llLoading.isVisible = true
             binding.llRetry.isGone = true
             doubleColumnProgressSeeking = false
+            doubleColumnSeekRatio = null
             clearCommittedMangaProgressMinimapRatio()
             binding.recyclerView.stopScroll()
             binding.recyclerViewDoubleRight.stopScroll()

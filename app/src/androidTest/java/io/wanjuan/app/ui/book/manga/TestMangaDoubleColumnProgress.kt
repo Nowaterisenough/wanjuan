@@ -59,7 +59,7 @@ class TestMangaDoubleColumnProgress {
                 val right = activity.views.recyclerViewDoubleRight
                 val first = (left.layoutManager as LinearLayoutManager).findFirstVisibleItemPosition()
                 val gap = contentOffset(right) - contentOffset(left)
-                first >= expectedPage && contentOffset(left) != previousLeft &&
+                first == expectedPage && contentOffset(left) != previousLeft &&
                     visibleImagesLoaded(left) && visibleImagesLoaded(right) &&
                     abs(gap - (left.height - left.paddingTop - left.paddingBottom)) <= 2
             }
