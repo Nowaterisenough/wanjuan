@@ -10,7 +10,9 @@ import androidx.recyclerview.widget.RecyclerView
 import androidx.test.core.app.ActivityScenario
 import androidx.test.espresso.Espresso.onView
 import androidx.test.espresso.action.ViewActions.click
+import androidx.test.espresso.matcher.ViewMatchers.withContentDescription
 import androidx.test.espresso.matcher.ViewMatchers.withId
+import androidx.test.espresso.matcher.ViewMatchers.withText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.wanjuan.app.R
@@ -19,6 +21,8 @@ import io.wanjuan.app.constant.PreferKey
 import io.wanjuan.app.data.appDb
 import io.wanjuan.app.data.entities.Book
 import io.wanjuan.app.data.entities.BookChapter
+import io.wanjuan.app.data.entities.BookSource
+import io.wanjuan.app.data.entities.rule.ContentRule
 import io.wanjuan.app.help.book.BookHelp
 import io.wanjuan.app.help.config.AppConfig
 import io.wanjuan.app.model.ReadManga
@@ -66,10 +70,11 @@ class TestMangaChapterNavigation {
         directory.deleteRecursively()
     }
 
-    private fun cache(index: Int) {
+    private fun cache(index: Int, missingImages: Boolean = false) {
         // Deliberately share image URLs across chapters, as happens with credits and cover pages.
         BookHelp.saveText(book, chapters[index], (0..2).joinToString("\n") {
-            "<img src=\"${File(directory, "$it.png").absolutePath}\">"
+            val name = if (missingImages) "missing-$it.png" else "$it.png"
+            "<img src=\"${File(directory, name).absolutePath}\">"
         })
     }
 
@@ -156,6 +161,21 @@ class TestMangaChapterNavigation {
         onView(withId(R.id.menu_refresh)).perform(click())
     }
 
+    @Test fun refreshFailureStillLetsTheReaderOpenTheCatalogueAndChangeChapter() {
+        cache(0, missingImages = true)
+        cache(1)
+        ActivityScenario.launch<ReadMangaActivity>(intent()).use { scenario ->
+            scenario.await { at(0, 0) && reader.findViewById<View>(R.id.retry)?.isShown == true }
+            scenario.tapRefresh()
+            scenario.await { findViewById<View>(R.id.tv_retry).isShown }
+            onView(withId(R.id.fl_loading)).perform(click())
+            scenario.awaitToolbar()
+            onView(withId(R.id.menu_catalog)).perform(click())
+            onView(withText("2  Chapter 1")).perform(click())
+            scenario.await { at(1, 0) }
+        }
+    }
+
     @Test fun refreshingAChapterRemovedFromTheCatalogueShowsRetryInsteadOfLoadingForever() {
         cache(0)
         ActivityScenario.launch<ReadMangaActivity>(intent()).use { scenario ->
@@ -163,6 +183,50 @@ class TestMangaChapterNavigation {
             appDb.bookChapterDao.delByBook(id)
             scenario.tapRefresh()
             scenario.await { findViewById<View>(R.id.tv_retry).isShown }
+            onView(withId(R.id.fl_loading)).perform(click())
+            scenario.awaitToolbar()
+        }
+    }
+
+    @Test fun menuCanOpenDuringRefreshAndReopenAfterNewPagesArrive() {
+        // The source supplies one image in a volume entry. Its old cached body has three pages.
+        appDb.bookSourceDao.insert(BookSource(bookSourceUrl = id, ruleContent = ContentRule(content = "body@html")))
+        try {
+            chapters[0].apply {
+                isVolume = true
+                url = title
+                tag = "<img src=\"${File(directory, "2.png").absolutePath}\">"
+            }
+            appDb.bookChapterDao.delByBook(id)
+            appDb.bookChapterDao.insert(*chapters.toTypedArray())
+            cache(0)
+            cache(1)
+            ActivityScenario.launch<ReadMangaActivity>(intent()).use { scenario ->
+                scenario.await { at(0, 0) && ReadManga.curMangaChapter?.imageCount == 3 }
+                // Hold the UI delivery of the refreshed content so the loading screen can be tapped deterministically.
+                scenario.onActivity { activity ->
+                    ReadManga.register(object : ReadManga.Callback by activity { override fun upContent() = Unit })
+                }
+                try {
+                    scenario.tapRefresh()
+                    scenario.await { findViewById<View>(R.id.ll_loading).isShown && ReadManga.curMangaChapter?.imageCount == 1 }
+                    onView(withId(R.id.fl_loading)).perform(click())
+                    scenario.awaitToolbar()
+                    onView(withId(R.id.menu_catalog)).perform(click())
+                    scenario.await { findViewById<View>(R.id.bottom_menu).isShown }
+                } finally {
+                    scenario.onActivity { activity -> ReadManga.register(activity); activity.upContent() }
+                }
+                scenario.await { at(0, 0) && ReadManga.curMangaChapter?.imageCount == 1 &&
+                    reader.findViewById<View>(R.id.fl_progress)?.visibility == View.GONE }
+                onView(withContentDescription("关闭面板")).perform(click())
+                onView(withId(R.id.vw_menu_bg)).perform(click())
+                scenario.await { !findViewById<View>(R.id.manga_menu).isShown }
+                onView(withId(R.id.webtoon_frame)).perform(click())
+                scenario.awaitToolbar()
+            }
+        } finally {
+            appDb.bookSourceDao.delete(id)
         }
     }
 

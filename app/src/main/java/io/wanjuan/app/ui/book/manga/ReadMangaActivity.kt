@@ -231,6 +231,7 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
         upSystemUiVisibility(false)
         initRecyclerView()
         bindMangaProgressMinimap()
+        binding.flLoading.setOnClickListener { binding.mangaMenu.runMenuIn() }
         binding.tvRetry.setOnClickListener {
             binding.llLoading.isVisible = true
             binding.llRetry.isGone = true
@@ -1582,6 +1583,7 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
             }
 
             R.id.menu_refresh -> {
+                binding.mangaMenu.runMenuOut(anim = false)
                 if (ReadManga.book != null) ReadManga.loadContent(refreshCurrent = true)
                 return true
             }
