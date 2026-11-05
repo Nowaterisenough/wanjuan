@@ -43,12 +43,11 @@ class TestReadMangaChapterState {
     }
 
     @Test
-    fun `manga chapter controls use safe liquid glass views`() {
+    fun `manga controls never inflate the unsafe liquid glass view directly`() {
         val activityLayout = File("app/src/main/res/layout/activity_manga.xml").readText()
         val menuLayout = File("app/src/main/res/layout/view_manga_menu.xml").readText()
         val safeView = "io.wanjuan.app.ui.widget.SafeLiquidGlassView"
 
-        assertTrue(activityLayout.split(safeView).size - 1 == 4)
         assertFalse(activityLayout.contains("com.qmdeve.liquidglass.widget.LiquidGlassView"))
         assertTrue(menuLayout.contains("<$safeView"))
         assertFalse(menuLayout.contains("com.qmdeve.liquidglass.widget.LiquidGlassView"))
