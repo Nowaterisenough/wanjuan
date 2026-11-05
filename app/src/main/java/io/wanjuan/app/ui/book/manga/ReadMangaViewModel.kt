@@ -40,12 +40,14 @@ import splitties.init.appCtx
 class ReadMangaViewModel(application: Application) : BaseViewModel(application) {
 
     private var changeSourceCoroutine: Coroutine<*>? = null
+    private var initCoroutine: Coroutine<*>? = null
 
     /**
      * 初始化
      */
     fun initData(intent: Intent, success: (() -> Unit)? = null) {
-        execute {
+        initCoroutine?.cancel()
+        initCoroutine = execute {
             ReadManga.inBookshelf = intent.getBooleanExtra("inBookshelf", true)
             ReadManga.chapterChanged = intent.getBooleanExtra("chapterChanged", false)
             val bookUrl = intent.getStringExtra("bookUrl")
@@ -58,7 +60,7 @@ class ReadMangaViewModel(application: Application) : BaseViewModel(application) 
             var initialized = false
             when {
                 book != null -> {
-                    initManga(book)
+                    initManga(book, intent.getIntExtra("index", -1), intent.getIntExtra("chapterPos", 0))
                     initialized = true
                 }
                 else -> {
@@ -78,7 +80,7 @@ class ReadMangaViewModel(application: Application) : BaseViewModel(application) 
         }
     }
 
-    private suspend fun initManga(book: Book) {
+    private suspend fun initManga(book: Book, requestedChapter: Int, requestedPage: Int) {
         val isSameBook = ReadManga.book?.bookUrl == book.bookUrl
         if (isSameBook) {
             ReadManga.upData(book)
@@ -98,7 +100,9 @@ class ReadMangaViewModel(application: Application) : BaseViewModel(application) 
         }
 
         //开始加载内容
-        if (!isSameBook) {
+        if (requestedChapter in 0 until ReadManga.chapterSize) {
+            openChapter(requestedChapter, requestedPage.coerceAtLeast(0))
+        } else if (!isSameBook) {
             ReadManga.loadContent()
         } else {
             ReadManga.loadOrUpContent()
@@ -127,7 +131,7 @@ class ReadMangaViewModel(application: Application) : BaseViewModel(application) 
             }
             appDb.bookChapterDao.delByBook(oldBook.bookUrl)
             appDb.bookChapterDao.insert(*cList.toTypedArray())
-            ReadManga.onChapterListUpdated(book)
+            ReadManga.onChapterListUpdated(book, loadContent = false)
             return true
         }.onFailure {
             currentCoroutineContext().ensureActive()
@@ -251,7 +255,6 @@ class ReadMangaViewModel(application: Application) : BaseViewModel(application) 
 
     fun openChapter(index: Int, durChapterPos: Int = 0) {
         if (index in 0 until ReadManga.chapterSize) {
-            ReadManga.showLoading()
             ReadManga.durChapterIndex = index
             ReadManga.durChapterPos = durChapterPos
             ReadManga.saveRead()

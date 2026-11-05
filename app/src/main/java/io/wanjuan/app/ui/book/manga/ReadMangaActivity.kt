@@ -129,7 +129,8 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
     private var mMenu: Menu? = null
 
 
-    private var justInitData: Boolean = false
+    private var contentSubmission = 0L
+    private var triedPreviousAtEdge = false
     private var doubleColumnEnabled = false
     private var doubleColumnSyncing = false
     private var doubleColumnProgressSeeking = false
@@ -286,42 +287,25 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
                     !binding.mangaProgressMinimap.isDraggingProgress()
                 ) {
                     clearCommittedMangaProgressMinimapRatio()
+                    triedPreviousAtEdge = false
                     beginDoubleColumnScroll(this)
                 }
                 false
             }
-            setPreScrollListener { _, _, _, position ->
-                val activeAdapter = activeMangaAdapter()
-                if (activeAdapter.isNotEmpty()) {
-                    val item = if (doubleColumnEnabled) {
-                        currentVisibleMangaPage() ?: activeAdapter.getItem(position)
-                    } else {
-                        activeAdapter.getItem(position)
+            setPreScrollListener { _, dx, dy, position ->
+                val distance = if (mangaHorizontalScroll) dx else dy
+                // RecyclerView also calls onScrolled(0, 0) after layout and list diffs.
+                if (distance != 0 && !loadingViewVisible) {
+                    val item = when {
+                        distance < 0 && !canScroll(-1) -> activeMangaAdapter().getItem(0)
+                        doubleColumnEnabled -> currentVisibleMangaPage() ?: activeMangaAdapter().getItem(position)
+                        else -> activeMangaAdapter().getItem(position)
                     }
-                    if (item is BaseMangaPage) {
-                        if ((binding.mangaProgressMinimap.isDraggingProgress() ||
-                                committedMangaProgressMinimapRatio() != null) &&
-                            item.chapterIndex != ReadManga.durChapterIndex
-                        ) {
-                            clampMangaProgressMinimapDragWithinCurrentChapter(item)
-                            return@setPreScrollListener
-                        }
-                        if (ReadManga.durChapterIndex < item.chapterIndex) {
-                            ReadManga.moveToNextChapter()
-                        } else if (ReadManga.durChapterIndex > item.chapterIndex) {
-                            ReadManga.moveToPrevChapter()
-                        } else if (ReadManga.durChapterPos != item.index) {
-                            ReadManga.durChapterPos = item.index
-                            ReadManga.curPageChanged()
-                        }
-                        if (item is MangaPage) {
-                            binding.mangaProgressMinimap.clearPinnedProgressRatio()
-                            updateMangaProgressMinimap()
-                            binding.mangaMenu.upBookView()
-                            upInfoBar(item)
-                        }
-                    }
+                    trackScrolledPage(item as? BaseMangaPage, distance)
                 }
+            }
+            setNestedPreScrollListener { _, dx, dy, _ ->
+                handlePreviousEdge(if (mangaHorizontalScroll) dx else dy)
             }
         }
         binding.recyclerViewDoubleRight.run {
@@ -336,10 +320,12 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
                     !binding.mangaProgressMinimap.isDraggingProgress()
                 ) {
                     clearCommittedMangaProgressMinimapRatio()
+                    triedPreviousAtEdge = false
                     beginDoubleColumnScroll(this)
                 }
                 false
             }
+            setNestedPreScrollListener { _, _, dy, _ -> handlePreviousEdge(dy) }
         }
         binding.recyclerView.addOnScrollListener(doubleColumnLeftScrollListener)
         binding.recyclerViewDoubleRight.addOnScrollListener(doubleColumnRightScrollListener)
@@ -362,6 +348,43 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
 
     private fun activeMangaAdapter(): MangaAdapter {
         return if (doubleColumnEnabled) mDoubleLeftAdapter else mAdapter
+    }
+
+    private fun handlePreviousEdge(distance: Int) {
+        // A drag at the top consumes no pixels, so onScrolled cannot retry a missing neighbour.
+        if (distance >= 0 || loadingViewVisible || triedPreviousAtEdge || ReadManga.durChapterIndex <= 0 ||
+            binding.recyclerView.canScroll(-1)) return
+        triedPreviousAtEdge = true
+        val first = activeMangaAdapter().getItem(0) as? BaseMangaPage
+        if (first?.chapterIndex == ReadManga.durChapterIndex - 1) trackScrolledPage(first, -1)
+        else ReadManga.retryPreviousChapter()
+    }
+
+    private fun trackScrolledPage(item: BaseMangaPage?, distance: Int) {
+        item ?: return
+        val offset = item.chapterIndex - ReadManga.durChapterIndex
+        if (offset != 0 && (binding.mangaProgressMinimap.isDraggingProgress() ||
+                    committedMangaProgressMinimapRatio() != null)) {
+            clampMangaProgressMinimapDragWithinCurrentChapter(item)
+            return
+        }
+        when {
+            offset == -1 && distance < 0 && ReadManga.prevMangaChapter?.chapter?.index == item.chapterIndex ->
+                ReadManga.moveToPrevChapter(pageIndex = item.index)
+            offset == 1 && distance > 0 && ReadManga.nextMangaChapter?.chapter?.index == item.chapterIndex ->
+                ReadManga.moveToNextChapter(pageIndex = item.index)
+            offset != 0 -> return
+            item is MangaPage && ReadManga.durChapterPos != item.index -> {
+                ReadManga.durChapterPos = item.index
+                ReadManga.curPageChanged()
+            }
+        }
+        if (item is MangaPage) {
+            binding.mangaProgressMinimap.clearPinnedProgressRatio()
+            updateMangaProgressMinimap()
+            binding.mangaMenu.upBookView()
+            upInfoBar(item)
+        }
     }
 
     private inline fun forEachMangaAdapter(block: MangaAdapter.() -> Unit) {
@@ -645,6 +668,7 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        setIntent(intent)
         prepareForBookIntent(intent)
         viewModel.initData(intent) {
             applyBookMangaReadConfig()
@@ -656,18 +680,15 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
         viewModel.initData(intent) {
             applyBookMangaReadConfig()
         }
-        justInitData = true
     }
 
     private fun prepareForBookIntent(intent: Intent) {
+        showLoading()
         val newBookUrl = intent.getStringExtra("bookUrl") ?: return
         if (newBookUrl == ReadManga.book?.bookUrl) {
             return
         }
         binding.infobar.isGone = true
-        binding.llLoading.isVisible = true
-        binding.llRetry.isGone = true
-        binding.flLoading.isVisible = true
         loadMoreView.gone()
         clearCommittedMangaProgressMinimapRatio()
         mAdapter.submitList(emptyList())
@@ -677,35 +698,37 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
     override fun upContent() {
         lifecycleScope.launch {
             binding.mangaMenu.upBookView()
-            val data = withContext(IO) { ReadManga.mangaContents }
-            if (!ReadManga.isCurrentContent(data)) return@launch
+            val data = ReadManga.mangaContents
+            if (!data.curFinish || !ReadManga.isCurrentContent(data)) return@launch
+            val submission = ++contentSubmission
             val pos = data.pos
             val list = data.items
-            val curFinish = data.curFinish
             val nextFinish = data.nextFinish
             mAdapter.submitList(list) {
-                if (!ReadManga.isCurrentContent(data)) return@submitList
+                if (submission != contentSubmission || !ReadManga.isCurrentContent(data)) return@submitList
                 submitDoubleColumnLists(list) {
-                    if (!ReadManga.isCurrentContent(data)) return@submitDoubleColumnLists
-                    if (loadingViewVisible && curFinish) {
+                    if (submission != contentSubmission || !ReadManga.isCurrentContent(data)) return@submitDoubleColumnLists
+                    if (loadingViewVisible) {
                         val currentPage = list.getOrNull(pos) ?: return@submitDoubleColumnLists
                         binding.infobar.isVisible = true
                         upInfoBar(currentPage)
                         scrollToMangaPagePosition(pos)
-                        binding.flLoading.isGone = true
+                        binding.recyclerView.doOnPreDraw {
+                            if (submission == contentSubmission && ReadManga.isCurrentContent(data)) {
+                                binding.flLoading.isGone = true
+                            }
+                        }
                         loadMoreView.visible()
                         updateMangaProgressMinimap()
                         binding.mangaMenu.upBookView()
                     }
 
-                    if (curFinish) {
-                        if (!ReadManga.hasNextChapter) {
-                            loadMoreView.noMore("暂无章节了！")
-                        } else if (nextFinish) {
-                            loadMoreView.stopLoad()
-                        } else {
-                            loadMoreView.startLoad()
-                        }
+                    if (!ReadManga.hasNextChapter) {
+                        loadMoreView.noMore("暂无章节了！")
+                    } else if (nextFinish) {
+                        loadMoreView.stopLoad()
+                    } else {
+                        loadMoreView.startLoad()
                     }
                 }
             }
@@ -1458,13 +1481,14 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
 
     override fun showLoading() {
         lifecycleScope.launch {
+            contentSubmission++
             binding.flLoading.isVisible = true
-        }
-    }
-
-    override fun startLoad() {
-        lifecycleScope.launch {
-            loadMoreView.startLoad()
+            binding.llLoading.isVisible = true
+            binding.llRetry.isGone = true
+            doubleColumnProgressSeeking = false
+            clearCommittedMangaProgressMinimapRatio()
+            binding.recyclerView.stopScroll()
+            binding.recyclerViewDoubleRight.stopScroll()
         }
     }
 
@@ -1858,7 +1882,11 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
 
     private fun setDoubleColumnLayout(enabled: Boolean, save: Boolean) {
         val shouldEnable = enabled && isPad
-        val currentPage = currentVisibleMangaPage()
+        if (shouldEnable == doubleColumnEnabled) {
+            if (!shouldEnable) setHorizontalScroll(mangaHorizontalScroll)
+            return
+        }
+        val currentPage = if (loadingViewVisible) null else currentVisibleMangaPage()
         doubleColumnEnabled = shouldEnable
         doubleColumnPairSource = binding.recyclerView
         doubleColumnProgressSeeking = false
@@ -1895,14 +1923,11 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
         if (binding.mangaMenu.isVisible) {
             setupMangaMinimapAppearance()
         }
-        val targetFullPosition = currentPage?.let { page ->
-            mAdapter.getItems().indexOfFirst { item ->
-                item is MangaPage && item.chapterIndex == page.chapterIndex && item.index == page.index
-            }
-        } ?: -1
-        if (targetFullPosition >= 0) {
+        if (currentPage != null) {
             binding.recyclerView.post {
-                scrollToMangaPagePosition(targetFullPosition)
+                if (loadingViewVisible || currentPage.chapterIndex != ReadManga.durChapterIndex) return@post
+                val position = mAdapter.getItems().indexOf(currentPage)
+                if (position >= 0) scrollToMangaPagePosition(position)
             }
         } else if (shouldEnable) {
             scheduleDoubleColumnPairSync()

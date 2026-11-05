@@ -30,6 +30,7 @@ import io.wanjuan.app.ui.book.manga.config.MangaColorFilterConfig
 import io.wanjuan.app.ui.book.manga.entities.EpaperTransformation
 import io.wanjuan.app.ui.book.manga.entities.GrayscaleTransformation
 import io.wanjuan.app.ui.book.manga.entities.MangaPage
+import io.wanjuan.app.ui.book.manga.entities.BaseMangaPage
 import io.wanjuan.app.ui.book.manga.entities.ReaderLoading
 import io.wanjuan.app.utils.dpToPx
 
@@ -53,11 +54,9 @@ class MangaAdapter(private val context: Context) :
 
     private val mDiffCallback: DiffUtil.ItemCallback<Any> = object : DiffUtil.ItemCallback<Any>() {
         override fun areItemsTheSame(oldItem: Any, newItem: Any): Boolean {
-            return if (oldItem is ReaderLoading && newItem is ReaderLoading) {
-                newItem.mMessage == oldItem.mMessage
-            } else if (oldItem is MangaPage && newItem is MangaPage) {
-                oldItem.mImageUrl == newItem.mImageUrl
-            } else false
+            return oldItem is BaseMangaPage && newItem is BaseMangaPage &&
+                oldItem.javaClass == newItem.javaClass && oldItem.chapterIndex == newItem.chapterIndex &&
+                oldItem.index == newItem.index
         }
 
         override fun areContentsTheSame(oldItem: Any, newItem: Any): Boolean {
