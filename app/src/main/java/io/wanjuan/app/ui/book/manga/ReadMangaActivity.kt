@@ -1582,10 +1582,8 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
             }
 
             R.id.menu_refresh -> {
-                binding.flLoading.isVisible = true
-                ReadManga.book?.let {
-                    viewModel.refreshContentDur(it)
-                }
+                if (ReadManga.book != null) ReadManga.loadContent(refreshCurrent = true)
+                return true
             }
 
             R.id.menu_login -> {

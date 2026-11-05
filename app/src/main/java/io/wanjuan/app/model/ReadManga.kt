@@ -8,6 +8,7 @@ import io.wanjuan.app.data.entities.BookProgress
 import io.wanjuan.app.data.entities.BookSource
 import io.wanjuan.app.data.entities.ReadRecentBook
 import io.wanjuan.app.data.entities.ReadRecord
+import io.wanjuan.app.exception.NoStackTraceException
 import io.wanjuan.app.help.ConcurrentRateLimiter
 import io.wanjuan.app.help.ReadRecordDailyHelper
 import io.wanjuan.app.help.book.BookHelp
@@ -173,11 +174,11 @@ object ReadManga : CoroutineScope by MainScope() {
         return book?.bookUrl == chapter.bookUrl
     }
 
-    fun loadContent() {
+    fun loadContent(refreshCurrent: Boolean = false) {
         beginContentGeneration()
         mCallback?.showLoading()
         clearMangaChapter()
-        loadContent(durChapterIndex)
+        loadContent(durChapterIndex, refresh = refreshCurrent)
         loadContent(durChapterIndex + 1)
         loadContent(durChapterIndex - 1)
     }
@@ -196,13 +197,18 @@ object ReadManga : CoroutineScope by MainScope() {
         }
     }
 
-    private fun loadContent(index: Int, generation: Long = contentGeneration) {
+    private fun loadContent(index: Int, generation: Long = contentGeneration, refresh: Boolean = false) {
+        val book = book ?: return
         Coroutine.async(contentLoadScope) {
-            val book = book ?: return@async
-            val chapter = appDb.bookChapterDao.getChapter(book.bookUrl, index) ?: return@async
+            val chapter = appDb.bookChapterDao.getChapter(book.bookUrl, index)
             if (generation != contentGeneration) return@async
+            if (chapter == null) {
+                if (index == durChapterIndex) throw NoStackTraceException("目录中找不到当前章节")
+                return@async
+            }
             if (addLoading(chapter, generation)) {
                 try {
+                    if (refresh) BookHelp.delContent(book, chapter)
                     BookHelp.getContent(book, chapter)?.let {
                         contentLoadFinish(chapter, it, generation = generation)
                     } ?: download(contentLoadScope, chapter, generation = generation)
@@ -213,6 +219,9 @@ object ReadManga : CoroutineScope by MainScope() {
                 }
             }
         }.onError {
+            if (generation == contentGeneration && book.bookUrl == ReadManga.book?.bookUrl && index == durChapterIndex) {
+                mCallback?.loadFail(it.localizedMessage ?: "加载正文出错")
+            }
             AppLog.put("加载正文出错\n${it.localizedMessage}")
         }
     }

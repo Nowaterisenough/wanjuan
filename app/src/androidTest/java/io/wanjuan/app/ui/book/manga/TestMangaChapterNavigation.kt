@@ -8,6 +8,9 @@ import android.view.View
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.test.core.app.ActivityScenario
+import androidx.test.espresso.Espresso.onView
+import androidx.test.espresso.action.ViewActions.click
+import androidx.test.espresso.matcher.ViewMatchers.withId
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.wanjuan.app.R
@@ -66,7 +69,7 @@ class TestMangaChapterNavigation {
     private fun cache(index: Int) {
         // Deliberately share image URLs across chapters, as happens with credits and cover pages.
         BookHelp.saveText(book, chapters[index], (0..2).joinToString("\n") {
-            "<img src=\"${File(directory, "$it.png").toURI()}\">"
+            "<img src=\"${File(directory, "$it.png").absolutePath}\">"
         })
     }
 
@@ -139,6 +142,27 @@ class TestMangaChapterNavigation {
             }
             scenario.await { ReadManga.prevMangaChapter?.chapter?.index == 2 || ReadManga.durChapterIndex == 2 }
             scenario.scrollBackTo(2)
+        }
+    }
+
+    private fun ActivityScenario<ReadMangaActivity>.awaitToolbar() = await {
+        val shell = findViewById<View>(R.id.title_bar_shell)
+        findViewById<View>(R.id.menu_refresh)?.isShown == true && shell.animation?.hasEnded() != false
+    }
+
+    private fun ActivityScenario<ReadMangaActivity>.tapRefresh() {
+        onView(withId(R.id.webtoon_frame)).perform(click())
+        awaitToolbar()
+        onView(withId(R.id.menu_refresh)).perform(click())
+    }
+
+    @Test fun refreshingAChapterRemovedFromTheCatalogueShowsRetryInsteadOfLoadingForever() {
+        cache(0)
+        ActivityScenario.launch<ReadMangaActivity>(intent()).use { scenario ->
+            scenario.await { at(0, 0) }
+            appDb.bookChapterDao.delByBook(id)
+            scenario.tapRefresh()
+            scenario.await { findViewById<View>(R.id.tv_retry).isShown }
         }
     }
 
