@@ -40,6 +40,9 @@ interface SyncDeltaDao {
     @Query("select * from sync_delta_state where target = :target")
     fun states(target: String): List<SyncDeltaState>
 
+    @Query("select * from sync_delta_state where target = :target and objectType in (:objectTypes)")
+    fun states(target: String, objectTypes: Set<String>): List<SyncDeltaState>
+
     @Query("select * from sync_delta_state where target = :target and (pendingId is not null or inFlightChange is not null)")
     fun pending(target: String): List<SyncDeltaState>
 

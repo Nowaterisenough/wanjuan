@@ -298,8 +298,12 @@ class DeltaEngine(
 
     private fun recoverMissingBooks() {
         local.transaction {
-            val states = local.states(target)
-            val current = local.snapshots()
+            // Recovery only concerns shelf membership. Do not decode and normalize every
+            // source rule (including large chunked payloads) on every unchanged head read.
+            val bookTypes = setOf(SyncObjectType.Book)
+            val states = local.states(target, bookTypes)
+            if (states.isEmpty()) return@transaction
+            val current = local.snapshots(bookTypes)
             val restored = hashSetOf<SyncIdentity>()
             val timestamp = maxOf(1L, local.cursor(target).timestamp)
             states.filter { it.objectType == SyncObjectType.Book && !it.pendingDelete && it.identity() !in current }
@@ -311,12 +315,13 @@ class DeltaEngine(
                         local.apply(state.identity(), value, timestamp) == SyncApplyOutcome.Inserted) restored += state.identity()
                 }
             if (restored.isNotEmpty()) {
-                states.filter { it.objectType == SyncObjectType.BookshelfOrder }.forEach { state ->
+                val orders = local.states(target, setOf(SyncObjectType.BookshelfOrder))
+                orders.forEach { state ->
                     val value = if (state.pendingId != null) state.pendingJson else state.remoteJson
                     if (value != null) { local.apply(state.identity(), value, timestamp); restored += state.identity() }
                 }
-                val applied = local.snapshots()
-                states.filter { it.identity() in restored }.forEach { local.save(it.copy(observedJson = applied[it.identity()])) }
+                val applied = local.snapshots(bookTypes + SyncObjectType.BookshelfOrder)
+                (states + orders).filter { it.identity() in restored }.forEach { local.save(it.copy(observedJson = applied[it.identity()])) }
             }
         }
     }

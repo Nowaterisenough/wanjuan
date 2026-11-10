@@ -16,6 +16,8 @@ import io.wanjuan.app.sync.remote.*
 import io.wanjuan.app.sync.local.SyncDeltaPayloadStore
 import io.wanjuan.app.sync.local.SyncDeltaPayloadCodec
 import io.wanjuan.app.sync.local.SyncDeltaState
+import io.wanjuan.app.sync.local.SyncDeltaCursor
+import io.wanjuan.app.sync.model.SyncObjectType
 import io.wanjuan.app.utils.GSON
 import com.google.gson.JsonObject
 import kotlinx.coroutines.runBlocking
@@ -31,6 +33,87 @@ class TestDeltaSyncInstrumented {
     private val context = InstrumentationRegistry.getInstrumentation().targetContext
 
     @After fun close() { replicas.forEach { it.db.close() } }
+
+    @Test fun unchangedPullOnlyReadsBookStateAndStillRestoresMissingBooks() = runBlocking {
+        val a = replica()
+        val book = Book(bookUrl = "book", origin = "source", name = "Book")
+        a.db.bookDao.insert(book)
+        a.engine.flush()
+        // An unrelated oversized source must not even be decoded by shelf recovery.
+        a.db.syncDeltaDao.save(SyncDeltaState("target", SyncObjectType.BookSource, "unrelated",
+            remoteJson = "${SyncDeltaPayloadCodec.PREFIX}${"a".repeat(64)}:1:40000"))
+        a.engine.pull()
+        a.db.bookDao.delete(book)
+        a.engine.pull()
+        assertNotNull(a.db.bookDao.getBook(book.bookUrl))
+        assertTrue(a.local.states("target", setOf(SyncObjectType.Book)).all { it.objectType == SyncObjectType.Book })
+        assertTrue(runCatching { a.local.states("target") }.isFailure)
+    }
+
+    @Test fun payloadCapturePreservesEveryObjectAndOrderWithoutLegacyHashes() {
+        val a = replica()
+        a.db.bookGroupDao.insert(BookGroup(1, "First", order = 2, syncId = "first"),
+            BookGroup(2, "Second", order = 1, syncId = "second"))
+        a.db.bookDao.insert(Book(bookUrl = "book", origin = "source", name = "Book", group = 3))
+        a.db.bookSourceDao.insert(BookSource(bookSourceUrl = "https://example.test", bookSourceName = "Source"))
+        a.db.rssSourceDao.insert(RssSource(sourceUrl = "https://example.test/rss", sourceName = "RSS"))
+        a.db.ruleSubDao.insert(RuleSub(name = "Sub", url = "https://example.test/sub"))
+        val old = a.snapshots.currentSnapshots().associate { SyncIdentity(it.objectType, it.objectId) to it.payloadJson }
+        assertEquals(old, a.snapshots.currentPayloads(SyncObjectSelection.all))
+        SyncObjectSelection.all.forEach { type ->
+            assertEquals(old.filterKeys { it.objectType == type }, a.snapshots.currentPayloads(setOf(type)))
+        }
+        val book = GSON.fromJson(old.getValue(SyncIdentity(SyncObjectType.Book, SyncIds.bookId(a.db.bookDao.all.single()))),
+            io.wanjuan.app.sync.model.SyncBookPayload::class.java)
+        assertEquals(listOf("second", "first"), book.book.groupSyncIds)
+        assertTrue(a.snapshots.currentSnapshots().all { it.contentHash.isNotBlank() })
+    }
+
+    @Test fun measureRefreshLocalWorkWithThreeHundredSources() = runBlocking {
+        val a = replica()
+        val script = "// synthetic rule data\n".repeat(500)
+        a.db.bookSourceDao.insert(*(1..300).map {
+            BookSource(bookSourceUrl = "https://example.test/$it", bookSourceName = "Source $it", jsLib = script)
+        }.toTypedArray())
+        a.db.bookDao.insert(*(1..30).map {
+            Book(bookUrl = "book-$it", origin = "source", name = "Book $it")
+        }.toTypedArray())
+        a.local.transaction {
+            a.local.snapshots().forEach { (id, json) ->
+                a.local.save(SyncDeltaState("target", id.objectType, id.objectId, remoteJson = json, observedJson = json))
+            }
+            a.local.saveCursor(SyncDeltaCursor("target", legacyImported = true))
+        }
+        // Reproduce the previous full-state/full-snapshot recovery and legacy hash path.
+        val previousLocal = object : DeltaLocal by a.local {
+            override fun states(target: String, objectTypes: Set<String>) = a.local.states(target).filter { it.objectType in objectTypes }
+            override fun snapshots() = a.snapshots.currentSnapshots().associate {
+                SyncIdentity(it.objectType, it.objectId) to DeltaCodec.normalize(it.objectType, it.payloadJson)
+            }
+            override fun snapshots(objectTypes: Set<String>) = snapshots().filterKeys { it.objectType in objectTypes }
+        }
+        val previous = DeltaEngine(previousLocal, DeltaRemote(remote), "target", a.clock)
+        suspend fun refresh(engine: DeltaEngine, trailingCapture: Boolean): Long {
+            val start = System.nanoTime()
+            assertEquals(0, engine.pull().downloaded)
+            if (trailingCapture) assertEquals(0, engine.capture())
+            assertEquals(0, engine.flush().uploaded)
+            if (trailingCapture) assertEquals(0, engine.capture())
+            return (System.nanoTime() - start) / 1_000_000
+        }
+        refresh(previous, true); refresh(a.engine, false)
+        val before = arrayListOf<Long>(); val after = arrayListOf<Long>()
+        repeat(3) {
+            // Alternate order to avoid always measuring one path with a colder runtime.
+            if (it % 2 == 0) { before += refresh(previous, true); after += refresh(a.engine, false) }
+            else { after += refresh(a.engine, false); before += refresh(previous, true) }
+        }
+        InstrumentationRegistry.getInstrumentation().sendStatus(2, android.os.Bundle().apply {
+            putString("stream", "SYNC_LOCAL_BENCHMARK: sources=300 books=30 beforeMs=$before afterMs=$after\n")
+        })
+        assertTrue(remote.objects.isEmpty())
+        assertEquals(0, a.local.pendingCount("target"))
+    }
 
     @Test fun pendingQueriesDoNotDecodeUnchangedPayloadsOrOtherTargets() {
         val replica = replica()
@@ -244,7 +327,8 @@ class TestDeltaSyncInstrumented {
             BookSourceSyncCoordinator(remote, repository, clock, { "device" }, db),
             RssSourceSyncCoordinator(remote, repository, clock, { "device" }, RssSourceSyncApplier(RoomRssSourceSyncStore(db))),
             RuleSubSyncCoordinator(remote, repository, clock, { "device" }, db))
-        val local = RoomDeltaLocal(db, RoomSyncSnapshotSource(db, clock, { "device" }, groups, trackBookVersions = false), books, handlers)
+        val snapshots = RoomSyncSnapshotSource(db, clock, { "device" }, groups, trackBookVersions = false)
+        val local = RoomDeltaLocal(db, snapshots, books, handlers)
         val engine = DeltaEngine(local, DeltaRemote(remote), "target", clock)
     }
 

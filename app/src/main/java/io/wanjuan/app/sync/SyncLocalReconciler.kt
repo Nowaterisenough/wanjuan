@@ -13,6 +13,10 @@ fun interface SyncLocalSnapshotSource {
     fun currentSnapshots(): List<SyncSnapshot>
     fun currentSnapshots(objectTypes: Set<String>): List<SyncSnapshot> =
         currentSnapshots().filter { it.objectType in objectTypes }
+
+    /** Delta capture compares normalized payloads and does not use legacy content hashes. */
+    fun currentPayloads(objectTypes: Set<String>): Map<SyncIdentity, String> =
+        currentSnapshots(objectTypes).associate { SyncIdentity(it.objectType, it.objectId) to it.payloadJson }
 }
 
 interface SyncReconcileStore {

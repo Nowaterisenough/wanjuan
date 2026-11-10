@@ -8,6 +8,8 @@ import io.wanjuan.app.sync.local.SyncDeltaState
 interface DeltaLocal {
     fun transaction(action: () -> Unit)
     fun states(target: String): List<SyncDeltaState>
+    fun states(target: String, objectTypes: Set<String>): List<SyncDeltaState> =
+        states(target).filter { it.objectType in objectTypes }
     fun pending(target: String, limit: Int = Int.MAX_VALUE): List<SyncDeltaState> =
         states(target).filter { it.pendingId != null || it.inFlightChange != null }.take(limit)
     fun pendingCount(target: String): Int = pending(target).size
@@ -17,6 +19,8 @@ interface DeltaLocal {
     fun cursor(target: String): SyncDeltaCursor
     fun saveCursor(cursor: SyncDeltaCursor)
     fun snapshots(): Map<SyncIdentity, String>
+    fun snapshots(objectTypes: Set<String>): Map<SyncIdentity, String> =
+        snapshots().filterKeys { it.objectType in objectTypes }
     fun canDelete(identity: SyncIdentity): Boolean = true
     fun deletions(): Set<SyncIdentity> = emptySet()
     fun consumeLegacyQueue() = Unit

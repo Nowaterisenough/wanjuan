@@ -23,6 +23,7 @@ class RoomDeltaLocal(
     private val payloads = SyncDeltaPayloadStore(db.syncDeltaDao)
     override fun transaction(action: () -> Unit) = db.runInTransaction(action)
     override fun states(target: String) = payloads.decode(db.syncDeltaDao.states(target))
+    override fun states(target: String, objectTypes: Set<String>) = payloads.decode(db.syncDeltaDao.states(target, objectTypes))
     override fun pending(target: String, limit: Int) = payloads.decode(db.syncDeltaDao.pendingBatch(target, limit))
     override fun pendingCount(target: String) = db.syncDeltaDao.pendingCount(target)
     override fun pendingBookIds(target: String) = db.syncDeltaDao.pendingBookIds(target).toSet()
@@ -30,9 +31,10 @@ class RoomDeltaLocal(
     override fun cursor(target: String) = db.syncDeltaDao.cursor(target) ?: SyncDeltaCursor(target)
     override fun saveCursor(cursor: SyncDeltaCursor) = db.syncDeltaDao.saveCursor(cursor)
 
-    override fun snapshots(): Map<SyncIdentity, String> = snapshots.currentSnapshots().associate {
-        SyncIdentity(it.objectType, it.objectId) to DeltaCodec.normalize(it.objectType, it.payloadJson)
-    }
+    override fun snapshots(): Map<SyncIdentity, String> = snapshots(SyncObjectSelection.all)
+
+    override fun snapshots(objectTypes: Set<String>): Map<SyncIdentity, String> =
+        snapshots.currentPayloads(objectTypes).mapValues { (id, json) -> DeltaCodec.normalize(id.objectType, json) }
 
     override fun canDelete(identity: SyncIdentity): Boolean {
         if (identity.objectType != SyncObjectType.Book) return true
