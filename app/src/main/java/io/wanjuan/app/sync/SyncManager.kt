@@ -16,7 +16,6 @@ import io.wanjuan.app.sync.remote.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.SharingStarted
@@ -107,7 +106,9 @@ object SyncManager {
                         "legacyImported=${cursor.legacyImported}, pending=${appDb.syncDeltaDao.pendingCount(target.identity)}")
                     val delta = engine(target)
                     val completed = if (pushChanges) delta.flush() else delta.pull().copy(pending = 0)
-                    repeatChanges = isEnabled && delta.capture() > 0
+                    // The refresh task captures after all catalog workers finish. Avoid
+                    // scanning the whole library again after its pull and final flush.
+                    repeatChanges = isEnabled && !bookshelfRefreshActive.value && delta.capture() > 0
                     completed
                 }
             } catch (e: CancellationException) {
@@ -125,7 +126,7 @@ object SyncManager {
             if (result.failed == 0) {
                 retryJob?.cancel()
                 retryDelayMillis = 5_000L
-                if (repeatChanges) changeFlight.start(rerunIfActive = true)
+                if (repeatChanges && !bookshelfRefreshActive.value) changeFlight.start(rerunIfActive = true)
             } else if (result.pending > 0 && isEnabled) {
                 retryJob?.cancel()
                 val wait = retryDelayMillis
@@ -149,16 +150,16 @@ object SyncManager {
         syncNow()
     }
 
-    @OptIn(FlowPreview::class)
     @Synchronized
     private fun observeLocalChanges() {
         if (changeObserver?.isActive == true) return
         changeObserver = syncScope.launch {
             appDb.invalidationTracker.createFlow("books", "book_groups", "book_sources", "rssSources", "ruleSubs")
-                .debounce(1000L).collect {
-                    if (!isEnabled) return@collect
+                .afterBookshelfRefresh(bookshelfRefreshActive).collect {
+                    if (!isEnabled || bookshelfRefreshActive.value) return@collect
                     try {
                         val changed = mutationMutex.withLock {
+                            if (bookshelfRefreshActive.value) return@withLock false
                             client.withTarget { target ->
                                 if (!local.cursor(target.identity).legacyImported) false
                                 else engine(target).capture() > 0
