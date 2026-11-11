@@ -1860,6 +1860,7 @@
     <string name="paragraph_rule_script">&#27573;&#33853;&#22788;&#29702; JS</string>
     <string name="paragraph_rule_vars">&#35268;&#21017;&#21464;&#37327;</string>
     <string name="paragraph_rule_vars_json">&#21464;&#37327; JSON</string>
+    <string name="bookshelf_refresh_notification">正在刷新书架</string>
     <string name="bookshelf_sync_pulling">正在同步云端书架…</string>
     <string name="bookshelf_sync_catalog">正在更新目录：%1$d/%2$d</string>
     <string name="bookshelf_sync_parallel">同步云端 · 更新目录 %1$d/%2$d</string>

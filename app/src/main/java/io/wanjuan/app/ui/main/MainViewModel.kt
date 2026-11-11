@@ -25,6 +25,7 @@ import io.wanjuan.app.model.CacheBook
 import io.wanjuan.app.model.ReadBook
 import io.wanjuan.app.model.ReadManga
 import io.wanjuan.app.model.webBook.WebBook
+import io.wanjuan.app.service.BookshelfRefreshService
 import io.wanjuan.app.service.CacheBookService
 import io.wanjuan.app.sync.SyncManager
 import io.wanjuan.app.sync.SingleFlightSync
@@ -189,7 +190,20 @@ class MainViewModel(application: Application) : BaseViewModel(application) {
         bookshelfRefreshAction = {
             refreshBookshelfOnce(groupId, displayedSnapshot, onlyUpdateRead, tag, updateCatalog)
         }
-        bookshelfRefreshFlight.start(rerunIfActive = true)
+        val refresh = bookshelfRefreshFlight.start(rerunIfActive = true)
+        try {
+            // Protect the entire single flight, including a queued repeat and the final upload.
+            BookshelfRefreshService.track(context, refresh)
+        } catch (error: Exception) {
+            refresh.cancel()
+            upTocJob?.cancel()
+            AppLog.put("无法启动书架后台刷新", error)
+            viewModelScope.launch {
+                showBookshelfRefreshStatus(BookshelfRefreshStatus(
+                    false, context.getString(R.string.bookshelf_sync_failed, error.localizedMessage.orEmpty())
+                ), dismissAfterMillis = 5_000L)
+            }
+        }
     }
 
     private suspend fun refreshBookshelfOnce(
@@ -252,6 +266,8 @@ class MainViewModel(application: Application) : BaseViewModel(application) {
                     dismissAfterMillis = if (result.isSuccess) 2_000L else 5_000L
                 )
             } catch (e: CancellationException) {
+                // The catalog queue is a sibling job; stop it when the refresh is cancelled.
+                upTocJob?.cancel()
                 bookshelfRefreshStatus.postValue(BookshelfRefreshStatus())
                 throw e
             } catch (e: Exception) {
@@ -273,6 +289,9 @@ class MainViewModel(application: Application) : BaseViewModel(application) {
     ) = withContext(Dispatchers.Main.immediate) {
         dismissRefreshStatusJob?.cancel()
         bookshelfRefreshStatus.value = status
+        if (bookshelfRefreshInProgress && status.running) {
+            BookshelfRefreshService.updateProgress(status.message)
+        }
         if (!status.running && status.message.isNotBlank()) {
             dismissRefreshStatusJob = viewModelScope.launch {
                 delay(dismissAfterMillis)

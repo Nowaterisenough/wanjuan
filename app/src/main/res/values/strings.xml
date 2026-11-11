@@ -1966,6 +1966,7 @@ Selected text or question:
     <string name="paragraph_rule_script">Paragraph processing JS</string>
     <string name="paragraph_rule_vars">Rule variables</string>
     <string name="paragraph_rule_vars_json">Variables JSON</string>
+    <string name="bookshelf_refresh_notification">Refreshing bookshelf</string>
     <string name="bookshelf_sync_pulling">Syncing cloud bookshelf...</string>
     <string name="bookshelf_sync_catalog">Updating chapters: %1$d/%2$d</string>
     <string name="bookshelf_sync_parallel">Cloud sync · Chapters %1$d/%2$d</string>

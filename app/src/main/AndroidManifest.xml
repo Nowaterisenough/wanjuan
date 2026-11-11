@@ -526,6 +526,10 @@
         </activity>
 
         <service
+            android:name=".service.BookshelfRefreshService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+        <service
             android:name=".service.CheckSourceService"
             android:foregroundServiceType="dataSync" />
         <service
