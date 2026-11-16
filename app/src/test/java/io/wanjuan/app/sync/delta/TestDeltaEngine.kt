@@ -39,6 +39,137 @@ class TestDeltaEngine {
                 durChapterIndex = chapter, syncTime = chapter.toLong(), lastCheckTime = check, durChapterTime = read),
             100, 100, 100, "device")))
 
+    private fun reading(chapter: Int, time: Long, title: String = "Chapter $chapter", tag: String = "old") =
+        DeltaCodec.normalize(id.objectType, GSON.toJson(SyncBookPayload("book",
+            SyncBook(bookUrl = "url", origin = "source", name = "Book", customTag = tag,
+                totalChapterNum = 102, durChapterIndex = chapter, durChapterPos = 20,
+                durChapterTitle = title, syncTime = time, durChapterTime = time),
+            100, 100, time, "device")))
+
+    @Test fun olderPendingReadCannotOverwriteNewChaptersReadOnAnotherDevice() = runBlocking {
+        val remote = Remote(); val a = Local(); val b = Local()
+        val ae = engine(a, remote); val be = engine(b, remote)
+        a.values[id] = reading(98, 100); ae.flush(); be.pull()
+        b.values[id] = reading(99, 200, tag = "keep B tag"); be.capture()
+        a.values[id] = reading(101, 300); ae.flush()
+        be.pull()
+        assertEquals(101, book(b).durChapterIndex)
+        assertEquals("Chapter 101", book(b).durChapterTitle)
+        assertEquals(300L, book(b).syncTime)
+        assertEquals("keep B tag", book(b).customTag)
+        be.flush(); ae.pull()
+        assertEquals(a.values, b.values)
+        assertEquals(101, book(a).durChapterIndex)
+        assertEquals(0, be.flush().uploaded)
+    }
+
+    @Test fun newerIntentionalBackwardReadingWinsOverOlderForwardReading() = runBlocking {
+        val remote = Remote(); val a = Local(); val b = Local()
+        val ae = engine(a, remote); val be = engine(b, remote)
+        a.values[id] = reading(98, 100); ae.flush(); be.pull()
+        b.values[id] = reading(20, 400)
+        a.values[id] = reading(101, 300); ae.flush()
+        be.flush(); ae.pull()
+        assertEquals(20, book(a).durChapterIndex)
+        assertEquals(a.values, b.values)
+        assertEquals(400L, book(a).syncTime)
+    }
+
+    @Test fun titleOnlyChangeCannotReplayAnOldReadingPosition() = runBlocking {
+        val remote = Remote(); val a = Local(); val b = Local()
+        val ae = engine(a, remote); val be = engine(b, remote)
+        a.values[id] = reading(99, 100); ae.flush(); be.pull()
+        b.values[id] = reading(99, 100, title = "Locally formatted title")
+        a.values[id] = reading(101, 300); ae.flush(); be.pull()
+        assertEquals(101, book(b).durChapterIndex)
+        assertEquals("Chapter 101", book(b).durChapterTitle)
+        assertEquals(0, be.flush().uploaded)
+    }
+
+    @Test fun upgradingTimestamplessBaselineDoesNotUploadUnchangedBooks() = runBlocking {
+        val remote = Remote(); val a = Local(); val ae = engine(a, remote)
+        a.values[id] = reading(99, 0); ae.flush()
+        a.values[id] = reading(99, 100)
+        assertEquals(0, ae.flush().uploaded)
+        a.values[id] = reading(99, 100, tag = "metadata")
+        assertEquals(1, ae.flush().uploaded)
+        val fields = DeltaRemote(remote).block(DeltaRemote(remote).head().second).changes.single().fields
+        assertEquals(listOf(listOf("b", "h")), fields.map { it.path })
+    }
+
+    @Test fun delayedImmutableReadPatchCannotRollBackACommittedNewerRead() {
+        val baseline = reading(98, 100)
+        val stalePatch = DeltaCodec.fields(id.objectType, baseline, reading(99, 200))
+        val merged = DeltaCodec.applyChange(id.objectType, reading(101, 300), stalePatch)
+        assertEquals(reading(101, 300), merged)
+        // The same coordinate at an older time must not downgrade its version either.
+        val samePositionPatch = DeltaCodec.fields(id.objectType, baseline, reading(101, 200))
+        assertEquals(reading(101, 300), DeltaCodec.applyChange(id.objectType, reading(101, 300), samePositionPatch))
+    }
+
+    @Test fun legacyProgressPatchClearsTimestampBelongingToPreviousPosition() {
+        val baseline = reading(98, 100)
+        val legacyPatch = DeltaCodec.fields(id.objectType, baseline, reading(99, 200))
+            .filterNot { it.path == listOf("b", "G") }
+        val merged = DeltaCodec.applyChange(id.objectType, baseline, legacyPatch)
+        val book = GSON.fromJson(merged, SyncBookPayload::class.java).book
+        assertEquals(99, book.durChapterIndex)
+        assertEquals(0L, book.syncTime)
+        val journalValue = DeltaCodec.applyChange(id.objectType, baseline, legacyPatch, 200)
+        assertEquals(200L, GSON.fromJson(journalValue, SyncBookPayload::class.java).book.syncTime)
+        val catalog = DeltaCodec.applyChange(id.objectType, journalValue,
+            listOf(DeltaField(listOf("b", "t"), value = com.google.gson.JsonPrimitive(103))), 500)
+        assertEquals(200L, GSON.fromJson(catalog, SyncBookPayload::class.java).book.syncTime)
+    }
+
+    @Test fun legacyCommittedProgressWinsOverAnOlderPendingReadAfterUpgrade() = runBlocking {
+        val remote = Remote(); val a = Local(); val b = Local()
+        val ae = engine(a, remote, 100); val be = engine(b, remote, 100)
+        a.values[id] = reading(98, 100); ae.flush(); be.pull()
+        b.values[id] = reading(99, 200); be.capture()
+        // Reproduce an old client's patch: its five position fields contain no timestamp.
+        val delta = DeltaRemote(remote)
+        val (revision, head) = delta.head()
+        val fields = DeltaCodec.fields(id.objectType, reading(98, 100), reading(101, 300))
+            .filterNot { it.path == listOf("b", "G") }
+        val block = DeltaBlock(350, head, listOf(DeltaChange("legacy-read", id.objectType, id.objectId, fields = fields)))
+        val next = DeltaHead(block.timestamp, delta.writeBlock(block))
+        assertTrue(delta.publish(revision, next, listOf(next to block)))
+        be.pull()
+        assertEquals(101, book(b).durChapterIndex)
+        assertEquals(350L, book(b).syncTime)
+        assertEquals(0, be.flush().uploaded)
+    }
+
+    @Test fun chapterAndOffsetAreStillOneAtomicReadingPosition() {
+        val before = reading(98, 100)
+        val fields = DeltaCodec.fields(id.objectType, before, reading(101, 300))
+        assertTrue(fields.map { it.path }.containsAll(listOf("u", "v", "w", "x", "y", "G").map { listOf("b", it) }))
+    }
+
+    @Test fun firstPullOfAnExistingBookKeepsNewerCloudProgress() = runBlocking {
+        val remote = Remote(); val a = Local(); val b = Local()
+        a.values[id] = reading(101, 300); engine(a, remote).flush()
+        b.values[id] = reading(99, 200, tag = "B local tag")
+        engine(b, remote).pull()
+        assertEquals(101, book(b).durChapterIndex)
+        assertEquals("B local tag", book(b).customTag)
+    }
+
+    @Test fun failedOldUploadDoesNotOverwriteNewerReadWhenRetried() = runBlocking {
+        val remote = Remote(); val a = Local(); val b = Local()
+        val ae = engine(a, remote); val be = engine(b, remote)
+        a.values[id] = reading(98, 100); ae.flush(); be.pull()
+        b.values[id] = reading(99, 200)
+        remote.beforeCas = { throw IOException("publish failed") }
+        assertTrue(runCatching { be.flush() }.isFailure)
+        a.values[id] = reading(101, 300); ae.flush()
+        be.flush(); ae.pull()
+        assertEquals(101, book(b).durChapterIndex)
+        assertEquals(a.values, b.values)
+        assertEquals(0, be.flush().uploaded)
+    }
+
     @Test fun unchangedPullAndFlushNeverUploadOrRereadOldBlocks() = runBlocking {
         val remote = Remote(); val a = Local(); val engine = engine(a, remote)
         engine.pull(); assertTrue(remote.objects.isEmpty())
@@ -106,8 +237,10 @@ class TestDeltaEngine {
         val touched = payload.copy(book = payload.book.copy(syncTime = 900,
             readConfig = io.wanjuan.app.data.entities.Book.ReadConfig()))
         val unallocated = payload.copy(book = payload.book.copy(readConfig = null))
-        assertEquals(DeltaCodec.normalize(id.objectType, GSON.toJson(unallocated)),
-            DeltaCodec.normalize(id.objectType, GSON.toJson(touched)))
+        val before = DeltaCodec.normalize(id.objectType, GSON.toJson(unallocated))
+        val after = DeltaCodec.normalize(id.objectType, GSON.toJson(touched))
+        assertTrue(DeltaCodec.sameContent(id.objectType, before, after))
+        assertTrue(DeltaCodec.fields(id.objectType, before, after).isEmpty())
     }
 
     @Test fun pullOnlyNeverPublishesLocalEditsAndRemoteChangesDoNotEcho() = runBlocking {

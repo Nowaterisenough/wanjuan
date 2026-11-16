@@ -34,6 +34,53 @@ class TestDeltaSyncInstrumented {
 
     @After fun close() { replicas.forEach { it.db.close() } }
 
+    @Test fun finishedNewChaptersOverrideOlderPendingReadDuringBookshelfRefresh() = runBlocking {
+        val a = replica(); val b = replica()
+        val book = Book(bookUrl = "reading-book", origin = "source", name = "Read across devices",
+            totalChapterNum = 100, durChapterIndex = 98, durChapterTitle = "Chapter 99", syncTime = 100)
+        a.db.bookDao.insert(book); a.engine.flush(); b.engine.pull()
+        val beforeRefresh = b.db.bookDao.getBook(book.bookUrl)!!
+        b.db.bookDao.update(beforeRefresh.copy(durChapterIndex = 99, durChapterTitle = "Chapter 100",
+            syncTime = 200, customTag = "B local tag"))
+        b.engine.capture()
+        a.db.bookDao.update(a.db.bookDao.getBook(book.bookUrl)!!.copy(totalChapterNum = 102,
+            durChapterIndex = 101, durChapterTitle = "Chapter 102", durChapterPos = 80, syncTime = 300))
+        a.engine.flush()
+        b.engine.pull()
+        // A directory request started before the pull and finishes afterwards.
+        io.wanjuan.app.help.book.BookCatalogUpdate.save(b.db, beforeRefresh,
+            beforeRefresh.copy(totalChapterNum = 102, lastCheckTime = 500), emptyList())
+        b.engine.flush(); a.engine.pull()
+        for (replica in listOf(a, b)) {
+            val result = replica.db.bookDao.getBook(book.bookUrl)!!
+            assertEquals(101, result.durChapterIndex)
+            assertEquals(80, result.durChapterPos)
+            assertEquals(300L, result.syncTime)
+            assertEquals("Chapter 102", result.durChapterTitle)
+            assertEquals("B local tag", result.customTag)
+            assertEquals(0, result.totalChapterNum - result.durChapterIndex - 1)
+            assertEquals(0, replica.engine.flush().uploaded)
+        }
+    }
+
+    @Test fun metadataUploadDoesNotRestampReadingAndOlderDelayedReadCannotWin() = runBlocking {
+        val a = replica(); val b = replica()
+        val book = Book(bookUrl = "reading-book", origin = "source", name = "Read across devices",
+            totalChapterNum = 102, durChapterIndex = 99, syncTime = 100)
+        a.db.bookDao.insert(book); a.engine.flush(); b.engine.pull()
+        a.db.bookDao.update(a.db.bookDao.getBook(book.bookUrl)!!.copy(durChapterIndex = 101, syncTime = 300))
+        a.engine.flush(); b.engine.pull()
+        b.db.bookDao.update(b.db.bookDao.getBook(book.bookUrl)!!.copy(customTag = "metadata"))
+        b.engine.flush(); a.engine.pull()
+        assertEquals(300L, a.db.bookDao.getBook(book.bookUrl)!!.syncTime)
+        // An old in-memory reader snapshot saves after the newer remote progress was applied.
+        b.db.bookDao.update(b.db.bookDao.getBook(book.bookUrl)!!.copy(durChapterIndex = 99, syncTime = 200))
+        b.engine.flush(); a.engine.pull()
+        assertEquals(101, b.db.bookDao.getBook(book.bookUrl)!!.durChapterIndex)
+        assertEquals(101, a.db.bookDao.getBook(book.bookUrl)!!.durChapterIndex)
+        assertEquals(0, b.engine.flush().uploaded)
+    }
+
     @Test fun unchangedPullOnlyReadsBookStateAndStillRestoresMissingBooks() = runBlocking {
         val a = replica()
         val book = Book(bookUrl = "book", origin = "source", name = "Book")

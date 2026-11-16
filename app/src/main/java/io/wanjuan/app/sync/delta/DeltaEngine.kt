@@ -37,6 +37,13 @@ class DeltaEngine(
             val previous = states[id] ?: SyncDeltaState(target, id.objectType, id.objectId)
             val value = current[id]
             if (value == previous.observedJson && id !in deletions) continue
+            if (id !in deletions && previous.pendingId == null && previous.inFlightChange == null &&
+                DeltaCodec.sameContent(id.objectType, value, previous.observedJson)) {
+                val observed = previous.copy(observedJson = value)
+                local.save(observed)
+                states[id] = observed
+                continue
+            }
             if (value == null && !local.canDelete(id)) {
                 val replaced = id.objectType == SyncObjectType.Book && previous.observedJson != null &&
                     current.any { (other, json) -> other.objectType == SyncObjectType.Book && other != id &&
@@ -44,7 +51,7 @@ class DeltaEngine(
                 if (!replaced) continue
             }
             val explicitDelete = id in deletions && !(previous.pendingCreate && previous.remoteJson == null && previous.inFlightChange == null)
-            val same = previous.inFlightChange == null && !explicitDelete && (value == previous.remoteJson ||
+            val same = previous.inFlightChange == null && !explicitDelete && (DeltaCodec.sameContent(id.objectType, value, previous.remoteJson) ||
                 (previous.remoteJson == null && value != null && DeltaCodec.isEmptyOrder(id.objectType, value)))
             val updated = previous.copy(
                 observedJson = value,
@@ -228,7 +235,7 @@ class DeltaEngine(
                     val cloud = when {
                         change.delete -> null
                         old.remoteJson == null && !change.create -> null // A stale edit must not resurrect a deleted object.
-                        else -> DeltaCodec.normalize(id.objectType, DeltaJson.apply(old.remoteJson?.let(DeltaJson::parse), change.fields).toString())
+                        else -> DeltaCodec.applyChange(id.objectType, old.remoteJson, change.fields, block.timestamp)
                     }
                     val acknowledged = old.pendingId == change.id
                     val discardEdit = change.delete && old.pendingId != null && !old.pendingCreate && !old.pendingDelete
@@ -245,7 +252,7 @@ class DeltaEngine(
                         old.pendingJson != null && desired != null) {
                         desired = DeltaCodec.rebase(id.objectType, old.inFlightValue, old.pendingJson, desired)
                     }
-                    if (desired == cloud && remainingFlight == null) pendingId = null
+                    if (DeltaCodec.sameContent(id.objectType, desired, cloud) && remainingFlight == null) pendingId = null
                     val updated = old.copy(remoteJson = cloud, pendingId = pendingId,
                         pendingJson = desired.takeIf { pendingId != null },
                         pendingDelete = pendingId != null && old.pendingDelete,
