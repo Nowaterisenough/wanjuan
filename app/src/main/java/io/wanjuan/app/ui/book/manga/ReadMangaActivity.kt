@@ -1458,10 +1458,10 @@ class ReadMangaActivity : VMBaseActivity<ActivityMangaBinding, ReadMangaViewMode
 
     override fun onPause() {
         binding.mangaProgressMinimap.pauseThumbnailLoading()
-        super.onPause()
         if (ReadManga.inBookshelf) {
-            ReadManga.saveRead()
+            io.wanjuan.app.sync.SyncManager.finishReading(ReadManga.saveRead())
         }
+        super.onPause()
         ReadManga.cancelPreDownloadTask()
         mScrollTimer.isEnabledPage = false
         mScrollTimer.isEnabled = false

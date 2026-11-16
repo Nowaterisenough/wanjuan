@@ -9,6 +9,7 @@ import io.wanjuan.app.help.AppWebDav
 import io.wanjuan.app.help.book.isNotShelf
 import io.wanjuan.app.help.config.AppConfig
 import io.wanjuan.app.help.coroutine.Coroutine
+import io.wanjuan.app.service.BookshelfRefreshService
 import io.wanjuan.app.sync.delta.*
 import io.wanjuan.app.sync.mapper.progressSyncTime
 import io.wanjuan.app.sync.model.SyncResult
@@ -176,6 +177,15 @@ object SyncManager {
     }
 
     fun onNetworkAvailable() = syncNow()
+
+    /** Called on the main thread from the reader's onPause, before it leaves the foreground. */
+    fun finishReading(saved: Deferred<Unit>) {
+        if (!isEnabled) return
+        startReadingProgressUpload(syncScope, saved,
+            protect = { BookshelfRefreshService.track(appCtx, it) },
+            upload = { flushPending() },
+            onFailure = { AppLog.put("保存后同步阅读进度失败", it) })
+    }
 
     fun syncNow(force: Boolean = false, onComplete: (SyncResult) -> Unit = {}) {
         if ((!force && !isEnabled) || !SyncSettings.isConfigured) {

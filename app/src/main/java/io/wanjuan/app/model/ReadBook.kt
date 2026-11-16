@@ -39,6 +39,8 @@ import io.wanjuan.app.utils.postEvent
 import io.wanjuan.app.utils.stackTraceStr
 import io.wanjuan.app.utils.toastOnUi
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers.IO
@@ -1062,24 +1064,27 @@ object ReadBook : CoroutineScope by MainScope() {
         saveRead()
     }
 
-    fun saveRead(pageChanged: Boolean = false, progressUpdatedAt: Long? = null) {
-        val book = book ?: return
+    fun saveRead(pageChanged: Boolean = false, progressUpdatedAt: Long? = null): Deferred<Unit> {
+        val book = book ?: return CompletableDeferred(Unit)
+        val chapterIndex = durChapterIndex
+        val chapterPos = durChapterPos
+        val durTime = System.currentTimeMillis()
+        val saved = CompletableDeferred<Unit>()
         executor.execute {
             kotlin.runCatching {
                 book.lastCheckCount = 0
-                val durTime = System.currentTimeMillis()
-                val chapterChanged = book.durChapterIndex != durChapterIndex
-                val progressChanged = chapterChanged || book.durChapterPos != durChapterPos
+                val chapterChanged = book.durChapterIndex != chapterIndex
+                val progressChanged = chapterChanged || book.durChapterPos != chapterPos
                 book.durChapterTime = durTime
-                book.durChapterIndex = durChapterIndex
-                book.durChapterPos = durChapterPos
+                book.durChapterIndex = chapterIndex
+                book.durChapterPos = chapterPos
                 if (progressUpdatedAt != null) {
                     book.syncTime = progressUpdatedAt
                 } else if (progressChanged) {
                     book.syncTime = durTime
                 }
                 if (!pageChanged || chapterChanged) {
-                    appDb.bookChapterDao.getChapter(book.bookUrl, durChapterIndex)?.let {
+                    appDb.bookChapterDao.getChapter(book.bookUrl, chapterIndex)?.let {
                         book.durChapterTitle = it.getDisplayTitle(
                             ContentProcessor.get(book.name, book.origin).getTitleReplaceRules(),
                             book.getUseReplaceRule(),
@@ -1091,10 +1096,14 @@ object ReadBook : CoroutineScope by MainScope() {
                 book.update()
                 appDb.readRecentBookDao.insert(ReadRecentBook(book.bookUrl, durTime))
                 ReadRecordWidgetStore.updateRecentSnapshot(book, durTime)
+            }.onSuccess {
+                saved.complete(Unit)
             }.onFailure {
+                saved.completeExceptionally(it)
                 AppLog.put("保存书籍阅读进度信息出错\n$it", it)
             }
         }
+        return saved
     }
 
     /**

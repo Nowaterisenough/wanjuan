@@ -31,6 +31,8 @@ import io.wanjuan.app.ui.book.manga.entities.MangaPage
 import io.wanjuan.app.ui.book.manga.entities.ReaderLoading
 import io.wanjuan.app.utils.mapIndexed
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Dispatchers.IO
@@ -346,16 +348,18 @@ object ReadManga : CoroutineScope by MainScope() {
         preDownload()
     }
 
-    fun saveRead(pageChanged: Boolean = false, progressUpdatedAt: Long? = null) {
-        val book = book ?: return
+    fun saveRead(pageChanged: Boolean = false, progressUpdatedAt: Long? = null): Deferred<Unit> {
+        val book = book ?: return CompletableDeferred(Unit)
         val chapterIndex = durChapterIndex
         val pageIndex = durChapterPos
+        val readTime = System.currentTimeMillis()
+        val saved = CompletableDeferred<Unit>()
         executor.execute {
             kotlin.runCatching {
                 book.lastCheckCount = 0
                 val chapterChanged = book.durChapterIndex != chapterIndex
                 val progressChanged = chapterChanged || book.durChapterPos != pageIndex
-                book.durChapterTime = System.currentTimeMillis()
+                book.durChapterTime = readTime
                 book.durChapterIndex = chapterIndex
                 book.durChapterPos = pageIndex
                 if (progressUpdatedAt != null) {
@@ -375,10 +379,14 @@ object ReadManga : CoroutineScope by MainScope() {
                 appDb.bookDao.update(book)
                 appDb.readRecentBookDao.insert(ReadRecentBook(book.bookUrl, book.durChapterTime))
                 ReadRecordWidgetStore.updateRecentSnapshot(book, book.durChapterTime)
+            }.onSuccess {
+                saved.complete(Unit)
             }.onFailure {
+                saved.completeExceptionally(it)
                 AppLog.put("保存漫画阅读进度信息出错\n$it", it)
             }
         }
+        return saved
     }
 
     private fun downloadNetworkContent(

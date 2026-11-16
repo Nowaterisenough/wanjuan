@@ -9,6 +9,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import io.wanjuan.app.constant.NotificationId
 import io.wanjuan.app.help.LifecycleHelp
 import io.wanjuan.app.sync.SingleFlightSync
+import io.wanjuan.app.sync.startReadingProgressUpload
 import io.wanjuan.app.ui.about.AboutActivity
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -24,6 +25,32 @@ import org.junit.runner.RunWith
 class TestBookshelfRefreshService {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
     private val context get() = instrumentation.targetContext
+
+    @Test
+    fun leavingReaderProtectsPendingSaveAndUploadsAfterBackgrounding() = runBlocking {
+        val scenario = ActivityScenario.launch(AboutActivity::class.java)
+        val saved = CompletableDeferred<Unit>()
+        val uploaded = CompletableDeferred<Unit>()
+        val owner = this
+        val task = withContext(Dispatchers.Main) {
+            startReadingProgressUpload(owner, saved, { BookshelfRefreshService.track(context, it) },
+                { uploaded.complete(Unit) }, { throw AssertionError(it) })
+        }
+        try {
+            awaitForeground()
+            val lock = currentWakeLock()
+            goHome()
+            assertTrue(lock.isHeld)
+            assertFalse(uploaded.isCompleted)
+            saved.complete(Unit)
+            withTimeout(5_000) { uploaded.await(); task.join() }
+            awaitStopped()
+            assertFalse(lock.isHeld)
+        } finally {
+            task.cancel()
+            scenario.close()
+        }
+    }
 
     @Test
     fun queuedRepeatAndFinalUploadStayProtectedInBackground() = runBlocking {

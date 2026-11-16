@@ -408,9 +408,10 @@ class ReadBookActivity : BaseReadBookActivity(),
     }
 
     override fun onPause() {
-        super.onPause()
         autoPageStop()
-        ReadBook.saveRead()
+        val saved = ReadBook.saveRead()
+        if (ReadBook.inBookshelf) SyncManager.finishReading(saved)
+        super.onPause()
         ReadBook.cancelPreDownloadTask()
         unregisterReceiver(timeBatteryReceiver)
         upSystemUiVisibility()
