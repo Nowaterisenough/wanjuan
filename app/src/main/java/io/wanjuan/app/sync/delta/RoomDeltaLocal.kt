@@ -2,6 +2,7 @@ package io.wanjuan.app.sync.delta
 
 import io.wanjuan.app.constant.BookType
 import io.wanjuan.app.data.AppDatabase
+import io.wanjuan.app.help.book.isNotShelf
 import io.wanjuan.app.sync.*
 import io.wanjuan.app.sync.local.SyncDeltaCursor
 import io.wanjuan.app.sync.local.SyncDeltaState
@@ -16,7 +17,7 @@ import io.wanjuan.app.utils.GSON
 
 class RoomDeltaLocal(
     private val db: AppDatabase,
-    private val snapshots: SyncLocalSnapshotSource,
+    private val snapshots: RoomSyncSnapshotSource,
     private val books: BookshelfSyncCoordinator,
     private val handlers: List<SyncPullHandler>
 ) : DeltaLocal {
@@ -34,7 +35,14 @@ class RoomDeltaLocal(
     override fun snapshots(): Map<SyncIdentity, String> = snapshots(SyncObjectSelection.all)
 
     override fun snapshots(objectTypes: Set<String>): Map<SyncIdentity, String> =
-        snapshots.currentPayloads(objectTypes).mapValues { (id, json) -> DeltaCodec.normalize(id.objectType, json) }
+        snapshots.normalizedPayloads(objectTypes)
+
+    override fun missingBookStates(target: String): List<SyncDeltaState> {
+        val candidates = db.syncDeltaDao.restorableBookIds(target).toMutableSet()
+        if (candidates.isEmpty()) return emptyList()
+        db.bookDao.all.forEach { if (!it.isNotShelf) candidates.remove(SyncIds.bookId(it)) }
+        return payloads.decode(candidates.mapNotNull { db.syncDeltaDao.get(target, SyncObjectType.Book, it) })
+    }
 
     override fun canDelete(identity: SyncIdentity): Boolean {
         if (identity.objectType != SyncObjectType.Book) return true

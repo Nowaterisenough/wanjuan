@@ -154,6 +154,7 @@ class TestDeltaSyncInstrumented {
         a.db.ruleSubDao.insert(RuleSub(name = "Sub", url = "https://example.test/sub"))
         val old = a.snapshots.currentSnapshots().associate { SyncIdentity(it.objectType, it.objectId) to it.payloadJson }
         assertEquals(old, a.snapshots.currentPayloads(SyncObjectSelection.all))
+        assertEquals(old.mapValues { (id, json) -> DeltaCodec.normalize(id.objectType, json) }, a.local.snapshots())
         SyncObjectSelection.all.forEach { type ->
             assertEquals(old.filterKeys { it.objectType == type }, a.snapshots.currentPayloads(setOf(type)))
         }
@@ -220,6 +221,48 @@ class TestDeltaSyncInstrumented {
         assertEquals(setOf("pending"), replica.local.pendingBookIds("target"))
         assertEquals("pending", replica.local.pending("target", 64).single().objectId)
         assertTrue(replica.local.pending("target", 0).isEmpty())
+    }
+
+    @Test fun measureRefreshWithOneEditedBookAndThreeHundredSources() = runBlocking {
+        val a = replica()
+        a.db.bookSourceDao.insert(*(1..300).map {
+            BookSource(bookSourceUrl = "https://example.test/$it", bookSourceName = "Source $it", jsLib = "// fixture\n".repeat(1000))
+        }.toTypedArray())
+        a.db.bookDao.insert(*(1..30).map { Book(bookUrl = "book-$it", origin = "source", name = "Book $it") }.toTypedArray())
+        while (a.engine.flush().pending > 0) { /* finish publishing the initial shelf */ }
+        // Use the same Room databases and remote. Reproduce the previous JSON round trip,
+        // shelf recovery scan and independent read-for-update before publishing.
+        val previousLocal = object : DeltaLocal by a.local {
+            override fun snapshots() = snapshots(SyncObjectSelection.all)
+            override fun snapshots(objectTypes: Set<String>) = a.snapshots.currentPayloads(objectTypes)
+                .mapValues { (id, json) -> DeltaCodec.normalize(id.objectType, json) }
+            override fun missingBookStates(target: String): List<SyncDeltaState> {
+                val types = setOf(SyncObjectType.Book)
+                val keys = snapshots(types).keys
+                return states(target, types).filter { !it.pendingDelete && SyncIdentity(it.objectType, it.objectId) !in keys }
+            }
+        }
+        var edit = 0
+        suspend fun measure(local: DeltaLocal, reuse: Boolean): Long {
+            val engine = DeltaEngine(local, DeltaRemote(remote), "target", a.clock, reusePullForUpload = reuse)
+            val start = System.nanoTime()
+            remote.reads.clear()
+            engine.pull()
+            val book = a.db.bookDao.getBook("book-1")!!
+            a.db.bookDao.update(book.copy(customTag = "edit-${++edit}"))
+            assertEquals(1, engine.flush().uploaded)
+            assertEquals(if (reuse) 1 else 2, remote.reads.count { it == DeltaRemote.HEAD })
+            return (System.nanoTime() - start) / 1_000_000
+        }
+        measure(previousLocal, false); measure(a.local, true)
+        val before = mutableListOf<Long>(); val after = mutableListOf<Long>()
+        repeat(3) {
+            if (it % 2 == 0) { before += measure(previousLocal, false); after += measure(a.local, true) }
+            else { after += measure(a.local, true); before += measure(previousLocal, false) }
+        }
+        InstrumentationRegistry.getInstrumentation().sendStatus(2, android.os.Bundle().apply {
+            putString("stream", "REFRESH_FLOW_BENCHMARK: beforeMs=$before afterMs=$after headReads=2->1\n")
+        })
     }
 
     @Test fun migrationPreservesExistingOutboxAndAddsDurableCursor() {

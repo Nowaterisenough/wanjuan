@@ -11,6 +11,16 @@ import org.junit.Test
 
 class TestBookshelfRefreshTask {
 
+    @Test fun cloudRequestCanStartWhileLocalBookListIsLoading() = runBlocking {
+        val cloudStarted = CompletableDeferred<Unit>()
+        val task = BookshelfRefreshTask<String>(
+            loadBooks = { cloudStarted.await(); emptyList() },
+            bookKey = { it }, queueCatalogs = { emptyList() },
+            syncCloud = { cloudStarted.complete(Unit); SyncResult() }, flushChanges = { SyncResult() }
+        )
+        assertTrue(withTimeout(5_000) { task.run {} }.isSuccess)
+    }
+
     @Test
     fun slowCloudDoesNotBlockLocalCatalogsAndNewBooksJoinBeforeTheyFinish() = runBlocking {
         withTimeout(5_000) {

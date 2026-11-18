@@ -49,9 +49,11 @@ object SyncIds {
     fun newGroupId(): String = "book-group_${UUID.randomUUID()}"
 
     fun hashKey(prefix: String, key: String): String {
-        val digest = MessageDigest.getInstance("SHA-256")
-            .digest(key.toByteArray(Charsets.UTF_8))
-            .joinToString("") { "%02x".format(it) }
+        val digest = sha256Hex(key.toByteArray(Charsets.UTF_8))
         return "${prefix}_${digest.take(32)}"
     }
 }
+
+@OptIn(ExperimentalStdlibApi::class)
+internal fun sha256Hex(bytes: ByteArray): String =
+    MessageDigest.getInstance("SHA-256").digest(bytes).toHexString()

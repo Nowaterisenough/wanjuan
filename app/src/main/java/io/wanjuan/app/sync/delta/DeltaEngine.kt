@@ -17,8 +17,10 @@ class DeltaEngine(
     private val target: String,
     private val clock: SyncClock,
     private val legacy: suspend () -> Map<SyncIdentity, String> = { emptyMap() },
-    private val progress: SyncProgressTracker = SyncProgressTracker()
+    private val progress: SyncProgressTracker = SyncProgressTracker(),
+    private val reusePullForUpload: Boolean = false
 ) {
+    private var pulledBase: Pair<SyncRemoteRead, DeltaHead>? = null
     private fun SyncDeltaState.identity() = SyncIdentity(objectType, objectId)
     private fun pendingCount() = local.pendingCount(target)
     fun hasPending(): Boolean = pendingCount() > 0
@@ -68,8 +70,10 @@ class DeltaEngine(
     }
 
     suspend fun pull(result: SyncResult.Mutable = SyncResult.Mutable()): SyncResult {
+        pulledBase = null
         try {
-            pullHead(result)
+            val base = pullHead(result)
+            if (reusePullForUpload) pulledBase = base
             return result.toResult()
         } finally { remote.trimCache() }
     }
@@ -125,12 +129,20 @@ class DeltaEngine(
         val result = SyncResult.Mutable()
         progress.phase(SyncPhase.Capturing)
         if (!local.cursor(target).legacyImported) pull(result)
+        val base = pulledBase
+        pulledBase = null
         if (capture() == 0) return result.toResult()
-        repeat(6) {
+        repeat(6) { attempt ->
             currentCoroutineContext().ensureActive()
-            val (revision, head) = pullHead(result)
-            capture()
-            if (!hasPending()) return result.toResult().copy(pending = 0)
+            val cursorBeforeUpload = local.cursor(target)
+            val cached = base?.takeIf { (_, head) ->
+                attempt == 0 && cursorBeforeUpload.legacyImported &&
+                    head.timestamp == cursorBeforeUpload.timestamp && head.block == cursorBeforeUpload.block
+            }
+            // Only a successful CAS on the original SHA/ETag can publish this candidate.
+            // On conflict, pull the intervening changes and rebuild the queue before retrying.
+            val (revision, head) = cached ?: pullHead(result)
+            if (cached == null && capture() == 0) return result.toResult().copy(pending = 0)
             val cursor = local.cursor(target)
             check(head.timestamp == cursor.timestamp && head.block == cursor.block) { "Pulled sync head does not match local cursor" }
             progress.phase(SyncPhase.PreparingUpload)
@@ -193,6 +205,18 @@ class DeltaEngine(
                 result.pending = pendingCount()
                 progress.upload(changes.size, changes.size, result.uploaded, result.failed, SyncPhase.Confirming)
                 return result.toResult()
+            }
+            // This CAS was definitively rejected. Freshly prepared operations must be diffed
+            // again against the next head (e.g. a title edit for a now-obsolete chapter).
+            // Preserve older operations whose publication outcome is still unknown.
+            val rejected = queued.filter { it.inFlightChange == null }.mapTo(hashSetOf()) { it.pendingId }
+            if (rejected.isNotEmpty()) local.transaction {
+                local.pending(target).forEach { state ->
+                    val operation = state.inFlightChange?.let { GSON.fromJson(it, DeltaChange::class.java) }
+                    if (operation != null && operation.id in rejected) {
+                        local.save(state.copy(inFlightChange = null, inFlightValue = null))
+                    }
+                }
             }
         }
         error("Concurrent sync writes did not settle; local changes remain pending")
@@ -308,19 +332,17 @@ class DeltaEngine(
             // Recovery only concerns shelf membership. Do not decode and normalize every
             // source rule (including large chunked payloads) on every unchanged head read.
             val bookTypes = setOf(SyncObjectType.Book)
-            val states = local.states(target, bookTypes)
+            val states = local.missingBookStates(target)
             if (states.isEmpty()) return@transaction
-            val current = local.snapshots(bookTypes)
             val restored = hashSetOf<SyncIdentity>()
             val timestamp = maxOf(1L, local.cursor(target).timestamp)
-            states.filter { it.objectType == SyncObjectType.Book && !it.pendingDelete && it.identity() !in current }
-                .forEach { state ->
-                    // A source replacement can span blocks: retry a previously colliding live
-                    // book after the old source's deletion, without redownloading its content.
-                    val value = if (state.pendingId != null) state.pendingJson else state.remoteJson
-                    if (value != null && !local.canDelete(state.identity()) &&
-                        local.apply(state.identity(), value, timestamp) == SyncApplyOutcome.Inserted) restored += state.identity()
-                }
+            states.forEach { state ->
+                // A source replacement can span blocks: retry a previously colliding live
+                // book after the old source's deletion, without redownloading its content.
+                val value = if (state.pendingId != null) state.pendingJson else state.remoteJson
+                if (value != null && !local.canDelete(state.identity()) &&
+                    local.apply(state.identity(), value, timestamp) == SyncApplyOutcome.Inserted) restored += state.identity()
+            }
             if (restored.isNotEmpty()) {
                 val orders = local.states(target, setOf(SyncObjectType.BookshelfOrder))
                 orders.forEach { state ->

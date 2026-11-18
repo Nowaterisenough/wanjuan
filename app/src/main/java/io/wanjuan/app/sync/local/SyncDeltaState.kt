@@ -34,6 +34,10 @@ data class SyncDeltaBlob(val blobId: String, val partIndex: Int, val content: St
 
 @Dao
 interface SyncDeltaDao {
+    @Query("""SELECT objectId FROM sync_delta_state WHERE target = :target AND objectType = 'book'
+        AND NOT pendingDelete AND (CASE WHEN pendingId IS NULL THEN remoteJson ELSE pendingJson END) IS NOT NULL""")
+    fun restorableBookIds(target: String): List<String>
+
     @Query("select * from sync_delta_state where target = :target and objectType = :type and objectId = :id")
     fun get(target: String, type: String, id: String): SyncDeltaState?
 

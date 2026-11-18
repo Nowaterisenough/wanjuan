@@ -51,11 +51,11 @@ internal class BookshelfRefreshTask<T>(
         }
 
         val requestedBooks = hashSetOf<String>()
-        val initialBooks = loadBooks().filter { requestedBooks.add(bookKey(it)) }
         report { it }
         val cloud = async {
             syncSafely(syncCloud).also { report { it.copy(syncing = false) } }
         }
+        val initialBooks = loadBooks().filter { requestedBooks.add(bookKey(it)) }
         val catalogs = async { updateCatalogs(initialBooks) }
         val cloudResult = cloud.await()
         // Include newly synced books without refreshing the initial batch twice.

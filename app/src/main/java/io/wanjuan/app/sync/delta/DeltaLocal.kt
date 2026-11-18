@@ -4,6 +4,7 @@ import io.wanjuan.app.sync.SyncApplyOutcome
 import io.wanjuan.app.sync.SyncIdentity
 import io.wanjuan.app.sync.local.SyncDeltaCursor
 import io.wanjuan.app.sync.local.SyncDeltaState
+import io.wanjuan.app.sync.model.SyncObjectType
 
 interface DeltaLocal {
     fun transaction(action: () -> Unit)
@@ -21,6 +22,11 @@ interface DeltaLocal {
     fun snapshots(): Map<SyncIdentity, String>
     fun snapshots(objectTypes: Set<String>): Map<SyncIdentity, String> =
         snapshots().filterKeys { it.objectType in objectTypes }
+    fun missingBookStates(target: String): List<SyncDeltaState> {
+        val types = setOf(SyncObjectType.Book)
+        val present = snapshots(types).keys
+        return states(target, types).filter { !it.pendingDelete && SyncIdentity(it.objectType, it.objectId) !in present }
+    }
     fun canDelete(identity: SyncIdentity): Boolean = true
     fun deletions(): Set<SyncIdentity> = emptySet()
     fun consumeLegacyQueue() = Unit

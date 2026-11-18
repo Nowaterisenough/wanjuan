@@ -15,7 +15,7 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
 import java.io.ByteArrayOutputStream
-import java.security.MessageDigest
+import io.wanjuan.app.sync.sha256Hex
 import java.util.Base64
 
 /** Immutable, content-addressed chunks; the tiny CAS head is published only after all data. */
@@ -33,8 +33,7 @@ class DeltaRemote(private val remote: SyncRemoteStore, private val cache: DeltaC
         // are already stored at the indexed, content-addressed block paths.
         private const val INLINE_TOTAL_BYTES = 8 * 1024
         internal val wireJson by lazy { GSON.newBuilder().setFormattingStyle(FormattingStyle.COMPACT).create() }
-        fun checksum(bytes: ByteArray): String = MessageDigest.getInstance("SHA-256").digest(bytes)
-            .joinToString("") { "%02x".format(it.toInt() and 255) }
+        fun checksum(bytes: ByteArray): String = sha256Hex(bytes)
     }
 
     private val reads = Semaphore(3)

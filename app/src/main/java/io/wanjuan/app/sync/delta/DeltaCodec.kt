@@ -9,33 +9,35 @@ import io.wanjuan.app.utils.GSON
 object DeltaCodec {
     private inline fun <reified T> decode(json: String): T = GSON.fromJson(json, T::class.java)
 
-    fun normalize(type: String, json: String): String = SyncCanonicalJson.encode(when (type) {
-        SyncObjectType.Book -> decode<SyncBookPayload>(json).let { payload ->
-            payload.copy(
-                book = payload.book.copy(group = 0, order = 0, groupSyncIds = payload.book.groupSyncIds.sorted(),
-                    lastCheckTime = 0, lastCheckCount = 0, durChapterTime = 0,
-                    readConfig = payload.book.readConfig ?: Book.ReadConfig(),
-                    type = payload.book.type and BookType.updateError.inv()),
-                shelfUpdatedAt = 0, catalogUpdatedAt = 0, progressUpdatedAt = 0,
-                updatedByDeviceId = "", shelfUpdatedByDeviceId = "", catalogUpdatedByDeviceId = "",
-                progressUpdatedByDeviceId = "", schemaVersion = 2
-            )
-        }
-        SyncObjectType.BookGroup -> decode<SyncBookGroupPayload>(json).copy(
-            legacyGroupId = 0, order = 0, updatedAt = 0, updatedByDeviceId = "", schemaVersion = 2)
-        SyncObjectType.BookSource -> decode<SyncBookSourcePayload>(json).let {
-            it.copy(bookSource = it.bookSource.copy(customOrder = 0, respondTime = 180000, lastUpdateTime = 0),
-                sourceUpdatedAt = 0, updatedByDeviceId = "")
-        }
-        SyncObjectType.RssSource -> decode<SyncRssSourcePayload>(json).let {
-            it.copy(rssSource = it.rssSource.copy(customOrder = 0, lastUpdateTime = 0),
-                sourceUpdatedAt = 0, updatedByDeviceId = "")
-        }
-        SyncObjectType.RuleSub -> decode<SyncRuleSubPayload>(json).let {
-            it.copy(ruleSub = it.ruleSub.copy(customOrder = 0, update = 0), subscriptionUpdatedAt = 0, updatedByDeviceId = "")
-        }
-        in orderTypes -> decode<SyncOrderPayload>(json).copy(updatedAt = 0, updatedByDeviceId = "")
+    fun normalize(type: String, json: String): String = normalizePayload(when (type) {
+        SyncObjectType.Book -> decode<SyncBookPayload>(json)
+        SyncObjectType.BookGroup -> decode<SyncBookGroupPayload>(json)
+        SyncObjectType.BookSource -> decode<SyncBookSourcePayload>(json)
+        SyncObjectType.RssSource -> decode<SyncRssSourcePayload>(json)
+        SyncObjectType.RuleSub -> decode<SyncRuleSubPayload>(json)
+        in orderTypes -> decode<SyncOrderPayload>(json)
         else -> error("Unsupported delta object type: $type")
+    })
+
+    internal fun normalizePayload(payload: Any): String = SyncCanonicalJson.encode(when (payload) {
+        is SyncBookPayload -> payload.copy(
+            book = payload.book.copy(group = 0, order = 0, groupSyncIds = payload.book.groupSyncIds.sorted(),
+                lastCheckTime = 0, lastCheckCount = 0, durChapterTime = 0,
+                readConfig = payload.book.readConfig ?: Book.ReadConfig(),
+                type = payload.book.type and BookType.updateError.inv()),
+            shelfUpdatedAt = 0, catalogUpdatedAt = 0, progressUpdatedAt = 0,
+            updatedByDeviceId = "", shelfUpdatedByDeviceId = "", catalogUpdatedByDeviceId = "",
+            progressUpdatedByDeviceId = "", schemaVersion = 2)
+        is SyncBookGroupPayload -> payload.copy(legacyGroupId = 0, order = 0, updatedAt = 0,
+            updatedByDeviceId = "", schemaVersion = 2)
+        is SyncBookSourcePayload -> payload.copy(bookSource = payload.bookSource.copy(customOrder = 0,
+            respondTime = 180000, lastUpdateTime = 0), sourceUpdatedAt = 0, updatedByDeviceId = "")
+        is SyncRssSourcePayload -> payload.copy(rssSource = payload.rssSource.copy(customOrder = 0,
+            lastUpdateTime = 0), sourceUpdatedAt = 0, updatedByDeviceId = "")
+        is SyncRuleSubPayload -> payload.copy(ruleSub = payload.ruleSub.copy(customOrder = 0, update = 0),
+            subscriptionUpdatedAt = 0, updatedByDeviceId = "")
+        is SyncOrderPayload -> payload.copy(updatedAt = 0, updatedByDeviceId = "")
+        else -> error("Unsupported delta payload: ${payload.javaClass}")
     })
 
     fun payload(type: String, json: String, timestamp: Long): String = GSON.toJson(when (type) {

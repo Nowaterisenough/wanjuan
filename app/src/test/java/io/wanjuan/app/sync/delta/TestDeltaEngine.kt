@@ -198,6 +198,47 @@ class TestDeltaEngine {
         assertFalse(changes.single().create)
     }
 
+    @Test fun bookshelfPullAndFlushShareOneHeadReadOnlyForThatRound() = runBlocking {
+        val store = Remote(); val local = Local()
+        val refresh = DeltaEngine(local, DeltaRemote(store), "target", clock(100), reusePullForUpload = true)
+        refresh.pull()
+        local.values[id] = content()
+        assertEquals(1, refresh.flush().uploaded)
+        assertEquals(1, store.reads.count { it == DeltaRemote.HEAD })
+        local.values[id] = content(chapter = 2)
+        refresh.flush()
+        assertEquals(2, store.reads.count { it == DeltaRemote.HEAD })
+    }
+
+    @Test fun interveningRemoteEditIsMergedBeforeRefreshPublishes() = runBlocking {
+        val store = Remote(); val a = Local(); val b = Local()
+        val ae = engine(a, store)
+        val be = DeltaEngine(b, DeltaRemote(store), "target", clock(200), reusePullForUpload = true)
+        a.values[id] = content(); ae.flush(); be.pull()
+        a.values[id] = content(chapter = 9); ae.flush()
+        b.values[id] = content(tag = "local tag")
+        store.reads.clear()
+        assertTrue(be.flush().isSuccess)
+        assertEquals(1, store.reads.count { it == DeltaRemote.HEAD })
+        ae.pull()
+        assertEquals(a.values, b.values)
+        assertEquals(9, book(b).durChapterIndex)
+        assertEquals("local tag", book(b).customTag)
+    }
+
+    @Test fun rejectedRefreshPatchCannotRenameAnotherDevicesNewChapter() = runBlocking {
+        val store = Remote(); val a = Local(); val b = Local()
+        val ae = engine(a, store)
+        val be = DeltaEngine(b, DeltaRemote(store), "target", clock(200), reusePullForUpload = true)
+        a.values[id] = reading(98, 100); ae.flush(); be.pull()
+        b.values[id] = reading(98, 100, title = "Old formatted title")
+        a.values[id] = reading(101, 300); ae.flush()
+        assertEquals(0, be.flush().uploaded)
+        ae.pull()
+        assertEquals("Chapter 101", book(b).durChapterTitle)
+        assertEquals(a.values, b.values)
+    }
+
     @Test fun batchLimitUsesPatchBytesRatherThanLargeUnchangedFields() = runBlocking {
         val remote = Remote(); val a = Local(); val engine = engine(a, remote)
         val large = "x".repeat(600000)

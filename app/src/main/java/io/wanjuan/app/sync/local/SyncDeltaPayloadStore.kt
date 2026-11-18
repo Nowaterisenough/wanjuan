@@ -1,7 +1,7 @@
 package io.wanjuan.app.sync.local
 
 import java.io.ByteArrayOutputStream
-import java.security.MessageDigest
+import io.wanjuan.app.sync.sha256Hex
 import java.util.Base64
 
 /** Five full JSON copies in one SQLite row can exceed Android's CursorWindow before upload. */
@@ -10,8 +10,7 @@ object SyncDeltaPayloadCodec {
     const val INLINE_BYTES = 32 * 1024
     const val PART_BYTES = 64 * 1024
 
-    private fun hash(bytes: ByteArray) = MessageDigest.getInstance("SHA-256").digest(bytes)
-        .joinToString("") { "%02x".format(it.toInt() and 255) }
+    private fun hash(bytes: ByteArray) = sha256Hex(bytes)
 
     fun encode(json: String?, write: (List<SyncDeltaBlob>) -> Unit): String? {
         json ?: return null

@@ -38,7 +38,17 @@ object SyncManager {
         if (refreshing) emptyMap() else state.books
     }.stateIn(syncScope, SharingStarted.Eagerly, emptyMap())
 
-    fun setBookshelfRefreshActive(active: Boolean) { bookshelfRefreshActive.value = active }
+    // Engines are used under mutationMutex; a new gesture/target never inherits a prior CAS base.
+    private class RefreshSession {
+        var target: SyncRemoteTarget? = null
+        var engine: DeltaEngine? = null
+    }
+    @Volatile private var refreshSession: RefreshSession? = null
+
+    fun setBookshelfRefreshActive(active: Boolean) {
+        refreshSession = if (active) RefreshSession() else null
+        bookshelfRefreshActive.value = active
+    }
     private val progressTracker = SyncProgressTracker { mutableProgress.value = it }
     private val client by lazy { SelectedSyncRemoteStore { SyncSettings.target() } }
     private val repository by lazy {
@@ -59,7 +69,7 @@ object SyncManager {
         RoomSyncSnapshotSource(appDb, SystemSyncClock, SyncDeviceStore::deviceId, groups, trackBookVersions = false),
         bookshelf, handlers) }
 
-    private fun engine(target: SyncRemoteTarget) = DeltaEngine(local, DeltaRemote(target.store,
+    private fun engine(target: SyncRemoteTarget, reusePullForUpload: Boolean = false) = DeltaEngine(local, DeltaRemote(target.store,
         FileDeltaContentCache(File(appCtx.cacheDir, "sync-delta/${target.identity}"))), target.identity,
         SystemSyncClock, legacy = {
             val cached = CachingSyncRemoteStore(target.store,
@@ -68,7 +78,16 @@ object SyncManager {
                 SyncLocalReconciler(snapshots, RoomSyncReconcileStore(appDb), SystemSyncClock,
                     SyncDeviceStore::deviceId, SyncObjectSelection.all).capture()
             }, progress = progressTracker).read()
-        }, progress = progressTracker)
+        }, progress = progressTracker, reusePullForUpload = reusePullForUpload)
+
+    private fun syncEngine(target: SyncRemoteTarget): DeltaEngine {
+        val session = refreshSession ?: return engine(target)
+        if (session.target === target) session.engine?.let { return it }
+        return engine(target, reusePullForUpload = true).also {
+            session.target = target
+            session.engine = it
+        }
+    }
 
     private val pullFlight by lazy { SingleFlightSync(syncScope) { runSync(pushChanges = false) } }
     private val changeFlight by lazy { SingleFlightSync(syncScope) { runSync(pushChanges = true) } }
@@ -105,11 +124,12 @@ object SyncManager {
                     AppLog.put("Sync v2 ${BuildConfig.VERSION_NAME}: ${if (pushChanges) "push" else "pull"}, " +
                         "target=${target.identity.takeLast(8)}, cursor=${cursor.timestamp}, " +
                         "legacyImported=${cursor.legacyImported}, pending=${appDb.syncDeltaDao.pendingCount(target.identity)}")
-                    val delta = engine(target)
+                    val delta = syncEngine(target)
                     val completed = if (pushChanges) delta.flush() else delta.pull().copy(pending = 0)
-                    // The refresh task captures after all catalog workers finish. Avoid
-                    // scanning the whole library again after its pull and final flush.
-                    repeatChanges = isEnabled && !bookshelfRefreshActive.value && delta.capture() > 0
+                    // Flush has already captured changes and counted the remaining queue.
+                    // Writes after that transaction wake the Room observer, even during a flush.
+                    repeatChanges = isEnabled && !bookshelfRefreshActive.value &&
+                        (if (pushChanges) completed.pending > 0 else delta.capture() > 0)
                     completed
                 }
             } catch (e: CancellationException) {

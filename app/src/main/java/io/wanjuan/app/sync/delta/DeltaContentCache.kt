@@ -49,13 +49,13 @@ class FileDeltaContentCache(private val root: File, private val maxBytes: Long =
     // Trim only after a sync finishes: downloaded history stays pinned until it is applied.
     override fun trim() {
         val files = listOf("blocks", "chunks", "indexes").flatMap { File(root, it).listFiles().orEmpty().toList() }
-            .filter { it.isFile }.sortedBy { it.lastModified() }
+            .filter { it.isFile }
         var bytes = files.sumOf { it.length() }
-        files.forEach { file ->
-            if (bytes > maxBytes) {
-                val size = file.length()
-                if (file.delete()) bytes -= size
-            }
+        if (bytes <= maxBytes) return
+        for ((file, _) in files.map { it to it.lastModified() }.sortedBy { it.second }) {
+            if (bytes <= maxBytes) break
+            val size = file.length()
+            if (file.delete()) bytes -= size
         }
     }
 }

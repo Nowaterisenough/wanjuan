@@ -55,6 +55,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import java.util.LinkedList
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
@@ -223,16 +224,17 @@ class MainViewModel(application: Application) : BaseViewModel(application) {
                 val catalogProgress = MutableStateFlow(BookshelfRefreshTask.Progress())
                 val progressJob = launch {
                     catalogProgress.combine(SyncManager.progress) { catalog, cloud ->
-                        val cloudText = if (cloud.running) cloud.displayText(context)
-                            else context.getString(R.string.sync_progress_cursor)
                         when {
-                            catalog.uploading -> if (cloud.running) cloudText else context.getString(R.string.bookshelf_sync_uploading)
+                            catalog.uploading -> context.getString(when (cloud.phase) {
+                                SyncPhase.Uploading, SyncPhase.Publishing, SyncPhase.Confirming -> R.string.bookshelf_sync_uploading
+                                else -> R.string.bookshelf_refresh_finishing
+                            })
                             catalog.syncing && catalog.catalogCompleted < catalog.catalogTotal ->
-                                context.getString(R.string.sync_progress_parallel, cloudText, catalog.catalogCompleted, catalog.catalogTotal)
-                            catalog.syncing -> cloudText
+                                context.getString(R.string.bookshelf_sync_parallel, catalog.catalogCompleted, catalog.catalogTotal)
+                            catalog.syncing -> context.getString(R.string.bookshelf_sync_pulling)
                             else -> context.getString(R.string.bookshelf_sync_catalog, catalog.catalogCompleted, catalog.catalogTotal)
                         }
-                    }.collect { message -> showBookshelfRefreshStatus(BookshelfRefreshStatus(true, message)) }
+                    }.distinctUntilChanged().collect { message -> showBookshelfRefreshStatus(BookshelfRefreshStatus(true, message)) }
                 }
                 val result = try { BookshelfRefreshTask(
                     loadBooks = {
@@ -317,9 +319,8 @@ class MainViewModel(application: Application) : BaseViewModel(application) {
             if (pullProgressAfterUpdate) {
                 pullProgressAfterTocBooks.add(book.bookUrl)
             }
-            if (!waitUpTocBooks.contains(book.bookUrl) && !onUpTocBooks.contains(book.bookUrl)) {
+            if (book.bookUrl !in onUpTocBooks && waitUpTocBookSet.add(book.bookUrl)) {
                 waitUpTocBooks.add(book.bookUrl)
-                waitUpTocBookSet.add(book.bookUrl)
                 postEvent(EventBus.UP_BOOKSHELF, book.bookUrl)
             }
         }

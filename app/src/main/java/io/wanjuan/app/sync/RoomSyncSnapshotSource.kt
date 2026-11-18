@@ -7,6 +7,7 @@ import io.wanjuan.app.sync.mapper.BookSourceSyncMapper
 import io.wanjuan.app.sync.mapper.BookSyncMapper
 import io.wanjuan.app.sync.mapper.RssSourceSyncMapper
 import io.wanjuan.app.sync.mapper.RuleSubSyncMapper
+import io.wanjuan.app.sync.delta.DeltaCodec
 import io.wanjuan.app.sync.merge.BookSyncMerge
 import io.wanjuan.app.sync.model.SyncObjectType
 import io.wanjuan.app.sync.model.SyncOrderPayload
@@ -34,6 +35,12 @@ class RoomSyncSnapshotSource(
     override fun currentPayloads(objectTypes: Set<String>): Map<SyncIdentity, String> = buildMap {
         visitPayloads(objectTypes) { type, id, payload, _, _ ->
             put(SyncIdentity(type, id), GSON.toJson(payload))
+        }
+    }
+
+    fun normalizedPayloads(objectTypes: Set<String>): Map<SyncIdentity, String> = buildMap {
+        visitPayloads(objectTypes) { type, id, payload, _, _ ->
+            put(SyncIdentity(type, id), DeltaCodec.normalizePayload(payload))
         }
     }
 

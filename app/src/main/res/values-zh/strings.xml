@@ -1865,6 +1865,7 @@
     <string name="bookshelf_sync_catalog">正在更新目录：%1$d/%2$d</string>
     <string name="bookshelf_sync_parallel">同步云端 · 更新目录 %1$d/%2$d</string>
     <string name="bookshelf_sync_uploading">正在上传书架变化…</string>
+    <string name="bookshelf_refresh_finishing">正在检查书架变化…</string>
     <string name="bookshelf_sync_pending">剩余 %1$d 项待上传</string>
     <string name="bookshelf_sync_failed">同步未完成：%1$s</string>
     <string name="bookshelf_sync_catalog_failed">%1$d 本书更新失败，下拉重试</string>
