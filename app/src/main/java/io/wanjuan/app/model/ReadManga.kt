@@ -17,7 +17,7 @@ import io.wanjuan.app.help.book.isLocal
 import io.wanjuan.app.help.book.isSameNameAuthor
 import io.wanjuan.app.help.book.readSimulating
 import io.wanjuan.app.help.book.simulatedTotalChapterNum
-import io.wanjuan.app.help.book.update
+import io.wanjuan.app.help.book.BookCatalogUpdate
 import io.wanjuan.app.help.config.AppConfig
 import io.wanjuan.app.help.coroutine.Coroutine
 import io.wanjuan.app.help.globalExecutor
@@ -52,7 +52,12 @@ import kotlin.math.min
 @Suppress("MemberVisibilityCanBePrivate")
 object ReadManga : CoroutineScope by MainScope() {
     var inBookshelf = false
-    var book: Book? = null
+    @Volatile private var session: ReaderBookSession? = null
+    var book: Book?
+        get() = session?.book
+        set(value) {
+            if (value !== session?.book) session = value?.let(::ReaderBookSession)
+        }
     val executor = globalExecutor
     var durChapterIndex = 0 //章节位置
     var chapterSize = 0//总章节
@@ -349,7 +354,8 @@ object ReadManga : CoroutineScope by MainScope() {
     }
 
     fun saveRead(pageChanged: Boolean = false, progressUpdatedAt: Long? = null): Deferred<Unit> {
-        val book = book ?: return CompletableDeferred(Unit)
+        val currentSession = session ?: return CompletableDeferred(Unit)
+        val book = currentSession.book
         val chapterIndex = durChapterIndex
         val pageIndex = durChapterPos
         val readTime = System.currentTimeMillis()
@@ -376,7 +382,7 @@ object ReadManga : CoroutineScope by MainScope() {
                         )
                     }
                 }
-                appDb.bookDao.update(book)
+                currentSession.save(appDb.bookDao)
                 appDb.readRecentBookDao.insert(ReadRecentBook(book.bookUrl, book.durChapterTime))
                 ReadRecordWidgetStore.updateRecentSnapshot(book, book.durChapterTime)
             }.onSuccess {
@@ -532,20 +538,15 @@ object ReadManga : CoroutineScope by MainScope() {
         if (System.currentTimeMillis() - book.lastCheckTime < 600000) return
         book.lastCheckTime = System.currentTimeMillis()
         val oldBook = book.copy()
-        WebBook.getChapterList(this, bookSource, book).onSuccess(IO) { cList ->
+        val fetched = book.copy()
+        WebBook.getChapterList(this, bookSource, fetched).onSuccess(IO) { cList ->
             ensureActive()
             if (cList.size > chapterSize) {
                 val oldChapterList = appDb.bookChapterDao.getChapterList(oldBook.bookUrl)
+                val updated = BookCatalogUpdate.save(appDb, oldBook, fetched, cList) ?: return@onSuccess
                 BookHelp.remapContentCache(oldBook, oldChapterList, cList)
-                if (oldBook.bookUrl == book.bookUrl) {
-                    appDb.bookDao.update(book)
-                } else {
-                    appDb.bookDao.replace(oldBook, book)
-                    BookHelp.updateCacheFolder(oldBook, book)
-                }
-                appDb.bookChapterDao.delByBook(oldBook.bookUrl)
-                appDb.bookChapterDao.insert(*cList.toTypedArray())
-                onChapterListUpdated(book, false)
+                if (oldBook.bookUrl != updated.bookUrl) BookHelp.updateCacheFolder(oldBook, updated)
+                onChapterListUpdated(updated, false)
                 nextMangaChapter ?: loadContent(durChapterIndex + 1)
             }
         }

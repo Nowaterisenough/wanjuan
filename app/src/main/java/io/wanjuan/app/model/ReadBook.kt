@@ -21,7 +21,7 @@ import io.wanjuan.app.help.book.isPdf
 import io.wanjuan.app.help.book.isSameNameAuthor
 import io.wanjuan.app.help.book.readSimulating
 import io.wanjuan.app.help.book.simulatedTotalChapterNum
-import io.wanjuan.app.help.book.update
+import io.wanjuan.app.help.book.BookCatalogUpdate
 import io.wanjuan.app.help.config.AppConfig
 import io.wanjuan.app.help.config.ReadBookConfig
 import io.wanjuan.app.help.coroutine.Coroutine
@@ -66,7 +66,12 @@ import kotlin.math.min
 
 @Suppress("MemberVisibilityCanBePrivate")
 object ReadBook : CoroutineScope by MainScope() {
-    var book: Book? = null
+    @Volatile private var session: ReaderBookSession? = null
+    var book: Book?
+        get() = session?.book
+        set(value) {
+            if (value !== session?.book) session = value?.let(::ReaderBookSession)
+        }
     var callBack: CallBack? = null
     var inBookshelf = false
     var chapterSize = 0
@@ -115,7 +120,7 @@ object ReadBook : CoroutineScope by MainScope() {
         executor.execute {
             kotlin.runCatching {
                 book.durChapterTime = readTime
-                book.update()
+                appDb.bookDao.touchRecentRead(book.bookUrl, readTime)
                 appDb.readRecentBookDao.insert(ReadRecentBook(book.bookUrl, readTime))
                 ReadRecordWidgetStore.updateRecentSnapshot(book, readTime)
             }.onFailure {
@@ -166,7 +171,7 @@ object ReadBook : CoroutineScope by MainScope() {
         } else {
             chapterSize
         }
-        if (durChapterIndex != book.durChapterIndex) {
+        if (durChapterIndex != book.durChapterIndex || durChapterPos != book.durChapterPos) {
             durChapterIndex = book.durChapterIndex
             durChapterPos = book.durChapterPos
             clearTextChapter()
@@ -1033,20 +1038,15 @@ object ReadBook : CoroutineScope by MainScope() {
         if (System.currentTimeMillis() - book.lastCheckTime < 600000) return
         book.lastCheckTime = System.currentTimeMillis()
         val oldBook = book.copy()
-        WebBook.getChapterList(this, bookSource, book).onSuccess(IO) { cList ->
+        val fetched = book.copy()
+        WebBook.getChapterList(this, bookSource, fetched).onSuccess(IO) { cList ->
             ensureActive()
             if (cList.size > chapterSize) {
                 val oldChapterList = appDb.bookChapterDao.getChapterList(oldBook.bookUrl)
+                val updated = BookCatalogUpdate.save(appDb, oldBook, fetched, cList) ?: return@onSuccess
                 BookHelp.remapContentCache(oldBook, oldChapterList, cList)
-                if (oldBook.bookUrl == book.bookUrl) {
-                    appDb.bookDao.update(book)
-                } else {
-                    appDb.bookDao.replace(oldBook, book)
-                    BookHelp.updateCacheFolder(oldBook, book)
-                }
-                appDb.bookChapterDao.delByBook(oldBook.bookUrl)
-                appDb.bookChapterDao.insert(*cList.toTypedArray())
-                onChapterListUpdated(book, false)
+                if (oldBook.bookUrl != updated.bookUrl) BookHelp.updateCacheFolder(oldBook, updated)
+                onChapterListUpdated(updated, false)
                 nextTextChapter ?: loadContent(durChapterIndex + 1)
             }
         }
@@ -1065,7 +1065,8 @@ object ReadBook : CoroutineScope by MainScope() {
     }
 
     fun saveRead(pageChanged: Boolean = false, progressUpdatedAt: Long? = null): Deferred<Unit> {
-        val book = book ?: return CompletableDeferred(Unit)
+        val currentSession = session ?: return CompletableDeferred(Unit)
+        val book = currentSession.book
         val chapterIndex = durChapterIndex
         val chapterPos = durChapterPos
         val durTime = System.currentTimeMillis()
@@ -1093,7 +1094,7 @@ object ReadBook : CoroutineScope by MainScope() {
                         SourceCallBack.callBackBook(SourceCallBack.SAVE_READ, bookSource, book, it, durTime.toString())
                     }
                 }
-                book.update()
+                currentSession.save(appDb.bookDao)
                 appDb.readRecentBookDao.insert(ReadRecentBook(book.bookUrl, durTime))
                 ReadRecordWidgetStore.updateRecentSnapshot(book, durTime)
             }.onSuccess {

@@ -11,6 +11,8 @@ import io.wanjuan.app.data.entities.BookGroup
 import io.wanjuan.app.data.entities.BookSource
 import io.wanjuan.app.data.entities.RssSource
 import io.wanjuan.app.data.entities.RuleSub
+import io.wanjuan.app.model.ReaderBookSession
+import io.wanjuan.app.model.ReadBook
 import io.wanjuan.app.sync.delta.*
 import io.wanjuan.app.sync.remote.*
 import io.wanjuan.app.sync.local.SyncDeltaPayloadStore
@@ -33,6 +35,51 @@ class TestDeltaSyncInstrumented {
     private val context = InstrumentationRegistry.getInstrumentation().targetContext
 
     @After fun close() { replicas.forEach { it.db.close() } }
+
+    @Test fun reopeningTextInSameChapterUsesSyncedOffset() {
+        val old = ReadBook.book
+        val oldIndex = ReadBook.durChapterIndex
+        val oldOffset = ReadBook.durChapterPos
+        try {
+            val book = Book(bookUrl = "fixture-reader", name = "Reader", durChapterIndex = 10, durChapterPos = 90)
+            ReadBook.book = book.copy(durChapterPos = 20)
+            ReadBook.durChapterIndex = 10
+            ReadBook.durChapterPos = 20
+            ReadBook.upData(book)
+            assertEquals(90, ReadBook.durChapterPos)
+        } finally {
+            ReadBook.book = old
+            ReadBook.durChapterIndex = oldIndex
+            ReadBook.durChapterPos = oldOffset
+        }
+    }
+
+    @Test fun queuedReaderSaveCannotReplaceSyncedProgressOrUnrelatedColumns() {
+        val dao = replica().db.bookDao
+        val cached = Book(bookUrl = "book", origin = "source", name = "Reader", durChapterIndex = 10,
+            durChapterPos = 20, syncTime = 100, readConfig = Book.ReadConfig(pageAnim = 1))
+        dao.insert(cached)
+        val session = ReaderBookSession(cached)
+        dao.update(cached.copy(durChapterPos = 90, syncTime = 200, customTag = "remote", totalChapterNum = 120,
+            charset = "UTF-8", variable = "remote", readConfig = Book.ReadConfig(pageAnim = 2)))
+        dao.touchRecentRead(cached.bookUrl, 300)
+        session.save(dao)
+        val synced = dao.getBook(cached.bookUrl)!!
+        assertEquals(90, synced.durChapterPos)
+        assertEquals(200L, synced.syncTime)
+        assertEquals(2, synced.readConfig?.pageAnim)
+        assertEquals("UTF-8", synced.charset)
+        assertEquals("remote", synced.variable)
+        cached.durChapterPos = 5 // intentional backward read after the sync
+        cached.syncTime = 400
+        cached.config.pageAnim = 3
+        session.save(dao)
+        val edited = dao.getBook(cached.bookUrl)!!
+        assertEquals(5, edited.durChapterPos)
+        assertEquals(3, edited.readConfig?.pageAnim)
+        assertEquals("remote", edited.customTag)
+        assertEquals(120, edited.totalChapterNum)
+    }
 
     @Test fun finishedNewChaptersOverrideOlderPendingReadDuringBookshelfRefresh() = runBlocking {
         val a = replica(); val b = replica()

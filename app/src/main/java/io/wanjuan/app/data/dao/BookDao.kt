@@ -170,6 +170,25 @@ interface BookDao {
     @Update
     fun update(vararg book: Book)
 
+    @Query("UPDATE books SET durChapterTime = max(durChapterTime, :readTime) WHERE bookUrl = :url")
+    fun touchRecentRead(url: String, readTime: Long)
+
+    @Query("""UPDATE books SET durChapterIndex = :chapter, durChapterPos = :position,
+        durChapterTitle = :title, durChapterTime = max(durChapterTime, :readTime),
+        lastCheckCount = 0, syncTime = :version WHERE bookUrl = :url AND
+        (syncTime < :version OR (syncTime = :version AND durChapterIndex = :chapter AND durChapterPos = :position))""")
+    fun saveReaderPosition(url: String, chapter: Int, position: Int, title: String?, readTime: Long, version: Long): Int
+
+    @androidx.room.TypeConverters(Book.Converters::class)
+    @Query("UPDATE books SET readConfig = :config WHERE bookUrl = :url")
+    fun saveReaderConfig(url: String, config: Book.ReadConfig?)
+
+    @Query("UPDATE books SET charset = :charset WHERE bookUrl = :url")
+    fun saveReaderCharset(url: String, charset: String?)
+
+    @Query("UPDATE books SET variable = :variable WHERE bookUrl = :url")
+    fun saveReaderVariable(url: String, variable: String?)
+
     @Delete
     fun delete(vararg book: Book)
 
