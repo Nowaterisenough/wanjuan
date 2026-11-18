@@ -16,6 +16,58 @@ import java.util.concurrent.atomic.AtomicInteger
 class TestDeltaReadIndex {
     @get:Rule val temporary = TemporaryFolder()
 
+    @Test fun repeatedProgressUpdatesUseSmallerBlocksAndHeadAndReplayMixedHistory() = runBlocking {
+        val store = Store()
+        val writer = DeltaRemote(store)
+        val legacy = mutableListOf<DeltaIndexEntry>()
+        var oldHead = DeltaHead()
+        var head = DeltaHead()
+        var oldBlockSize = 0
+        var newBlockSize = 0
+        var oldHeadSize = 0
+        repeat(64) { i ->
+            val time = 1_795_000_000_000L + i
+            val fields = mapOf("u" to "第十二章", "v" to 11, "w" to 0, "x" to 11, "y" to i * 100, "G" to time)
+                .map { (key, value) -> DeltaField(listOf("b", key), value = GSON.toJsonTree(value)) }
+            val changes = listOf(DeltaChange("00000000-0000-4000-8000-%012d".format(i), "book", "a".repeat(64), fields = fields))
+            val oldBody = GSON.toJson(DeltaBlock(time, oldHead, changes))
+            oldBlockSize = oldBody.toByteArray().size
+            oldHead = DeltaHead(time, "delta-v2/blocks/${DeltaRemote.checksum(oldBody.toByteArray())}.json")
+            legacy.add(0, DeltaIndexEntry(time, oldHead.block, oldBlockSize, oldBody))
+            var budget = 64 * 1024
+            val oldEntries = legacy.map { if (it.bytes <= budget) it.also { budget -= it.bytes } else it.copy(inline = null) }
+            val oldHeadJson = GSON.toJsonTree(oldHead).asJsonObject.apply {
+                add("readAhead", GSON.toJsonTree(DeltaReadIndex(recent = oldEntries)))
+            }.toString()
+            oldHeadSize = oldHeadJson.toByteArray().size
+            if (i == 0) {
+                // Seed the remote with the exact pretty-printed bytes used by existing writers.
+                store.objects[oldHead.block] = oldBody
+                store.objects[DeltaRemote.HEAD] = oldHeadJson
+                head = oldHead
+            } else {
+                val previous = writer.head().first
+                val block = DeltaBlock(time, head, changes)
+                head = DeltaHead(time, writer.writeBlock(block))
+                newBlockSize = store.objects.getValue(head.block).toByteArray().size
+                assertTrue(writer.publish(previous, head, listOf(head to block)))
+            }
+        }
+        val newHeadSize = store.objects.getValue(DeltaRemote.HEAD).toByteArray().size
+        println("PROGRESS_BYTES oldBlock=$oldBlockSize newBlock=$newBlockSize oldHead=$oldHeadSize newHead=$newHeadSize")
+        assertTrue(newBlockSize < oldBlockSize)
+        assertTrue(newHeadSize < oldHeadSize / 2)
+        val reader = DeltaRemote(store)
+        reader.head()
+        val all = reader.chain(head, DeltaHead()) { }
+        assertEquals(64, all.size)
+        for ((i, entry) in all.asReversed().withIndex()) {
+            val fields = reader.block(entry).changes.single().fields
+            assertEquals(i * 100, fields.single { it.path.last() == "y" }.value!!.asInt)
+            assertEquals("第十二章", fields.single { it.path.last() == "u" }.value!!.asString)
+        }
+    }
+
     @Test fun recentSmallHistoryComesWithOneHeadReadAndOldReadersStillWork() = runBlocking {
         val store = Store()
         val head = publish(store, 20)

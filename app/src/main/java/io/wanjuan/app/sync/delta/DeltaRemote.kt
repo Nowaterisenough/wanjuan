@@ -1,5 +1,6 @@
 package io.wanjuan.app.sync.delta
 
+import com.google.gson.FormattingStyle
 import com.google.gson.JsonObject
 import io.wanjuan.app.sync.remote.SyncRemoteRead
 import io.wanjuan.app.sync.remote.SyncRemoteStore
@@ -28,7 +29,10 @@ class DeltaRemote(private val remote: SyncRemoteStore, private val cache: DeltaC
         const val MAX_HEAD_BYTES = 128 * 1024
         const val MAX_LOGICAL_BYTES = 64 * 1024 * 1024
         private const val INLINE_BLOCK_BYTES = 8 * 1024
-        private const val INLINE_TOTAL_BYTES = 64 * 1024
+        // Every publication rewrites the head. Keep a small hot window; older bodies
+        // are already stored at the indexed, content-addressed block paths.
+        private const val INLINE_TOTAL_BYTES = 8 * 1024
+        internal val wireJson by lazy { GSON.newBuilder().setFormattingStyle(FormattingStyle.COMPACT).create() }
         fun checksum(bytes: ByteArray): String = MessageDigest.getInstance("SHA-256").digest(bytes)
             .joinToString("") { "%02x".format(it.toInt() and 255) }
     }
@@ -97,14 +101,14 @@ class DeltaRemote(private val remote: SyncRemoteStore, private val cache: DeltaC
 
     suspend fun publish(previous: SyncRemoteRead, head: DeltaHead,
         prepared: List<Pair<DeltaHead, DeltaBlock>> = emptyList()): Boolean {
-        if (prepared.isEmpty()) return remote.compareAndSetJson(HEAD, previous, GSON.toJson(head))
+        if (prepared.isEmpty()) return remote.compareAndSetJson(HEAD, previous, wireJson.toJson(head))
         require(prepared.last().first == head)
         val oldHead = previous.json?.let { GSON.fromJson(it, DeltaHead::class.java) } ?: DeltaHead()
         val oldIndex = parseIndex(previous.json)?.also {
             require(it.recent.first().head() == oldHead) { "Invalid previous read index" }
         }
         val entries = prepared.asReversed().map { (position, block) ->
-            val json = GSON.toJson(block)
+            val json = wireJson.toJson(block)
             val bytes = json.toByteArray(Charsets.UTF_8).size
             DeltaIndexEntry(position.timestamp, position.block, bytes, json.takeIf { bytes <= INLINE_BLOCK_BYTES })
         }.toMutableList()
@@ -115,7 +119,7 @@ class DeltaRemote(private val remote: SyncRemoteStore, private val cache: DeltaC
             val pageEntries = entries.filter { it.timestamp > indexedThrough }.takeLast(INDEX_ENTRIES).map { it.copy(inline = null) }
             val page = DeltaReadIndex(recent = pageEntries, previousIndex = previousIndex, indexedThrough = indexedThrough)
             validateIndex(page)
-            val json = GSON.toJson(page)
+            val json = wireJson.toJson(page)
             val bytes = json.toByteArray(Charsets.UTF_8)
             val path = "delta-v2/indexes/${checksum(bytes)}.json"
             require(bytes.size <= MAX_FILE_BYTES)
@@ -145,7 +149,7 @@ class DeltaRemote(private val remote: SyncRemoteStore, private val cache: DeltaC
     }
 
     suspend fun writeBlock(block: DeltaBlock): String {
-        val json = GSON.toJson(block)
+        val json = wireJson.toJson(block)
         val path = "delta-v2/blocks/${checksum(json.toByteArray(Charsets.UTF_8))}.json"
         write(path, json)
         cache.write(path, json.toByteArray(Charsets.UTF_8))

@@ -142,7 +142,7 @@ class DeltaEngine(
                     ?: DeltaChange(requireNotNull(state.pendingId), state.objectType, state.objectId,
                         delete = state.pendingDelete, create = state.pendingCreate || state.remoteJson == null,
                         fields = state.pendingJson?.let { DeltaCodec.fields(state.objectType, state.remoteJson, it) }.orEmpty())
-                val size = GSON.toJson(change).toByteArray(Charsets.UTF_8).size
+                val size = DeltaRemote.wireJson.toJson(change).toByteArray(Charsets.UTF_8).size
                 if (queued.isNotEmpty() && bytes + size > 2 * 1024 * 1024) break
                 bytes += size
                 queued += state
@@ -166,7 +166,7 @@ class DeltaEngine(
             val batches = arrayListOf<MutableList<DeltaChange>>()
             var batchBytes = 0
             (bootstrap + changes).forEach { change ->
-                val size = GSON.toJson(change).toByteArray(Charsets.UTF_8).size
+                val size = DeltaRemote.wireJson.toJson(change).toByteArray(Charsets.UTF_8).size
                 if (batches.isEmpty() || batches.last().size >= 64 || batchBytes.toLong() + size > 2 * 1024 * 1024) {
                     batches += arrayListOf<DeltaChange>()
                     batchBytes = 0
