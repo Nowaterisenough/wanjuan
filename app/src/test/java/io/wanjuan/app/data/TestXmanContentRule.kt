@@ -107,7 +107,7 @@ class TestXmanContentRule {
     private fun xmanSource(): BookSource {
         val matches = GSON.fromJsonArray<BookSource>(repoFile("tests/shareBookSource.json").readText())
             .getOrThrow()
-            .filter { it.bookSourceName == "禁漫" && it.bookSourceUrl == XMAN_URL }
+            .filter { it.bookSourceUrl == XMAN_URL }
         assertEquals("shareBookSource.json should contain exactly one Xman source", 1, matches.size)
         return matches.single()
     }

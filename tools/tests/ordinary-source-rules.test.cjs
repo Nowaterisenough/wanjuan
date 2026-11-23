@@ -61,7 +61,7 @@ test('comic CDN comes from public page configuration and paid chapters are refus
 test('image header decoding only removes the known wrapper before a JPEG signature', () => {
   const jpeg = Buffer.from([255, 216, 255, 224, 1, 2, 3]);
   const wrapped = Buffer.concat([Buffer.alloc(80, 254), jpeg]);
-  for (const name of ['新爱漫画', '新人漫画']) {
+  for (const name of ['新漫画（经典分类）', '新人漫画']) {
     const rule = samples.find(s => s.bookSourceName === name).ruleContent.imageDecode;
     for (const bytes of [jpeg, wrapped]) {
       const decoded = vm.runInNewContext(rule, {
@@ -97,7 +97,7 @@ test('public image AES decoding uses the prefixed IV', () => {
 });
 
 test('mobile chapter rules fetch all public image batches and reject denied responses', () => {
-  for (const name of ['野蛮漫画', '漫神 MHKami', '永远漫画', '永远漫画 YYDSMH']) {
+  for (const name of ['野蛮漫画', '漫神 MHKami', 'YYDS漫画', '永远漫画 YYDSMH']) {
     const rule = samples.find(s => s.bookSourceName === name).ruleContent.content.slice(4);
     const calls = [];
     const context = {
@@ -122,7 +122,7 @@ test('mobile chapter rules fetch all public image batches and reject denied resp
 });
 
 test('signed chapter endpoints request fresh responses without changing authorization fields', () => {
-  for (const name of ['漫客栈', '漫客栈备用']) {
+  for (const name of ['漫客栈（mkzhan.com）', '漫客栈备用']) {
     const url = samples.find(s => s.bookSourceName === name).ruleToc.chapterUrl;
     const options = JSON.parse(url.slice(url.indexOf(',') + 1));
     const endpoint = 'https://reader.example/content?sign=fixture&uid=1';

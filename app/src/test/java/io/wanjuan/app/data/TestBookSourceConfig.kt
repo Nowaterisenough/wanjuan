@@ -20,7 +20,7 @@ class TestBookSourceConfig {
     @Test
     fun firstHanmanSourceUsesDirectDiscoverRules() {
         val sourceText = repoFile("tests/shareBookSource.json").readText()
-        val source = sourceObject(sourceText, """"bookSourceName": "第一韩漫"""")
+        val source = sourceObject(sourceText, """"bookSourceUrl": "https://hm8.me"""")
         val exploreUrl = fieldValue(source, "exploreUrl")
         val bookListRule = fieldValue(source, "bookList")
         val searchUrl = fieldValue(source, "searchUrl")

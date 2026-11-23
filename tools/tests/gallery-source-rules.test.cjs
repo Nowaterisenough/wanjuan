@@ -5,7 +5,7 @@ const { test } = require('node:test');
 const vm = require('node:vm');
 
 const samples = JSON.parse(readFileSync(resolve(__dirname, '../../tests/shareBookSource.json'), 'utf8'));
-const source = samples.find(item => item.bookSourceName === '绅士漫画');
+const source = samples.find(item => item.bookSourceUrl === 'http://wnacg.com');
 const content = (input, baseUrl = 'https://current.example/photos-gallery-aid-42.html') =>
   vm.runInNewContext(source.ruleContent.content.slice(4), { result: input, baseUrl, source });
 const requests = html => Array.from(html.matchAll(/<img[^>]*src="([^"\n]*(?:"[^>]+\})?)"[^>]*>/g), match => {

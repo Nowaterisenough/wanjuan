@@ -68,7 +68,7 @@ test('paid chapter banners are not treated as comic pages', () => {
   assert.ok(!html.includes('pay_end.jpg'));
 });
 
-for (const name of ['鸟鸟韩漫 NNHanman', '久久漫画', '久久动漫', '三四娱乐 San421', '三四娱乐 San449', '漫漫漫画']) {
+for (const name of ['鸟鸟韩漫 NNHanman', '久久漫画', '漫小肆韩漫（jjmhw.cc）', '三四娱乐 San421', '三四娱乐 San449', '漫漫漫画']) {
   test(`${name}: lazy images prefer real attributes and preserve request context`, () => {
     const nodes = [element({ 'data-src': '/1.jpg', src: '/loading.jpg' }),
       element({ 'data-original': '//cdn.example/2.webp?a=1&b=2' }),
@@ -118,7 +118,7 @@ test('encrypted public comic images use the publisher key and the prefixed IV', 
 });
 
 test('novel chapters derive their signed public request from the fresh reader page', () => {
-  const script = source('疯情书库').ruleContent.content;
+  const script = source('疯情书库（aabook.xyz）').ruleContent.content;
   const requests = [];
   const page = 'function ajaxGetContent(chapid){$.get("./_getcontent.php?id="+chapid+"&v=fresh%2Btoken")}ajaxGetContent("605")';
   const context = { result: page, baseUrl: 'https://aabook.xyz/read-605.html',
@@ -132,11 +132,11 @@ test('novel chapters derive their signed public request from the fresh reader pa
 });
 
 test('novel chapter links switch to the functional desktop reader without losing the chapter id', () => {
-  const rule = source('疯情书库').ruleToc.chapterUrl;
+  const rule = source('疯情书库（aabook.xyz）').ruleToc.chapterUrl;
   assert.equal(execute(rule.slice(rule.indexOf('@js:')), {
     result: 'read-605.html', baseUrl: 'https://aabook.xyz/m/chapter.php?id=15',
   }), 'https://aabook.xyz/read-605.html');
-  assert.ok(source('疯情书库').ruleBookInfo.tocUrl.includes('&p=1&ob=asc'));
+  assert.ok(source('疯情书库（aabook.xyz）').ruleBookInfo.tocUrl.includes('&p=1&ob=asc'));
 });
 
 test('text article sources receive a stable single chapter', () => {
@@ -152,7 +152,7 @@ test('novel directories exclude ellipsis links, other books, and duplicate chapt
     element({ href: '/novel/list/51030/2.html' }, '...', base),
     element({ href: '/novel/51031/21.html' }, 'Other book', base),
     element({ href: '/novel/51030/11.html' }, 'Duplicate', base)];
-  const chapters = execute(source('PO18脸红').ruleToc.chapterList, {
+  const chapters = execute(source('PO18脸红心跳').ruleToc.chapterList, {
     baseUrl: base, org: { jsoup: { Jsoup: { parse: () => ({ select: () => list(nodes) }) } } },
   });
   assert.equal(chapters.length, 1);
@@ -188,7 +188,7 @@ test('legacy comic service identities use the current certified service for requ
 });
 
 test('JSON APIs use a literal book URI and a valid image selector', () => {
-  assert.ok(source('SFACG漫画').ruleSearch.bookUrl.startsWith('https://mm.sfacg.com/b/'));
+  assert.ok(source('SF漫画').ruleSearch.bookUrl.startsWith('https://mm.sfacg.com/b/'));
   assert.ok(source('漫客栈备用').ruleContent.content.includes('$.data.page[*].image'));
   assert.equal(JSON.parse(source('Hitomi').header)['X-Requested-With'], 'XMLHttpRequest');
   assert.ok(source('Hitomi').ruleBookInfo.tocUrl.includes('/mangazine/mi'));

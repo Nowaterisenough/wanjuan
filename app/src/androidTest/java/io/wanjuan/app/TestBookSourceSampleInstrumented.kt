@@ -31,7 +31,7 @@ import java.io.ByteArrayInputStream
 @RunWith(AndroidJUnit4::class)
 class TestBookSourceSampleInstrumented {
 
-    private val sampleNames = listOf("绅士漫画", "禁漫")
+    private val sampleUrls = listOf("http://wnacg.com", "https://xman7.org")
     private val testedSourceUrls = linkedSetOf<String>()
 
     @After
@@ -44,12 +44,12 @@ class TestBookSourceSampleInstrumented {
     @Test
     fun sampleSourcesCanSearchLoadTocContentAndImages() = runBlocking {
         val sources = loadSampleSources()
-            .filter { it.bookSourceName in sampleNames }
-            .sortedBy { sampleNames.indexOf(it.bookSourceName) }
+            .filter { it.bookSourceUrl in sampleUrls }
+            .sortedBy { sampleUrls.indexOf(it.bookSourceUrl) }
 
         assertTrue(
-            "tests/shareBookSource.json must contain ${sampleNames.joinToString()}",
-            sources.map { it.bookSourceName }.containsAll(sampleNames)
+            "tests/shareBookSource.json must contain ${sampleUrls.joinToString()}",
+            sources.map { it.bookSourceUrl }.containsAll(sampleUrls)
         )
 
         sources.forEach { source ->

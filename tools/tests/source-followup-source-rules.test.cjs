@@ -130,7 +130,7 @@ test('native Rhino and Jsoup: bird lazy attributes and URL context are usable', 
 });
 
 test('native Rhino and Jsoup: sealed shared library can generate covers and body headers', nativeOptions, () => {
-  const source = sources.find(s => s.bookSourceName === '小黄书');
+  const source = sources.find(s => s.bookSourceUrl === 'https://xchina001.site');
   const value = native(source.ruleContent.content, source,
     '<div class="photo-image"><div class="img" style="background-image:url(\'/1.webp?sig=a_b\')"></div></div>',
     'https://reader.example/photo/id-42.html');
@@ -143,7 +143,7 @@ test('native Rhino and Jsoup: sealed shared library can generate covers and body
 });
 
 test('native Rhino: explicit discovery routes remain clickable with the sealed shared library', nativeOptions, () => {
-  const source = sources.find(s => s.bookSourceName === '小黄书');
+  const source = sources.find(s => s.bookSourceUrl === 'https://xchina001.site');
   const entries = JSON.parse(native(source.exploreUrl, source, '').value);
   const videos = entries.filter(entry => entry.url.includes('/videos/'));
   assert.equal(videos.length, 22);
@@ -152,7 +152,7 @@ test('native Rhino: explicit discovery routes remain clickable with the sealed s
 });
 
 test('native Rhino and Jsoup: discovery refreshes live child routes and strips counts without keeping stale IDs', nativeOptions, () => {
-  const source = sources.find(s => s.bookSourceName === '小黄书');
+  const source = sources.find(s => s.bookSourceUrl === 'https://xchina001.site');
   const cn = `<div class="video-list"><div class="series">
     <a href="/videos/xs-901.html">Fresh One (12)</a><a href="/videos/xs-902.html">Fresh Two (1,234)</a>
     <a href="/videos/xs-901.html">Duplicate (12)</a><a href="/videos/series-old.html">Retired</a>
@@ -185,7 +185,7 @@ test('native Rhino and Jsoup: discovery refreshes live child routes and strips c
 });
 
 test('native Rhino and Jsoup: a partial navigation failure retains the complete validated fallback', nativeOptions, () => {
-  const source = sources.find(s => s.bookSourceName === '小黄书');
+  const source = sources.find(s => s.bookSourceUrl === 'https://xchina001.site');
   const fallback = JSON.parse(native(source.exploreUrl, source, '').value);
   const cn = '<div class="video-list"><div class="series"><a href="/videos/xs-999.html">Partial (2)</a></div></div>';
   for (const secondResponse of ['throw new Error("Network failure")', 'return "<title>Verification needed</title>"']) {
@@ -199,7 +199,7 @@ test('native Rhino and Jsoup: a partial navigation failure retains the complete 
 });
 
 test('native Jsoup: discovery selects real cards, not category links or empty advertising cards', nativeOptions, () => {
-  const source = sources.find(s => s.bookSourceName === '小黄书');
+  const source = sources.find(s => s.bookSourceUrl === 'https://xchina001.site');
   assert.equal(source.ruleExplore.bookList, '@css:.item:has(.title a[href])');
   assert.equal(source.ruleExplore.bookUrl, '@css:.title a@href');
   assert.equal(source.ruleExplore.name, '@css:.title a@text##《|》');
@@ -224,7 +224,7 @@ test('native Jsoup: discovery selects real cards, not category links or empty ad
 });
 
 test('native Rhino: fiction images and video headers do not need rule bindings in jsLib', nativeOptions, () => {
-  const source = sources.find(s => s.bookSourceName === '小黄书');
+  const source = sources.find(s => s.bookSourceUrl === 'https://xchina001.site');
   const fiction = native(source.ruleContent.content, source,
     '<div class="fiction-body"><p><img src="/page.jpg"></p></div>', 'https://reader.example/fiction/id-42.html');
   assert.equal(fiction.book.type, 64);
@@ -236,7 +236,7 @@ test('native Rhino: fiction images and video headers do not need rule bindings i
 });
 
 test('native Rhino: rules use Packages rather than the rule helper for Java classes', nativeOptions, () => {
-  const comic = sources.find(s => s.bookSourceName === '禁漫');
+  const comic = sources.find(s => s.bookSourceUrl === 'https://xman7.org');
   assert.ok(native(comic.ruleContent.content, comic, '<center><img data-src="../page.jpg"></center>')
     .value.includes('https://redirected.example/page.jpg'));
   const wan = sources.find(s => s.bookSourceName === '万年漫画');
@@ -253,7 +253,7 @@ test('native Rhino: rules use Packages rather than the rule helper for Java clas
 
 for (const [name, html] of [
   ['久久漫画', '<div class="view-main-1 readForm"><img src="../1.jpg"></div>'],
-  ['久久动漫', '<div class="view-main-1 readForm"><img src="../1.jpg"></div>'],
+  ['漫小肆韩漫（jjmhw.cc）', '<div class="view-main-1 readForm"><img src="../1.jpg"></div>'],
   ['三四娱乐 San421', '<div class="article-content"><img data-original="../1.jpg"></div>'],
   ['三四娱乐 San449', '<div class="article-content"><img data-original="../1.jpg"></div>'],
   ['漫漫漫画', '<img class="man_img" src="../1.jpg">'],
@@ -272,7 +272,7 @@ test('native Rhino: reader-provided servers, image arrays and signed text URLs u
   const comic = sources.find(s => s.bookSourceName === '7mm漫画');
   assert.ok(native(comic.ruleContent.content, comic,
     'Large_cgurl[1] = "https://cdn.example/1.jpg";').value.includes('https://cdn.example/1.jpg,'));
-  const novel = sources.find(s => s.bookSourceName === '疯情书库');
+  const novel = sources.find(s => s.bookSourceUrl === 'https://aabook.xyz');
   const page = 'function ajaxGetContent(chapid){$.get("./_getcontent.php?id="+chapid+"&v=token")}ajaxGetContent("605")';
   assert.ok(native(novel.ruleContent.content, novel, page, 'https://reader.example/read-605.html',
     'java.ajax=function(url){if(String(url).indexOf("https://reader.example/_getcontent.php?id=605&v=token,")!==0)throw new Error("Wrong URL");return Array(20).join("Readable fixture paragraph. ");};')

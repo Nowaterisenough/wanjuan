@@ -6,7 +6,7 @@ const vm = require('node:vm');
 const { JavaURL, executeRule } = require('./helpers/source-rule-runtime.cjs');
 
 const source = JSON.parse(readFileSync(resolve(__dirname, '../../tests/shareBookSource.json'), 'utf8'))
-  .find(item => item.bookSourceName === '小黄书');
+  .find(item => item.bookSourceUrl === 'https://xchina001.site');
 
 function element(attributes = {}, text = '', children = {}) {
   return {

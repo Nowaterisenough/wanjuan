@@ -41,7 +41,7 @@ class TestDiscoverSourceCompatibilityInstrumented {
     @Test
     fun galleryRulesKeepImageRequestHeaders() = runBlocking {
         val source = InstrumentationRegistry.getInstrumentation().context.assets.open("shareBookSource.json").use {
-            GSON.fromJsonArray<BookSource>(it).getOrThrow().first { source -> source.bookSourceName == "小黄书" }
+            GSON.fromJsonArray<BookSource>(it).getOrThrow().first { source -> source.bookSourceUrl == "https://xchina001.site" }
         }
         val url = "https://example.org/photo/sample.html"
         val book = Book(bookUrl = url, origin = source.bookSourceUrl, name = "Gallery fixture")
