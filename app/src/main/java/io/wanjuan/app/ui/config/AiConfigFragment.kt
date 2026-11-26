@@ -3,6 +3,7 @@ package io.wanjuan.app.ui.config
 import android.content.SharedPreferences
 import android.os.Bundle
 import android.text.InputType
+import android.text.method.PasswordTransformationMethod
 import android.view.View
 import androidx.lifecycle.lifecycleScope
 import androidx.preference.Preference
@@ -71,7 +72,15 @@ class AiConfigFragment : PreferenceFragment(),
         val binding = DialogAiProviderEditBinding.inflate(layoutInflater).apply {
             editProviderName.setText(provider?.name.orEmpty())
             editProviderBaseUrl.setText(provider?.baseUrl ?: "https://api.openai.com/v1")
-            editProviderApiKey.setText(provider?.apiKey.orEmpty())
+            editProviderApiKey.apply {
+                val editing = transformationMethod
+                val masked = PasswordTransformationMethod.getInstance()
+                transformationMethod = if (hasFocus()) editing else masked
+                setOnFocusChangeListener { _, focused ->
+                    transformationMethod = if (focused) editing else masked
+                }
+                setText(provider?.apiKey.orEmpty())
+            }
             editProviderHeaders.setText(provider?.headers.orEmpty())
         }
         alert(

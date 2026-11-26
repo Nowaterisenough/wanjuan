@@ -46,7 +46,9 @@
                 android:id="@+id/edit_provider_api_key"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:inputType="textPassword" />
+                android:imeOptions="actionNext|flagNoPersonalizedLearning"
+                android:inputType="textNoSuggestions"
+                android:singleLine="true" />
 
         </io.wanjuan.app.ui.widget.text.TextInputLayout>
 
