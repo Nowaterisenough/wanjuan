@@ -167,6 +167,9 @@ interface BookDao {
     @Insert(onConflict = OnConflictStrategy.ABORT)
     fun insertFromSync(book: Book)
 
+    @Query("UPDATE books SET seriesName = :name WHERE bookUrl IN (:urls)")
+    fun assignSeries(urls: List<String>, name: String?)
+
     @Update
     fun update(vararg book: Book)
 

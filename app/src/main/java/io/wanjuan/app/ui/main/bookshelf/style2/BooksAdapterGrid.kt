@@ -1,5 +1,7 @@
 package io.wanjuan.app.ui.main.bookshelf.style2
 
+import io.wanjuan.app.ui.main.bookshelf.BookSeries
+import io.wanjuan.app.ui.main.bookshelf.SeriesShelfView
 import android.content.Context
 import android.os.Bundle
 import android.view.ViewGroup
@@ -28,6 +30,7 @@ class BooksAdapterGrid(context: Context, callBack: CallBack) :
         viewType: Int
     ): RecyclerView.ViewHolder {
         return when (viewType) {
+            2 -> object : RecyclerView.ViewHolder(SeriesShelfView(context, grid = true)) {}
             1 -> {
                 when (showBookname) {
                     2 -> GroupViewHolder2(ItemBookshelfGridGroup2Binding.inflate(inflater, parent, false))
@@ -48,6 +51,11 @@ class BooksAdapterGrid(context: Context, callBack: CallBack) :
         position: Int,
         payloads: MutableList<Any>
     ) {
+        val item = getItem(position)
+        if (item is BookSeries) {
+            (holder.itemView as SeriesShelfView).bind(item, { callBack.onItemClick(item) }, { callBack.onItemLongClick(item) })
+            return
+        }
         when (holder) {
             is BookViewHolder -> (getItem(position) as? Book)?.let {
                 holder.registerListener(it)

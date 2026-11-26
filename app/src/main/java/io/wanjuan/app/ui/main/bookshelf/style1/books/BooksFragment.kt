@@ -30,6 +30,9 @@ import io.wanjuan.app.help.config.LocalConfig
 import io.wanjuan.app.lib.theme.primaryColor
 import io.wanjuan.app.sync.SyncManager
 import io.wanjuan.app.ui.book.info.BookInfoActivity
+import io.wanjuan.app.ui.main.bookshelf.BookSeries
+import io.wanjuan.app.ui.main.bookshelf.ShelfSeries
+import io.wanjuan.app.ui.main.bookshelf.showSeries
 import io.wanjuan.app.ui.main.MainViewModel
 import io.wanjuan.app.utils.cnCompare
 import io.wanjuan.app.utils.applyMainBottomBarPadding
@@ -72,6 +75,7 @@ class BooksFragment() : BaseFragment(R.layout.fragment_books),
     private val activityViewModel by activityViewModels<MainViewModel>()
     private var bookshelfLayout = AppConfig.bookshelfLayout
     private lateinit var booksAdapter: BaseBooksAdapter<*>
+    private var visibleBooks: List<Book> = emptyList()
     private var booksFlowJob: Job? = null
     var position = 0
         private set
@@ -116,7 +120,7 @@ class BooksFragment() : BaseFragment(R.layout.fragment_books),
         binding.refreshLayout.setOnRefreshListener {
             binding.refreshLayout.isRefreshing = false
             activityViewModel.refreshBookshelf(
-                groupId, booksAdapter.getItems(), onlyUpdateRead, bookTagFilter, enableRefresh
+                groupId, visibleBooks, onlyUpdateRead, bookTagFilter, enableRefresh
             )
         }
         activityViewModel.bookshelfRefreshStatus.observe(viewLifecycleOwner) { state ->
@@ -336,21 +340,22 @@ class BooksFragment() : BaseFragment(R.layout.fragment_books),
                 } else {
                     list.filter { it.hasCustomTag(bookTagFilter) }
                 }
-                list to filteredList
+                Triple(list, filteredList, ShelfSeries.fold(filteredList))
             }.flowWithLifecycleAndDatabaseChangeFirst(
                 viewLifecycleOwner.lifecycle,
                 Lifecycle.State.RESUMED,
                 AppDatabase.BOOK_TABLE_NAME
             ).catch {
                 AppLog.put("书架更新出错", it)
-            }.conflate().flowOn(Dispatchers.Default).collect { (allBooks, list) ->
+            }.conflate().flowOn(Dispatchers.Default).collect { (allBooks, list, rows) ->
                 (parentFragment as? io.wanjuan.app.ui.main.bookshelf.style1.BookshelfFragment1)
                     ?.onBooksChanged(groupId, allBooks)
-                itemCount = list.size
+                visibleBooks = list
+                itemCount = rows.size
                 updateTotalRows()
                 binding.tvEmptyMsg.isGone = itemCount > 0
                 binding.refreshLayout.isEnabled = enableRefresh || SyncManager.isEnabled
-                booksAdapter.setItems(list)
+                booksAdapter.setItems(rows)
                 delay(100)
             }
         }
@@ -381,7 +386,7 @@ class BooksFragment() : BaseFragment(R.layout.fragment_books),
     }
 
     fun getBooks(): List<Book> {
-        return if (::booksAdapter.isInitialized) booksAdapter.getItems() else emptyList()
+        return visibleBooks
     }
 
     private fun Book.hasCustomTag(tag: String): Boolean {
@@ -397,7 +402,7 @@ class BooksFragment() : BaseFragment(R.layout.fragment_books),
     }
 
     fun getBooksCount(): Int {
-        return if (::booksAdapter.isInitialized) booksAdapter.itemCount else 0
+        return visibleBooks.size
     }
 
     override fun onDestroyView() {
@@ -407,6 +412,10 @@ class BooksFragment() : BaseFragment(R.layout.fragment_books),
          */
         binding.rvBookshelf.setItemViewCacheSize(0)
         binding.rvBookshelf.adapter = null
+    }
+
+    override fun openSeries(series: BookSeries, details: Boolean) {
+        requireContext().showSeries(series, if (details) ::openBookInfo else ::open)
     }
 
     override fun open(book: Book) {

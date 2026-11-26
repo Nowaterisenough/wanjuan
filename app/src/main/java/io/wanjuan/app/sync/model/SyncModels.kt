@@ -232,7 +232,9 @@ data class SyncBook(
     @SerializedName(value = "G", alternate = ["syncTime"])
     val syncTime: Long = 0L,
     @SerializedName(value = "H", alternate = ["groupSyncIds"])
-    val groupSyncIds: List<String> = emptyList()
+    val groupSyncIds: List<String> = emptyList(),
+    @SerializedName(value = "I", alternate = ["seriesName"])
+    val seriesName: String? = null
 ) {
     companion object {
         fun from(book: Book, groupSyncIds: List<String> = emptyList()): SyncBook {
@@ -245,6 +247,7 @@ data class SyncBook(
                 author = book.author,
                 kind = book.kind,
                 customTag = book.customTag,
+                seriesName = book.seriesName,
                 coverUrl = book.coverUrl,
                 customCoverUrl = book.customCoverUrl,
                 intro = book.intro,

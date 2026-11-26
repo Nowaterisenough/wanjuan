@@ -257,6 +257,7 @@ fun Book.sync(oldBook: Book) {
         }
     }
     canUpdate = curBook.canUpdate
+    seriesName = curBook.seriesName
     readConfig = curBook.readConfig
 }
 
@@ -278,6 +279,7 @@ fun Book.updateTo(newBook: Book): Book {
     newBook.customCoverUrl = customCoverUrl
     newBook.customIntro = customIntro
     newBook.customTag = customTag
+    newBook.seriesName = seriesName
     newBook.canUpdate = canUpdate
     newBook.readConfig = readConfig
     val variableMap = variableMap.toMutableMap()

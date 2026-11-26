@@ -40,9 +40,9 @@ class TestBookshelfRefreshOrder {
                     refreshBlock.contains("updateCatalog = enableRefresh")
         )
         assertTrue(
-            "Style 2 should derive refresh books from adapter items and filter out group tiles.",
+            "Style 2 should include series members in displayed adapter order and filter out group tiles.",
             fragment.contains("override fun currentUpdateBooks(): List<Book>") &&
-                    fragment.contains("booksAdapter.getItems().filterIsInstance<Book>()")
+                    fragment.contains("ShelfSeries.booksInOrder(booksAdapter.getItems())")
         )
         assertFalse(
             "Style 2 pull refresh should not use the backing books cache directly.",

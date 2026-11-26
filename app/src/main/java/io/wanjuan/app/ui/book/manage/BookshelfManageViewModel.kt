@@ -46,6 +46,11 @@ class BookshelfManageViewModel(application: Application) : BaseViewModel(applica
         }
     }
 
+    fun assignSeries(books: List<Book>, name: String?) {
+        val urls = books.map { it.bookUrl }
+        execute { appDb.runInTransaction { urls.chunked(500).forEach { appDb.bookDao.assignSeries(it, name) } } }
+    }
+
     fun updateBook(vararg book: Book) {
         execute {
             appDb.bookDao.update(*book)

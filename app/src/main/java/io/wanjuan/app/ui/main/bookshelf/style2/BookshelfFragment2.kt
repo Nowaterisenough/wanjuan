@@ -30,6 +30,9 @@ import io.wanjuan.app.ui.book.group.GroupEditDialog
 import io.wanjuan.app.ui.book.info.BookInfoActivity
 import io.wanjuan.app.ui.book.search.SearchActivity
 import io.wanjuan.app.ui.main.MainActivity
+import io.wanjuan.app.ui.main.bookshelf.BookSeries
+import io.wanjuan.app.ui.main.bookshelf.ShelfSeries
+import io.wanjuan.app.ui.main.bookshelf.showSeries
 import io.wanjuan.app.ui.main.bookshelf.BaseBookshelfFragment
 import io.wanjuan.app.ui.widget.GridColumnsPopup
 import io.wanjuan.app.utils.applyMainBottomBarPadding
@@ -78,6 +81,7 @@ class BookshelfFragment2() : BaseBookshelfFragment(R.layout.fragment_bookshelf2)
     private var bookshelfLayout = AppConfig.bookshelfLayout
     private lateinit var booksAdapter: BaseBooksAdapter<*>
     private var bookGroups: List<BookGroup> = emptyList()
+    private var shelfRows: List<Any> = emptyList()
     private var booksFlowJob: Job? = null
     override var groupId = BookGroup.IdRoot
     override var books: List<Book> = emptyList()
@@ -358,14 +362,15 @@ class BookshelfFragment2() : BaseBookshelfFragment(R.layout.fragment_bookshelf2)
                         it.durChapterTime
                     }
                 }
-            }.flowWithLifecycleAndDatabaseChangeFirst(
+            }.map { it to ShelfSeries.fold(it) }.flowWithLifecycleAndDatabaseChangeFirst(
                 viewLifecycleOwner.lifecycle,
                 Lifecycle.State.RESUMED,
                 AppDatabase.BOOK_TABLE_NAME
             ).catch {
                 AppLog.put("书架更新出错", it)
-            }.conflate().flowOn(Dispatchers.Default).collect { list ->
+            }.conflate().flowOn(Dispatchers.Default).collect { (list, rows) ->
                 books = list
+                shelfRows = rows
                 booksAdapter.updateItems(groupId)
                 itemCount = getItemCount()
                 updateTotalRows()
@@ -418,6 +423,7 @@ class BookshelfFragment2() : BaseBookshelfFragment(R.layout.fragment_bookshelf2)
 
     override fun onItemClick(item: Any) {
         when (item) {
+            is BookSeries -> requireContext().showSeries(item, ::onItemClick)
             is Book -> startActivityForBook(item)
 
             is BookGroup -> {
@@ -429,6 +435,7 @@ class BookshelfFragment2() : BaseBookshelfFragment(R.layout.fragment_bookshelf2)
 
     override fun onItemLongClick(item: Any) {
         when (item) {
+            is BookSeries -> requireContext().showSeries(item, ::onItemLongClick)
             is Book -> startActivity<BookInfoActivity> {
                 putExtra("name", item.name)
                 putExtra("author", item.author)
@@ -448,26 +455,22 @@ class BookshelfFragment2() : BaseBookshelfFragment(R.layout.fragment_bookshelf2)
 
     fun getItemCount(): Int {
         return if (groupId == BookGroup.IdRoot) {
-            bookGroups.size + books.size
+            bookGroups.size + shelfRows.size
         } else {
-            books.size
+            shelfRows.size
         }
     }
 
     override fun getItems(): List<Any> {
         if (groupId != BookGroup.IdRoot) {
-            return books
+            return shelfRows
         }
-        return bookGroups + books
+        return bookGroups + shelfRows
     }
 
-    override fun currentUpdateBooks(): List<Book> {
-        return if (::booksAdapter.isInitialized) {
-            booksAdapter.getItems().filterIsInstance<Book>()
-        } else {
-            books
-        }
-    }
+    override fun currentUpdateBooks(): List<Book> = if (::booksAdapter.isInitialized) {
+        ShelfSeries.booksInOrder(booksAdapter.getItems())
+    } else books
 
     @SuppressLint("NotifyDataSetChanged")
     override fun observeLiveBus() {

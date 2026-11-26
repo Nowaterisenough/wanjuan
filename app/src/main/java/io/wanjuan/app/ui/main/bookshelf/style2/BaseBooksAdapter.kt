@@ -1,5 +1,6 @@
 package io.wanjuan.app.ui.main.bookshelf.style2
 
+import io.wanjuan.app.ui.main.bookshelf.BookSeries
 import android.content.Context
 import android.os.Parcelable
 import android.view.LayoutInflater
@@ -29,6 +30,7 @@ abstract class BaseBooksAdapter<VH : RecyclerView.ViewHolder>(
 
         override fun areItemsTheSame(oldItem: Any, newItem: Any): Boolean {
             return when {
+                oldItem is BookSeries && newItem is BookSeries -> oldItem.key == newItem.key
                 oldItem is Book && newItem is Book -> {
                     oldItem.name == newItem.name
                             && oldItem.author == newItem.author
@@ -151,6 +153,7 @@ abstract class BaseBooksAdapter<VH : RecyclerView.ViewHolder>(
     }
 
     override fun getItemViewType(position: Int): Int {
+        if (getItem(position) is BookSeries) return 2
         if (getItem(position) is BookGroup) {
             return 1
         }

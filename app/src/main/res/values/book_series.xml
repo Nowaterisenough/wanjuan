@@ -1,0 +1,9 @@
+<resources>
+    <string name="series_assign">归入系列</string>
+    <string name="series_name">系列名称</string>
+    <string name="series_separate">单独显示</string>
+    <string name="series_auto">恢复自动识别系列</string>
+    <string name="series_select_books">请先勾选书籍</string>
+    <string name="series_count">%1$d 本</string>
+    <string name="series_description">%1$s，系列，共 %2$s</string>
+</resources>

@@ -421,6 +421,7 @@ class BookshelfSyncCoordinator(
             author = author,
             kind = kind,
             customTag = customTag,
+            seriesName = seriesName,
             coverUrl = coverUrl,
             customCoverUrl = customCoverUrl,
             intro = intro,

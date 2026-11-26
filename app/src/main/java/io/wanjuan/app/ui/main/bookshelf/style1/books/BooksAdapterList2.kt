@@ -25,13 +25,13 @@ class BooksAdapterList2(
     private val fragment: Fragment,
     private val callBack: CallBack,
     private val lifecycle: Lifecycle
-) : BaseBooksAdapter<ItemBookshelfList2Binding>(context) {
+) : BaseBooksAdapter<ItemBookshelfList2Binding>(context, callBack) {
 
     override fun getViewBinding(parent: ViewGroup): ItemBookshelfList2Binding {
         return ItemBookshelfList2Binding.inflate(inflater, parent, false)
     }
 
-    override fun convert(
+    override fun bindBook(
         holder: ItemViewHolder,
         binding: ItemBookshelfList2Binding,
         item: Book,
@@ -103,13 +103,13 @@ class BooksAdapterList2(
     override fun registerListener(holder: ItemViewHolder, binding: ItemBookshelfList2Binding) {
         holder.itemView.apply {
             setOnClickListener {
-                getItem(holder.layoutPosition)?.let {
+                (getItem(holder.bindingAdapterPosition) as? Book)?.let {
                     callBack.open(it)
                 }
             }
 
             onLongClick {
-                getItem(holder.layoutPosition)?.let {
+                (getItem(holder.bindingAdapterPosition) as? Book)?.let {
                     callBack.openBookInfo(it)
                 }
             }

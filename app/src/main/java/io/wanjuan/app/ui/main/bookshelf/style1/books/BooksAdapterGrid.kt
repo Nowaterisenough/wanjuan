@@ -17,7 +17,7 @@ import io.wanjuan.app.utils.visible
 import splitties.views.onLongClick
 
 class BooksAdapterGrid(context: Context, private val callBack: CallBack) :
-    BaseBooksAdapter<ViewBinding>(context) {
+    BaseBooksAdapter<ViewBinding>(context, callBack, grid = true) {
     private val showBookname = AppConfig.showBookname
     override fun getViewBinding(parent: ViewGroup): ViewBinding {
         return when (showBookname) {
@@ -26,7 +26,7 @@ class BooksAdapterGrid(context: Context, private val callBack: CallBack) :
         }
     }
 
-    override fun convert(
+    override fun bindBook(
         holder: ItemViewHolder,
         binding: ViewBinding,
         item: Book,
@@ -132,13 +132,13 @@ class BooksAdapterGrid(context: Context, private val callBack: CallBack) :
     override fun registerListener(holder: ItemViewHolder, binding: ViewBinding) {
         holder.itemView.apply {
             setOnClickListener {
-                getItem(holder.layoutPosition)?.let {
+                (getItem(holder.bindingAdapterPosition) as? Book)?.let {
                     callBack.open(it)
                 }
             }
 
             onLongClick {
-                getItem(holder.layoutPosition)?.let {
+                (getItem(holder.bindingAdapterPosition) as? Book)?.let {
                     callBack.openBookInfo(it)
                 }
             }

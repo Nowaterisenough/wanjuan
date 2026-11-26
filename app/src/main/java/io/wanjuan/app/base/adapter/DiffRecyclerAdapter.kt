@@ -119,7 +119,7 @@ abstract class DiffRecyclerAdapter<ITEM, VB : ViewBinding>(protected val context
 
     final override fun getItemCount() = getItems().size
 
-    final override fun getItemViewType(position: Int): Int {
+    override fun getItemViewType(position: Int): Int {
         return 0
     }
 
@@ -136,7 +136,7 @@ abstract class DiffRecyclerAdapter<ITEM, VB : ViewBinding>(protected val context
     }
 
     @Suppress("UNCHECKED_CAST")
-    final override fun onBindViewHolder(
+    override fun onBindViewHolder(
         holder: ItemViewHolder,
         position: Int,
         payloads: MutableList<Any>

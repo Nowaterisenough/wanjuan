@@ -1,5 +1,7 @@
 package io.wanjuan.app.ui.main.bookshelf.style2
 
+import io.wanjuan.app.ui.main.bookshelf.BookSeries
+import io.wanjuan.app.ui.main.bookshelf.SeriesShelfView
 import android.content.Context
 import android.os.Bundle
 import android.view.ViewGroup
@@ -23,6 +25,7 @@ class BooksAdapterList(context: Context, callBack: CallBack) :
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
         return when (viewType) {
+            2 -> object : RecyclerView.ViewHolder(SeriesShelfView(context, grid = false)) {}
             1 -> GroupViewHolder(ItemBookshelfListGroupBinding.inflate(inflater, parent, false))
             else -> {
                 if (AppConfig.bookshelfLayout == 0) { BookViewHolder(ItemBookshelfListBinding.inflate(inflater, parent, false)) }
@@ -37,6 +40,11 @@ class BooksAdapterList(context: Context, callBack: CallBack) :
         position: Int,
         payloads: MutableList<Any>
     ) {
+        val item = getItem(position)
+        if (item is BookSeries) {
+            (holder.itemView as SeriesShelfView).bind(item, { callBack.onItemClick(item) }, { callBack.onItemLongClick(item) })
+            return
+        }
         when (holder) {
             is BookViewHolder -> (getItem(position) as? Book)?.let {
                 holder.registerListener(it)

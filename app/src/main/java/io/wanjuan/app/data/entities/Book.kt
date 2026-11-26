@@ -124,7 +124,9 @@ data class Book(
     var readConfig: ReadConfig? = null,
     //同步时间
     @ColumnInfo(defaultValue = "0")
-    var syncTime: Long = 0L
+    var syncTime: Long = 0L,
+    // null follows title recognition, an empty name keeps this book separate.
+    var seriesName: String? = null
 ) : Parcelable, BaseBook {
 
     override fun equals(other: Any?): Boolean {
@@ -413,6 +415,7 @@ data class Book(
         newBook.customCoverUrl = customCoverUrl
         newBook.customIntro = customIntro
         newBook.customTag = customTag
+        newBook.seriesName = seriesName
         newBook.canUpdate = canUpdate
         newBook.readConfig = readConfig
         return newBook

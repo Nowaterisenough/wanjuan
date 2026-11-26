@@ -6,6 +6,7 @@ import android.view.Menu
 import android.view.MenuItem
 import android.widget.CheckBox
 import android.widget.LinearLayout
+import androidx.appcompat.app.AlertDialog
 import androidx.activity.viewModels
 import androidx.appcompat.widget.SearchView
 import androidx.lifecycle.lifecycleScope
@@ -22,12 +23,16 @@ import io.wanjuan.app.databinding.ActivityArrangeBookBinding
 import io.wanjuan.app.databinding.DialogEditTextBinding
 import io.wanjuan.app.help.DirectLinkUpload
 import io.wanjuan.app.help.book.contains
+import io.wanjuan.app.help.book.isNotShelf
 import io.wanjuan.app.help.book.isLocal
 import io.wanjuan.app.help.config.AppConfig
 import io.wanjuan.app.help.config.LocalConfig
 import io.wanjuan.app.lib.dialogs.alert
 import io.wanjuan.app.lib.theme.primaryColor
 import io.wanjuan.app.lib.theme.primaryTextColor
+import io.wanjuan.app.ui.main.bookshelf.ShelfSeries
+import io.wanjuan.app.ui.main.bookshelf.BookSeries
+import io.wanjuan.app.utils.toastOnUi
 import io.wanjuan.app.ui.book.group.GroupManageDialog
 import io.wanjuan.app.ui.book.group.GroupSelectDialog
 import io.wanjuan.app.ui.book.info.BookInfoActivity
@@ -298,6 +303,16 @@ class BookshelfManageActivity :
 
     override fun onMenuItemClick(item: MenuItem): Boolean {
         when (item.itemId) {
+            R.id.menu_series_assign, R.id.menu_series_separate, R.id.menu_series_auto -> {
+                val selected = adapter.selection.toList()
+                if (selected.isEmpty()) toastOnUi(R.string.series_select_books)
+                else when (item.itemId) {
+                    R.id.menu_series_assign -> assignSeries(selected)
+                    R.id.menu_series_separate -> viewModel.assignSeries(selected, "")
+                    R.id.menu_series_auto -> viewModel.assignSeries(selected, null)
+                }
+                return true
+            }
             R.id.menu_del_selection -> alertDelSelection()
             R.id.menu_update_enable ->
                 viewModel.upCanUpdate(adapter.selection, true)
@@ -312,6 +327,34 @@ class BookshelfManageActivity :
             R.id.menu_check_selected_interval -> adapter.checkSelectedInterval()
         }
         return false
+    }
+
+    private fun assignSeries(selected: List<Book>) {
+        val input = DialogEditTextBinding.inflate(layoutInflater)
+        val field = input.editView
+        field.setSingleLine()
+        field.setHint(R.string.series_name)
+        val suggested = ShelfSeries.suggestedTitle(selected)
+        field.setText(suggested.orEmpty())
+        field.selectAll()
+        val dialog = AlertDialog.Builder(this).setTitle(R.string.series_assign).setView(input.root)
+            .setPositiveButton(android.R.string.ok, null).setNegativeButton(android.R.string.cancel, null).show()
+        lifecycleScope.launch {
+            val names = withContext(IO) {
+                val all = appDb.bookDao.all.filterNot { it.isNotShelf }
+                (all.mapNotNull { it.seriesName } + ShelfSeries.fold(all).filterIsInstance<BookSeries>().map { it.key.title })
+                    .filter(String::isNotBlank).distinct().sorted()
+            }
+            if (dialog.isShowing) field.setFilterValues(names)
+        }
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+            val name = field.text.toString().trim()
+            if (name.isEmpty()) field.error = getString(R.string.series_name)
+            else {
+                viewModel.assignSeries(selected, name)
+                dialog.dismiss()
+            }
+        }
     }
 
     private fun upMenu() {

@@ -2,6 +2,18 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
 
     <item
+        android:id="@+id/menu_series_assign"
+        android:title="@string/series_assign" />
+
+    <item
+        android:id="@+id/menu_series_separate"
+        android:title="@string/series_separate" />
+
+    <item
+        android:id="@+id/menu_series_auto"
+        android:title="@string/series_auto" />
+
+    <item
         android:id="@+id/menu_del_selection"
         android:title="@string/delete" />
 
