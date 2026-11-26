@@ -50,27 +50,58 @@ internal object AiResponsesProtocol {
 
     fun httpError(status: Int, body: String, log: String, secrets: Collection<String>): AiChatException {
         val text = body.trim()
+        if (looksLikeEvents(text)) return streamError(status, text.reader().buffered(), log, secrets)
         val root = runCatching { JSONObject(text) }.getOrNull()
-        val error = root?.optJSONObject("error") ?: root
+        val plain = text.lineSequence().firstOrNull()?.takeIf {
+            root == null && !it.startsWith('<') && !it.startsWith('{') && !it.startsWith('[')
+        }
+        return providerError(status, root, plain, log, secrets)
+    }
+
+    fun looksLikeEvents(prefix: String): Boolean {
+        val first = prefix.removePrefix("\uFEFF").trimStart()
+        return listOf("event:", "data:", ":", "id:", "retry:").any(first::startsWith)
+    }
+
+    private val failureTypes = setOf("response.failed", "response.incomplete", "error")
+
+    fun streamError(status: Int, reader: BufferedReader, log: String, secrets: Collection<String>): AiChatException {
+        for ((name, data) in events(reader)) {
+            if (data == "[DONE]") break
+            val event = runCatching { JSONObject(data) }.getOrNull()
+            if (name in failureTypes || event?.optString("type") in failureTypes || (event != null && !event.isNull("error")) ||
+                event?.optJSONObject("response")?.optJSONObject("error") != null) {
+                return providerError(status, event, null, log, secrets)
+            }
+        }
+        return providerError(status, null, null, log, secrets)
+    }
+
+    private fun providerError(status: Int?, root: JSONObject?, plain: String?, log: String, secrets: Collection<String>): AiChatException {
+        val response = root?.optJSONObject("response") ?: root
+        val error = response?.optJSONObject("error") ?: root?.optJSONObject("error") ?: response
         val detail = error?.opt("detail") ?: root?.opt("detail")
         val code = error?.opt("code") as? String
         val param = error?.opt("param") as? String
         val reason = listOfNotNull(error?.opt("message") as? String, root?.opt("error") as? String,
-            detail as? String, (detail as? JSONObject)?.opt("message") as? String,
+            response?.opt("error") as? String, detail as? String, (detail as? JSONObject)?.opt("message") as? String,
             (detail as? JSONArray)?.optJSONObject(0)?.opt("msg") as? String,
-            text.lineSequence().firstOrNull()?.takeIf { root == null && !it.startsWith('<') && !it.startsWith('{') && !it.startsWith('[') }
+            response?.optJSONObject("incomplete_details")?.opt("reason") as? String, plain
         ).firstOrNull { it.isNotBlank() }.orEmpty()
-        val tooLarge = status == 413 || (status in setOf(400, 422) &&
-            (code in setOf("context_length_exceeded", "input_too_long") ||
+        val lengthError = code in setOf("context_length_exceeded", "input_too_long") ||
+            reason == "max_output_tokens" ||
                 listOf("maximum context length", "context length exceeded", "input is too long", "too many input tokens")
-                    .any { reason.contains(it, ignoreCase = true) }))
+                .any { reason.contains(it, ignoreCase = true) }
+        val tooLarge = status == 413 || (lengthError && (status == null || status == 400 || status == 422))
         var explanation = listOf(reason, param.orEmpty(), code.orEmpty()).filter { it.isNotBlank() }.distinct().joinToString(" · ")
         for (secret in secrets.filter(String::isNotBlank).sortedByDescending { it.length }) {
             explanation = explanation.replace(secret, "***")
         }
         if (explanation.isBlank() && status == 400) explanation = "服务端未提供原因，请核对接口地址和所选模型是否支持 Responses。"
-        val message = listOf("HTTP $status", explanation.take(500)).filter(String::isNotBlank).joinToString(" · ")
-        return AiChatException(message, log + "status=$status", inputTooLarge = tooLarge)
+        if (explanation.isBlank() && status == null) explanation = "服务端未提供具体原因"
+        val heading = status?.let { "HTTP $it" } ?: "Responses 请求失败"
+        val message = listOf(heading, explanation.take(500)).filter(String::isNotBlank).joinToString(" · ")
+        return AiChatException(message, log + (status?.let { "status=$it" } ?: "stream failed"), inputTooLarge = tooLarge)
     }
 
     fun toolResult(callId: String, output: String) = JSONObject()
@@ -78,56 +109,61 @@ internal object AiResponsesProtocol {
 
     data class Turn(val content: String, val output: List<JSONObject>)
 
+    /** Read each SSE frame once. Some gateways put its type only on the event: line. */
+    private fun events(reader: BufferedReader, checkCancelled: () -> Unit = {}): Sequence<Pair<String, String>> = sequence {
+        var name = ""
+        val data = StringBuilder()
+        while (true) {
+            checkCancelled()
+            val line = reader.readLine()?.removePrefix("\uFEFF")
+            when {
+                line.isNullOrEmpty() -> {
+                    if (data.isNotEmpty()) yield(name to data.toString())
+                    if (line == null) break
+                    data.clear()
+                    name = ""
+                }
+                line.startsWith("event:") -> name = line.substringAfter(':').trim()
+                line.startsWith("data:") -> {
+                    if (data.isNotEmpty()) data.append('\n')
+                    data.append(line.substringAfter(':').removePrefix(" "))
+                }
+            }
+        }
+    }
+
     fun read(
         reader: BufferedReader,
         isEventStream: Boolean,
         onPartial: (String) -> Unit,
         onThinking: (String) -> Unit,
-        checkCancelled: () -> Unit = {}
+        checkCancelled: () -> Unit = {},
+        secrets: Collection<String> = emptyList()
     ): Turn {
-        if (!isEventStream) return completed(JSONObject(reader.readText())).also { onPartial(it.content) }
+        if (!isEventStream) return completed(JSONObject(reader.readText()), secrets).also { onPartial(it.content) }
         val text = StringBuilder()
-        var result: Turn? = null
-        val frame = StringBuilder()
-        fun consume() {
-            if (frame.isEmpty()) return
-            val payload = frame.toString()
-            frame.clear()
-            if (payload == "[DONE]") return
+        for ((name, payload) in events(reader, checkCancelled)) {
+            if (payload == "[DONE]") break
+            if (name in failureTypes) {
+                throw providerError(null, runCatching { JSONObject(payload) }.getOrNull(), null, "", secrets)
+            }
             val event = JSONObject(payload)
-            when (event.optString("type")) {
+            val type = event.optString("type").ifBlank { name }
+            when (type) {
                 "response.output_text.delta", "response.refusal.delta" -> {
                     text.append(event.optString("delta"))
                     onPartial(text.toString())
                 }
                 "response.reasoning_summary_text.delta" -> onThinking(event.optString("delta"))
-                "response.completed" -> {
-                    result = completed(event.getJSONObject("response"))
-                    onPartial(result.content)
-                }
-                "response.failed", "response.incomplete" -> error(failure(event.getJSONObject("response")))
-                "error" -> error(event.optString("message", "Responses request failed"))
+                "response.completed" -> return completed(event.getJSONObject("response"), secrets).also { onPartial(it.content) }
+                in failureTypes -> throw providerError(null, event, null, "", secrets)
             }
         }
-        while (result == null) {
-            checkCancelled()
-            val line = reader.readLine() ?: break
-            if (line.isEmpty()) consume()
-            else if (line.startsWith("data:")) {
-                if (frame.isNotEmpty()) frame.append('\n')
-                frame.append(line.removePrefix("data:").removePrefix(" "))
-            }
-        }
-        consume()
-        return result ?: error("Responses stream ended before response.completed; please retry")
+        error("Responses stream ended before response.completed; please retry")
     }
 
-    private fun failure(response: JSONObject): String =
-        response.optJSONObject("error")?.optString("message")?.takeIf { it.isNotBlank() }
-            ?: "Responses ${response.optString("status")}: ${response.optJSONObject("incomplete_details")?.optString("reason").orEmpty()}"
-
-    private fun completed(response: JSONObject): Turn {
-        check(response.optString("status") == "completed") { failure(response) }
+    private fun completed(response: JSONObject, secrets: Collection<String>): Turn {
+        if (response.optString("status") != "completed") throw providerError(null, response, null, "", secrets)
         val output = response.optJSONArray("output") ?: JSONArray()
         val items = (0 until output.length()).map { output.getJSONObject(it) }
         val citations = linkedMapOf<String, String>()

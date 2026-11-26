@@ -383,16 +383,18 @@ object AiChatService {
             }
             try {
                 call.execute().use { response ->
+                    val isEventStream = response.header("Content-Type").orEmpty().contains("text/event-stream", ignoreCase = true)
+                    val secrets = headers.values + providerApiKey.trim()
                     if (!response.isSuccessful) {
+                        if (isEventStream || AiResponsesProtocol.looksLikeEvents(response.peekBody(32).string())) {
+                            throw AiResponsesProtocol.streamError(response.code, response.body.charStream().buffered(),
+                                requestLog.toString(), secrets)
+                        }
                         throw AiResponsesProtocol.httpError(response.code, response.peekBody(16 * 1024L).string(),
-                            requestLog.toString(), headers.values + providerApiKey.trim())
+                            requestLog.toString(), secrets)
                     }
-                    val turn = AiResponsesProtocol.read(
-                        response.body.charStream().buffered(),
-                        response.header("Content-Type").orEmpty().contains("text/event-stream", ignoreCase = true),
-                        onPartial, onThinking,
-                        checkCancelled = { coroutineContext.ensureActive() }
-                    )
+                    val turn = AiResponsesProtocol.read(response.body.charStream().buffered(), isEventStream,
+                        onPartial, onThinking, checkCancelled = { coroutineContext.ensureActive() }, secrets = secrets)
                     AssistantTurn(turn.content, turn.output.filter {
                         it.optString("type") == "function_call"
                     }.map {

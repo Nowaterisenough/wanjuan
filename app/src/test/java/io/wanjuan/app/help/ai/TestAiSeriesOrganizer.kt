@@ -45,7 +45,8 @@ class TestAiSeriesOrganizer {
         val proposed = AiSeriesOrganizer.propose(shelf) { request ->
             val input = JSONObject(request).getJSONArray("books")
             if (input.length() > 2) throw AiResponsesProtocol.httpError(400,
-                """{"error":{"code":"context_length_exceeded"}}""", "", emptyList())
+                "event: response.failed\ndata: {\"response\":{\"error\":{\"code\":\"context_length_exceeded\"}}}\n\n",
+                "", emptyList())
             val ids = (0 until input.length()).map { i ->
                 val row = input.getJSONObject(i)
                 acceptedTitles += row.getString("title")

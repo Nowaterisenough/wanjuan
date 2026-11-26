@@ -52,6 +52,33 @@ class TestAiResponsesProtocol {
         assertEquals("HTTP 400 · Unsupported field", AiResponsesProtocol.httpError(400, "Unsupported field", "", emptyList()).message)
     }
 
+    @Test fun http400UnwrapsEventNamedFailureAndHidesPrivateFields() {
+        val stream = "\uFEFF: ping\r\n\r\nevent: response.created\r\ndata: {\"error\":null}\r\n\r\n" +
+            "event: response.failed\r\ndata: {\"response\":{\"input\":\"private book\",\r\n" +
+            "data: \"error\":{\"code\":\"model_not_found\",\"message\":\"Unknown model for fixture\"}}}"
+        val failure = AiResponsesProtocol.httpError(400, stream, "", listOf("fixture"))
+        assertEquals("HTTP 400 · Unknown model for *** · model_not_found", failure.message)
+        assertFalse(failure.inputTooLarge)
+    }
+
+    @Test fun streamFailureWithoutDetailsDoesNotDisplayWireData() {
+        val message = AiResponsesProtocol.httpError(400, "event: response.failed\n\ndata: [DONE]\n\n", "", emptyList()).message
+        assertTrue(message.contains("HTTP 400"))
+        assertFalse(message.contains("event:"))
+    }
+
+    @Test fun oversizedErrorsInHttp200AndJsonFailureHaveSameRetrySemantics() {
+        val response = """{"status":"failed","error":{"code":"context_length_exceeded"}}"""
+        val stream = "event: response.failed\ndata: {\"response\":$response}\n\n"
+        for ((body, sse) in listOf(stream to true, response to false)) {
+            val failure = assertThrows(io.wanjuan.app.ui.main.ai.AiChatException::class.java) {
+                AiResponsesProtocol.read(body.reader().buffered(), sse, {}, {})
+            }
+            assertTrue(failure.inputTooLarge)
+            assertTrue(failure.message.contains("context_length_exceeded"))
+        }
+    }
+
     @Test fun readerHasNoToolsUnlessWebSearchRequested() {
         val body = JSONObject(AiResponsesProtocol.request("model", emptyList(), emptyList(), false))
         assertFalse(body.has("tools"))
