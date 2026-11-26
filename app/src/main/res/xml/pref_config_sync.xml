@@ -60,6 +60,11 @@
             android:dialogMessage="@string/github_sync_token_hint"
             app:iconSpaceReserved="false" />
         <io.wanjuan.app.lib.prefs.EditTextPreference
+            android:key="gitHubAiSyncPassphrase"
+            android:title="@string/github_ai_sync_passphrase"
+            android:dialogMessage="@string/github_ai_sync_hint"
+            app:iconSpaceReserved="false" />
+        <io.wanjuan.app.lib.prefs.EditTextPreference
             android:key="gitHubSyncBranch"
             android:title="@string/github_sync_branch"
             android:dialogMessage="@string/github_sync_default_branch"

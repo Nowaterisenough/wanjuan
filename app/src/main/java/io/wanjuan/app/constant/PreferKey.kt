@@ -103,6 +103,7 @@ object PreferKey {
     const val syncProvider = "syncProvider"
     const val gitHubSyncRepository = "gitHubSyncRepository"
     const val gitHubSyncToken = "gitHubSyncToken"
+    const val gitHubAiSyncPassphrase = "gitHubAiSyncPassphrase"
     const val gitHubSyncBranch = "gitHubSyncBranch"
     const val gitHubSyncDir = "gitHubSyncDir"
     const val enableCustomExport = "enableCustomExport"

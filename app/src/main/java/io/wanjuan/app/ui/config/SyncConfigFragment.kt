@@ -43,6 +43,12 @@ class SyncConfigFragment : PreferenceFragment(),
                 it.setSelection(it.text.length)
             }
         }
+        findPreference<EditTextPreference>(PreferKey.gitHubAiSyncPassphrase)?.setOnBindEditTextListener {
+            it.setSingleLine()
+            it.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+            it.imeOptions = android.view.inputmethod.EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING or android.view.inputmethod.EditorInfo.IME_ACTION_DONE
+            it.setSelection(it.text.length)
+        }
         updatePreferences()
     }
 
@@ -82,11 +88,12 @@ class SyncConfigFragment : PreferenceFragment(),
             PreferKey.webDavUrl, PreferKey.webDavAccount, PreferKey.webDavPassword,
             PreferKey.webDavDir, PreferKey.webDavDeviceName,
             PreferKey.gitHubSyncRepository, PreferKey.gitHubSyncToken,
-            PreferKey.gitHubSyncBranch, PreferKey.gitHubSyncDir
+            PreferKey.gitHubSyncBranch, PreferKey.gitHubSyncDir, PreferKey.gitHubAiSyncPassphrase
         ).forEach { key ->
             val preference = findPreference<EditTextPreference>(key) ?: return@forEach
             val value = appCtx.getPrefString(key)
             preference.summary = when {
+                key == PreferKey.gitHubAiSyncPassphrase -> getString(if (value.isNullOrBlank()) R.string.github_ai_sync_off else R.string.github_ai_sync_on)
                 key == PreferKey.gitHubSyncToken || key == PreferKey.webDavPassword ->
                     getString(if (value.isNullOrBlank()) R.string.sync_secret_empty else R.string.sync_secret_saved)
                 !value.isNullOrBlank() -> value

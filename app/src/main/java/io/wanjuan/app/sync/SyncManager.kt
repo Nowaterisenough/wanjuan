@@ -1,6 +1,9 @@
 package io.wanjuan.app.sync
 
 import io.wanjuan.app.constant.AppLog
+import android.content.SharedPreferences
+import io.wanjuan.app.constant.PreferKey
+import io.wanjuan.app.utils.defaultSharedPreferences
 import io.wanjuan.app.BuildConfig
 import io.wanjuan.app.data.appDb
 import io.wanjuan.app.data.entities.Book
@@ -103,17 +106,32 @@ object SyncManager {
     suspend fun pullBookshelfWithFiles(): SyncResult {
         if (SyncSettings.provider != SyncSettings.GitHub) return syncAwait()
         if (!isEnabled) return SyncResult()
-        return client.withTarget { target ->
-            val cloud = runSync(pushChanges = false)
-            val github = target.store as? GitHubSyncClient
-            if (cloud.failed > 0 || github == null) return@withTarget cloud
-            val files = mutationMutex.withLock { GitHubBookLibrary.sync(target.identity, github) }
-            cloud.copy(uploaded = cloud.uploaded + files.uploaded, downloaded = cloud.downloaded + files.downloaded,
-                failed = files.failed, errorMessage = files.errorMessage)
+        return runSync(pushChanges = false, includeBookFiles = true)
+    }
+
+    private val aiSettings by lazy { GitHubAiConfigSync(appCtx.defaultSharedPreferences) }
+    private var aiSyncDebounce: Job? = null
+    private val aiSettingsListener = SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
+        if ((key in AiSyncSettings.keys || key == PreferKey.gitHubAiSyncPassphrase) &&
+            !prefs.getString(PreferKey.gitHubAiSyncPassphrase, null).isNullOrBlank() &&
+            SyncSettings.provider == SyncSettings.GitHub && isEnabled) {
+            aiSyncDebounce?.cancel()
+            aiSyncDebounce = syncScope.launch {
+                delay(1500)
+                if (SyncSettings.provider == SyncSettings.GitHub && isEnabled) pullFlight.start(rerunIfActive = true)
+            }
         }
     }
 
-    private suspend fun runSync(pushChanges: Boolean): SyncResult = mutationMutex.withLock {
+    private suspend fun SyncResult.withFiles(action: suspend () -> SyncResult): SyncResult {
+        val other = try { action() } catch (e: CancellationException) { throw e } catch (e: Exception) {
+            SyncResult(failed = 1, errorMessage = e.localizedMessage ?: e.javaClass.simpleName)
+        }
+        return copy(uploaded = uploaded + other.uploaded, downloaded = downloaded + other.downloaded,
+            failed = failed + other.failed, errorMessage = errorMessage ?: other.errorMessage)
+    }
+
+    private suspend fun runSync(pushChanges: Boolean, includeBookFiles: Boolean = false): SyncResult = mutationMutex.withLock {
         progressTracker.begin()
         val heartbeat = syncScope.launch {
             var lastReport = 0L
@@ -144,7 +162,11 @@ object SyncManager {
                     // Writes after that transaction wake the Room observer, even during a flush.
                     repeatChanges = isEnabled && !bookshelfRefreshActive.value &&
                         (if (pushChanges) completed.pending > 0 else delta.capture() > 0)
-                    completed
+                    val github = target.store as? GitHubSyncClient
+                    if (pushChanges || github == null || completed.failed != 0) return@withTarget completed
+                    val withSettings = completed.withFiles { aiSettings.sync(target.identity, github) }
+                    if (includeBookFiles) withSettings.withFiles { GitHubBookLibrary.sync(target.identity, github) }
+                    else withSettings
                 }
             } catch (e: CancellationException) {
                 progressTracker.finish(SyncResult(failed = 1, errorMessage = "Sync cancelled"))
@@ -181,6 +203,7 @@ object SyncManager {
     }
 
     fun onAppStart() {
+        appCtx.defaultSharedPreferences.registerOnSharedPreferenceChangeListener(aiSettingsListener)
         observeLocalChanges()
         syncNow()
     }

@@ -19,6 +19,10 @@
     <string name="github_sync_repository_hint">填写 所有者/仓库名，例如 your-name/reading-sync；请先创建仓库</string>
     <string name="github_sync_token">访问令牌（Token）</string>
     <string name="github_sync_token_hint">使用仅授权此仓库的 Fine-grained Token，授予 Contents 读写权限。Token 仅保存在本机，不会上传。</string>
+    <string name="github_ai_sync_passphrase">AI 配置同步口令</string>
+    <string name="github_ai_sync_hint">在各设备填写相同的口令，加密同步 AI 配置（含 API Key）。清空可暂停本机同步。恢复备份需要原口令。</string>
+    <string name="github_ai_sync_off">设置口令后同步 AI 配置</string>
+    <string name="github_ai_sync_on">已启用 AI 配置加密同步</string>
     <string name="github_sync_branch">分支</string>
     <string name="github_sync_default_branch">留空使用仓库默认分支</string>
     <string name="github_sync_privacy_title">建议使用专用私有仓库</string>
