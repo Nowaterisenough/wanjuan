@@ -498,38 +498,38 @@ class TestReadMenuLayout {
     }
 
     @Test
-    fun bookshelfTopBarsShowReadRecordShortcutInBothStyles() {
+    fun bookshelfTopBarsShowAiSeriesShortcutInBothStyles() {
         val style1Layout = parseXml(repoFile("app/src/main/res/layout/fragment_bookshelf1.xml"))
         val style2Layout = parseXml(repoFile("app/src/main/res/layout/fragment_bookshelf2.xml"))
         val style1Fragment = repoFile("app/src/main/java/io/wanjuan/app/ui/main/bookshelf/style1/BookshelfFragment1.kt").readText()
         val style2Fragment = repoFile("app/src/main/java/io/wanjuan/app/ui/main/bookshelf/style2/BookshelfFragment2.kt").readText()
         val mainActivity = repoFile("app/src/main/java/io/wanjuan/app/ui/main/MainActivity.kt").readText()
-        val style1ReadRecord = style1Layout.elementById("btn_bookshelf_read_record")
-        val style2ReadRecord = style2Layout.elementById("btn_bookshelf_read_record")
+        val style1AiSeries = style1Layout.elementById("btn_bookshelf_ai_series")
+        val style2AiSeries = style2Layout.elementById("btn_bookshelf_ai_series")
 
-        listOf(style1ReadRecord, style2ReadRecord).forEach { button ->
-            assertEquals("@string/read_record", button.androidAttr("contentDescription"))
-            assertEquals("@drawable/ic_lucide_chart_bar", button.androidAttr("src"))
+        listOf(style1AiSeries, style2AiSeries).forEach { button ->
+            assertEquals("@string/ai_organize_series", button.androidAttr("contentDescription"))
+            assertEquals("@drawable/ic_bookshelf_ai", button.androidAttr("src"))
             assertEquals("@color/primaryText", button.androidAttr("tint"))
             assertEquals("@dimen/discover_top_action_button_size", button.androidAttr("layout_width"))
             assertEquals("@dimen/discover_top_action_button_size", button.androidAttr("layout_height"))
         }
         assertEquals(
-            "@id/btn_bookshelf_read_record",
+            "@id/btn_bookshelf_ai_series",
             style1Layout.elementById("title_row").appAttr("layout_constraintEnd_toStartOf")
         )
         assertEquals(
             "@id/btn_bookshelf_layout_toggle",
-            style1ReadRecord.appAttr("layout_constraintEnd_toStartOf")
+            style1AiSeries.appAttr("layout_constraintEnd_toStartOf")
         )
         assertEquals(
             "@id/btn_bookshelf_layout_toggle",
-            style2ReadRecord.appAttr("layout_constraintEnd_toStartOf")
+            style2AiSeries.appAttr("layout_constraintEnd_toStartOf")
         )
-        assertTrue(style1Fragment.contains("binding.btnBookshelfReadRecord.setOnClickListener"))
-        assertTrue(style2Fragment.contains("binding.btnBookshelfReadRecord.setOnClickListener"))
-        assertTrue(style1Fragment.contains("openReadRecordPage()"))
-        assertTrue(style2Fragment.contains("openReadRecordPage()"))
+        assertTrue(style1Fragment.contains("binding.btnBookshelfAiSeries.setOnClickListener"))
+        assertTrue(style2Fragment.contains("binding.btnBookshelfAiSeries.setOnClickListener"))
+        assertTrue(style1Fragment.contains("organizeShelfSeries()"))
+        assertTrue(style2Fragment.contains("organizeShelfSeries()"))
         assertTrue(mainActivity.contains("fun openReadRecordPage()"))
         assertTrue(mainActivity.contains("ReadRecordActivity::class.java"))
     }

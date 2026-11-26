@@ -9,6 +9,7 @@ import androidx.room.Transaction
 import androidx.room.Update
 import io.wanjuan.app.constant.BookType
 import io.wanjuan.app.data.entities.Book
+import io.wanjuan.app.data.entities.SeriesBookInfo
 import io.wanjuan.app.data.entities.BookGroup
 import io.wanjuan.app.data.entities.BookSource
 import io.wanjuan.app.data.entities.BookSourceShelfStats
@@ -166,6 +167,10 @@ interface BookDao {
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
     fun insertFromSync(book: Book)
+
+    @Query("""SELECT bookUrl, name, author, seriesName, substr(coalesce(nullif(customIntro, ''), intro), 1, 160) AS summary
+        FROM books WHERE (type & ${BookType.notShelf}) = 0 ORDER BY name, author, bookUrl""")
+    fun seriesBooks(): List<SeriesBookInfo>
 
     @Query("UPDATE books SET seriesName = :name WHERE bookUrl IN (:urls)")
     fun assignSeries(urls: List<String>, name: String?)

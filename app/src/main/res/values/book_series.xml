@@ -6,4 +6,10 @@
     <string name="series_select_books">请先勾选书籍</string>
     <string name="series_count">%1$d 本</string>
     <string name="series_description">%1$s，系列，共 %2$s</string>
+    <string name="ai_organize_series">AI 整理系列</string>
+    <string name="ai_series_config_needed">请先在 AI 设置里配置服务、选择模型并启用 AI 助手。</string>
+    <string name="ai_series_working">AI 正在根据书名、作者和简介整理系列…</string>
+    <string name="ai_series_done">已将 %1$d 本书归入 %2$d 个系列</string>
+    <string name="ai_series_unchanged">没有找到需要归入系列的书籍</string>
+    <string name="ai_series_failed">整理失败：%1$s</string>
 </resources>

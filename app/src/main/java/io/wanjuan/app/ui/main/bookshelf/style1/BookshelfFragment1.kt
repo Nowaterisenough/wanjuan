@@ -21,7 +21,6 @@ import io.wanjuan.app.help.book.BookTagHelper
 import io.wanjuan.app.help.config.AppConfig
 import io.wanjuan.app.lib.dialogs.alert
 import io.wanjuan.app.lib.theme.primaryColor
-import io.wanjuan.app.ui.main.MainActivity
 import io.wanjuan.app.ui.main.bookshelf.BaseBookshelfFragment
 import io.wanjuan.app.ui.main.bookshelf.style1.books.BooksFragment
 import io.wanjuan.app.ui.widget.GridColumnsPopup
@@ -89,8 +88,8 @@ class BookshelfFragment1() : BaseBookshelfFragment(R.layout.fragment_bookshelf1)
         binding.btnMore.setOnClickListener {
             showModernBookshelfMenu(it)
         }
-        binding.btnBookshelfReadRecord.setOnClickListener {
-            (activity as? MainActivity)?.openReadRecordPage()
+        binding.btnBookshelfAiSeries.setOnClickListener {
+            organizeShelfSeries()
         }
         binding.btnBookshelfLayoutToggle.setOnClickListener {
             switchBookshelfLayout()
@@ -111,7 +110,7 @@ class BookshelfFragment1() : BaseBookshelfFragment(R.layout.fragment_bookshelf1)
         binding.btnMore.setBackgroundResource(R.drawable.bg_more_icon_button_clear)
         val iconColor = ContextCompat.getColor(requireContext(), R.color.primaryText)
         binding.btnMore.setColorFilter(iconColor)
-        binding.btnBookshelfReadRecord.setColorFilter(iconColor)
+        binding.btnBookshelfAiSeries.setColorFilter(iconColor)
         binding.ivBookshelfTitleArrow.setColorFilter(iconColor)
         binding.tabLayout.setOnTagClickListener { index ->
             val tag = bookTags.getOrNull(index).orEmpty()

@@ -29,7 +29,6 @@ import io.wanjuan.app.sync.SyncManager
 import io.wanjuan.app.ui.book.group.GroupEditDialog
 import io.wanjuan.app.ui.book.info.BookInfoActivity
 import io.wanjuan.app.ui.book.search.SearchActivity
-import io.wanjuan.app.ui.main.MainActivity
 import io.wanjuan.app.ui.main.bookshelf.BookSeries
 import io.wanjuan.app.ui.main.bookshelf.ShelfSeries
 import io.wanjuan.app.ui.main.bookshelf.showSeries
@@ -94,10 +93,10 @@ class BookshelfFragment2() : BaseBookshelfFragment(R.layout.fragment_bookshelf2)
     override fun onFragmentCreated(view: View, savedInstanceState: Bundle?) {
         setSupportToolbar(binding.titleBar.toolbar)
         binding.titleBar.setColorFilter(primaryTextColor)
-        binding.btnBookshelfReadRecord.setColorFilter(primaryTextColor)
+        binding.btnBookshelfAiSeries.setColorFilter(primaryTextColor)
         installModernBookshelfOverflow(binding.titleBar.toolbar)
-        binding.btnBookshelfReadRecord.setOnClickListener {
-            (activity as? MainActivity)?.openReadRecordPage()
+        binding.btnBookshelfAiSeries.setOnClickListener {
+            organizeShelfSeries()
         }
         binding.btnBookshelfLayoutToggle.setOnClickListener {
             switchBookshelfLayout()

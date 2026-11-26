@@ -21,7 +21,7 @@ class TestMainTopActionLayout {
         val bookshelf1 = parseXml(repoFile("app/src/main/res/layout/fragment_bookshelf1.xml"))
         assertEquals(
             "@dimen/main_top_action_button_gap",
-            bookshelf1.elementById("btn_bookshelf_read_record").androidAttr("layout_marginEnd")
+            bookshelf1.elementById("btn_bookshelf_ai_series").androidAttr("layout_marginEnd")
         )
         assertEquals(
             "@dimen/main_top_action_button_gap",
@@ -31,7 +31,7 @@ class TestMainTopActionLayout {
         val bookshelf2 = parseXml(repoFile("app/src/main/res/layout/fragment_bookshelf2.xml"))
         assertEquals(
             "@dimen/main_top_action_button_gap",
-            bookshelf2.elementById("btn_bookshelf_read_record").androidAttr("layout_marginEnd")
+            bookshelf2.elementById("btn_bookshelf_ai_series").androidAttr("layout_marginEnd")
         )
 
         val explore = parseXml(repoFile("app/src/main/res/layout/fragment_explore.xml"))

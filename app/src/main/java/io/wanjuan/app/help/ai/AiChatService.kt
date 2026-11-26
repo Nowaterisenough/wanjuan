@@ -46,6 +46,15 @@ object AiChatService {
         return chatStream(messages, onPartial = {})
     }
 
+    internal suspend fun classifySeries(instructions: String, shelf: String): String {
+        val model = requireNotNull(AppConfig.aiCurrentModelConfig) { "请先选择 AI 模型" }
+        val provider = requireNotNull(AppConfig.aiProviderList.find { it.id == model.providerId }) { "请先配置 AI 服务" }
+        val messages = listOf(JSONObject().put("role", "system").put("content", instructions),
+            JSONObject().put("role", "user").put("content", shelf))
+        return requestCompletionStream(provider.baseUrl.trim(), model.modelId.trim(), provider.apiKey,
+            provider.headers.orEmpty(), messages, emptyList(), StringBuilder(), 1, {}, {}, webSearch = false).content
+    }
+
     suspend fun fetchModels(provider: AiProviderConfig): List<String> {
         val baseUrl = provider.baseUrl.trim()
         require(baseUrl.isNotBlank()) { "Base URL is empty" }

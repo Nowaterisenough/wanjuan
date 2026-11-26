@@ -5,6 +5,7 @@ import android.view.Menu
 import android.view.MenuItem
 import android.view.View
 import android.widget.PopupWindow
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.widget.ActionMenuView
 import androidx.appcompat.widget.Toolbar
 import androidx.core.view.children
@@ -21,6 +22,9 @@ import io.wanjuan.app.data.entities.Book
 import io.wanjuan.app.data.entities.BookGroup
 import io.wanjuan.app.databinding.DialogBookshelfConfigBinding
 import io.wanjuan.app.databinding.DialogEditTextBinding
+import io.wanjuan.app.help.ai.AiSeriesOrganizer
+import io.wanjuan.app.ui.config.ConfigActivity
+import io.wanjuan.app.ui.config.ConfigTag
 import io.wanjuan.app.help.DirectLinkUpload
 import io.wanjuan.app.help.book.BookTagHelper
 import io.wanjuan.app.help.config.AppConfig
@@ -47,6 +51,8 @@ import io.wanjuan.app.utils.showDialogFragment
 import io.wanjuan.app.utils.startActivity
 import io.wanjuan.app.utils.toastOnUi
 import kotlinx.coroutines.Dispatchers.IO
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 abstract class BaseBookshelfFragment(layoutId: Int) : VMBaseFragment<BookshelfViewModel>(layoutId),
@@ -56,6 +62,36 @@ abstract class BaseBookshelfFragment(layoutId: Int) : VMBaseFragment<BookshelfVi
 
     val activityViewModel by activityViewModels<MainViewModel>()
     override val viewModel by viewModels<BookshelfViewModel>()
+
+    private var organizeJob: Job? = null
+
+    protected fun organizeShelfSeries() {
+        if (organizeJob?.isActive == true) return
+        if (!AppConfig.aiAssistantEnabled || AppConfig.aiCurrentProvider == null) {
+            AlertDialog.Builder(requireContext()).setTitle(R.string.ai_organize_series)
+                .setMessage(R.string.ai_series_config_needed)
+                .setPositiveButton(R.string.ai_setting) { _, _ ->
+                    startActivity<ConfigActivity> { putExtra("configTag", ConfigTag.AI_CONFIG) }
+                }.setNegativeButton(android.R.string.cancel, null).show()
+            return
+        }
+        val wait = WaitDialog(requireContext()).setText(R.string.ai_series_working)
+        wait.setOnCancelListener { organizeJob?.cancel() }
+        wait.show()
+        organizeJob = viewLifecycleOwner.lifecycleScope.launch {
+            try {
+                val result = AiSeriesOrganizer.organize()
+                toastOnUi(if (result.books == 0) getString(R.string.ai_series_unchanged)
+                    else getString(R.string.ai_series_done, result.books, result.series))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                toastOnUi(getString(R.string.ai_series_failed, e.localizedMessage ?: e.javaClass.simpleName))
+            } finally {
+                wait.dismiss()
+            }
+        }
+    }
 
     private val importBookshelf = registerForActivityResult(HandleFileContract()) {
         kotlin.runCatching {
