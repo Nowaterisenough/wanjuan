@@ -2,6 +2,7 @@ package io.wanjuan.app.help.ai
 
 import io.wanjuan.app.data.appDb
 import io.wanjuan.app.data.entities.SeriesBookInfo
+import io.wanjuan.app.ui.main.ai.AiChatException
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -41,15 +42,27 @@ internal object AiSeriesOrganizer {
         shelf.forEach { book -> book.seriesName?.takeIf { it.isNotBlank() }?.let { examples.putIfAbsent(it, book) } }
         if (candidates.isEmpty() || (candidates.size == 1 && examples.isEmpty())) return emptyMap()
         val proposed = linkedMapOf<String, MutableList<SeriesBookInfo>>()
-        for (batch in candidates.chunked(batchSize)) {
+        var offset = 0
+        var limit = batchSize
+        var exampleLimit = Int.MAX_VALUE
+        while (offset < candidates.size) {
+            val batch = candidates.subList(offset, minOf(offset + limit, candidates.size))
             val known = JSONArray()
-            examples.forEach { (name, book) -> known.put(JSONObject().put("series", name).put("title", book.name).put("author", book.author)) }
+            examples.entries.asSequence().take(exampleLimit).forEach { (name, book) -> known.put(JSONObject().put("series", name).put("title", book.name).put("author", book.author)) }
             val books = JSONArray()
             batch.forEachIndexed { index, book ->
                 books.put(JSONObject().put("id", index + 1).put("title", book.name).put("author", book.author)
                     .putOpt("summary", book.summary?.takeIf(String::isNotBlank)))
             }
-            val response = ask(JSONObject().put("existing", known).put("books", books).toString()).trim()
+            val response = try {
+                ask(JSONObject().put("existing", known).put("books", books).toString()).trim()
+            } catch (e: AiChatException) {
+                if (!e.inputTooLarge || (batch.size == 1 && known.length() == 0)) throw e
+                limit = maxOf(1, batch.size / 2)
+                exampleLimit = known.length() / 2
+                continue // Nothing from a rejected batch has been applied; retry at the same offset.
+            }
+            offset += batch.size
             val json = if (response.startsWith("```")) response.substringAfter('\n').removeSuffix("```").trim() else response
             val groups = JSONObject(json).getJSONArray("groups")
             val seen = hashSetOf<Int>()

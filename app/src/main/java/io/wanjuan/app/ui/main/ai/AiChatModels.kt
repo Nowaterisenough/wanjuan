@@ -41,5 +41,6 @@ data class AiChatSession(
 class AiChatException(
     override val message: String,
     val debugLog: String,
-    cause: Throwable? = null
+    cause: Throwable? = null,
+    val inputTooLarge: Boolean = false
 ) : IllegalStateException(message, cause)

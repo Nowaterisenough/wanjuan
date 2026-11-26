@@ -49,10 +49,11 @@ object AiChatService {
     internal suspend fun classifySeries(instructions: String, shelf: String): String {
         val model = requireNotNull(AppConfig.aiCurrentModelConfig) { "请先选择 AI 模型" }
         val provider = requireNotNull(AppConfig.aiProviderList.find { it.id == model.providerId }) { "请先配置 AI 服务" }
-        val messages = listOf(JSONObject().put("role", "system").put("content", instructions),
-            JSONObject().put("role", "user").put("content", shelf))
-        return requestCompletionStream(provider.baseUrl.trim(), model.modelId.trim(), provider.apiKey,
-            provider.headers.orEmpty(), messages, emptyList(), StringBuilder(), 1, {}, {}, webSearch = false).content
+        return requestCompletionStream(
+            baseUrl = provider.baseUrl.trim(), providerApiKey = provider.apiKey, providerHeaders = provider.headers.orEmpty(),
+            buildBody = { AiResponsesProtocol.seriesRequest(model.modelId.trim(), instructions, shelf) },
+            requestLog = StringBuilder(), round = 1, onPartial = {}, onThinking = {}
+        ).content
     }
 
     suspend fun fetchModels(provider: AiProviderConfig): List<String> {
@@ -161,16 +162,13 @@ object AiChatService {
         repeat(MAX_TOOL_ROUNDS) { round ->
             val assistantTurn = requestCompletionStream(
                 baseUrl = baseUrl,
-                model = model,
+                buildBody = { AiResponsesProtocol.request(model, conversation, tools.map { it.definition }, webSearch) },
                 providerApiKey = providerApiKey,
                 providerHeaders = providerHeaders,
-                messages = conversation,
-                tools = tools,
                 requestLog = requestLog,
                 round = round + 1,
                 onPartial = onPartial,
-                onThinking = onThinking,
-                webSearch = webSearch
+                onThinking = onThinking
             )
             conversation += assistantTurn.output
             if (assistantTurn.toolCalls.isEmpty()) {
@@ -248,16 +246,13 @@ object AiChatService {
         }
         val finalTurn = requestCompletionStream(
             baseUrl = baseUrl,
-            model = model,
+            buildBody = { AiResponsesProtocol.request(model, conversation, emptyList(), webSearch) },
             providerApiKey = providerApiKey,
             providerHeaders = providerHeaders,
-            messages = conversation,
-            tools = emptyList(),
             requestLog = requestLog,
             round = MAX_TOOL_ROUNDS + 1,
             onPartial = onPartial,
-            onThinking = onThinking,
-            webSearch = webSearch
+            onThinking = onThinking
         )
         if (finalTurn.content.isBlank()) {
             throw AiChatException(
@@ -361,29 +356,26 @@ object AiChatService {
 
     private suspend fun requestCompletionStream(
         baseUrl: String,
-        model: String,
+        buildBody: () -> String,
         providerApiKey: String,
         providerHeaders: String,
-        messages: List<JSONObject>,
-        tools: List<AiResolvedTool>,
         requestLog: StringBuilder,
         round: Int,
         onPartial: (String) -> Unit,
-        onThinking: (String) -> Unit,
-        webSearch: Boolean
+        onThinking: (String) -> Unit
     ): AssistantTurn = withContext(IO) {
         coroutineScope {
-            val requestBody = AiResponsesProtocol.request(model, messages, tools.map { it.definition }, webSearch)
             // Never include chapter text, image data or API credentials in diagnostics.
             requestLog.append("round=").append(round).append('\n')
+            val headers = parseCustomHeaders(providerHeaders)
             val request = Request.Builder().apply {
                 url(resolveChatUrl(baseUrl))
                 addHeader("Accept", "text/event-stream, application/json")
                 providerApiKey.trim().takeIf { it.isNotBlank() }?.let {
                     addHeader("Authorization", "Bearer $it")
                 }
-                addHeaders(parseCustomHeaders(providerHeaders))
-                postJson(requestBody)
+                addHeaders(headers)
+                postJson(buildBody())
             }.build()
             val call = responsesClient.newCall(request)
             val cancellation = launch(IO, start = CoroutineStart.UNDISPATCHED) {
@@ -392,10 +384,8 @@ object AiChatService {
             try {
                 call.execute().use { response ->
                     if (!response.isSuccessful) {
-                        throw AiChatException(
-                            extractError(response.body.string()).ifBlank { "HTTP ${response.code}" },
-                            requestLog.toString() + "status=${response.code}"
-                        )
+                        throw AiResponsesProtocol.httpError(response.code, response.peekBody(16 * 1024L).string(),
+                            requestLog.toString(), headers.values + providerApiKey.trim())
                     }
                     val turn = AiResponsesProtocol.read(
                         response.body.charStream().buffered(),

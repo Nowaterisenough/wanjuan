@@ -86,7 +86,9 @@ abstract class BaseBookshelfFragment(layoutId: Int) : VMBaseFragment<BookshelfVi
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                toastOnUi(getString(R.string.ai_series_failed, e.localizedMessage ?: e.javaClass.simpleName))
+                AlertDialog.Builder(requireContext()).setTitle(R.string.ai_organize_series)
+                    .setMessage(getString(R.string.ai_series_failed, e.localizedMessage ?: e.javaClass.simpleName))
+                    .setPositiveButton(android.R.string.ok, null).show()
             } finally {
                 wait.dismiss()
             }

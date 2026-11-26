@@ -1,5 +1,6 @@
 package io.wanjuan.app.help.ai
 
+import io.wanjuan.app.ui.main.ai.AiChatException
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.BufferedReader
@@ -20,11 +21,17 @@ internal object AiResponsesProtocol {
         baseUrl.trim().trimEnd('/')
     } else responsesUrl(baseUrl).removeSuffix("/responses") + "/models"
 
+    private fun baseRequest(model: String) = JSONObject()
+        .put("model", model).put("stream", true).put("store", false)
+
+    fun seriesRequest(model: String, instructions: String, shelf: String): String {
+        val text = JSONObject().put("type", "input_text").put("text", shelf)
+        val message = JSONObject().put("role", "user").put("content", JSONArray().put(text))
+        return baseRequest(model).put("instructions", instructions).put("input", JSONArray().put(message)).toString()
+    }
+
     fun request(model: String, input: List<JSONObject>, tools: List<JSONObject>, webSearch: Boolean): String =
-        JSONObject().apply {
-            put("model", model)
-            put("stream", true)
-            put("store", false)
+        baseRequest(model).apply {
             put("include", JSONArray().put("reasoning.encrypted_content"))
             put("input", JSONArray(input))
             val definitions = JSONArray()
@@ -40,6 +47,31 @@ internal object AiResponsesProtocol {
             if (definitions.length() > 0) put("tools", definitions)
             if (webSearch && tools.isEmpty()) put("tool_choice", "required")
         }.toString()
+
+    fun httpError(status: Int, body: String, log: String, secrets: Collection<String>): AiChatException {
+        val text = body.trim()
+        val root = runCatching { JSONObject(text) }.getOrNull()
+        val error = root?.optJSONObject("error") ?: root
+        val detail = error?.opt("detail") ?: root?.opt("detail")
+        val code = error?.opt("code") as? String
+        val param = error?.opt("param") as? String
+        val reason = listOfNotNull(error?.opt("message") as? String, root?.opt("error") as? String,
+            detail as? String, (detail as? JSONObject)?.opt("message") as? String,
+            (detail as? JSONArray)?.optJSONObject(0)?.opt("msg") as? String,
+            text.lineSequence().firstOrNull()?.takeIf { root == null && !it.startsWith('<') && !it.startsWith('{') && !it.startsWith('[') }
+        ).firstOrNull { it.isNotBlank() }.orEmpty()
+        val tooLarge = status == 413 || (status in setOf(400, 422) &&
+            (code in setOf("context_length_exceeded", "input_too_long") ||
+                listOf("maximum context length", "context length exceeded", "input is too long", "too many input tokens")
+                    .any { reason.contains(it, ignoreCase = true) }))
+        var explanation = listOf(reason, param.orEmpty(), code.orEmpty()).filter { it.isNotBlank() }.distinct().joinToString(" · ")
+        for (secret in secrets.filter(String::isNotBlank).sortedByDescending { it.length }) {
+            explanation = explanation.replace(secret, "***")
+        }
+        if (explanation.isBlank() && status == 400) explanation = "服务端未提供原因，请核对接口地址和所选模型是否支持 Responses。"
+        val message = listOf("HTTP $status", explanation.take(500)).filter(String::isNotBlank).joinToString(" · ")
+        return AiChatException(message, log + "status=$status", inputTooLarge = tooLarge)
+    }
 
     fun toolResult(callId: String, output: String) = JSONObject()
         .put("type", "function_call_output").put("call_id", callId).put("output", output)

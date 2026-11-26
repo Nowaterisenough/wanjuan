@@ -32,6 +32,26 @@ class TestAiResponsesProtocol {
         assertEquals("web_search", tools.getJSONObject(1).getString("type"))
     }
 
+    @Test fun classificationUsesTopLevelInstructionsAndTypedShelfInput() {
+        val bookData = """{"books":[{"title":"雪"}]}"""
+        val request = JSONObject(AiResponsesProtocol.seriesRequest("model", "整理书架", bookData))
+        assertEquals("整理书架", request.getString("instructions"))
+        assertFalse(request.has("include"))
+        assertFalse(request.has("tools"))
+        val message = request.getJSONArray("input").getJSONObject(0)
+        assertEquals("user", message.getString("role"))
+        val part = message.getJSONArray("content").getJSONObject(0)
+        assertEquals("input_text", part.getString("type"))
+        assertEquals(bookData, part.getString("text"))
+    }
+
+    @Test fun validationErrorsShowTheReasonWithoutDumpingInputOrCredentials() {
+        val body = """{"detail":[{"msg":"Rejected token fixture","input":{"book":"private title"}}]}"""
+        val error = AiResponsesProtocol.httpError(422, body, "", listOf("fixture"))
+        assertEquals("HTTP 422 · Rejected token ***", error.message)
+        assertEquals("HTTP 400 · Unsupported field", AiResponsesProtocol.httpError(400, "Unsupported field", "", emptyList()).message)
+    }
+
     @Test fun readerHasNoToolsUnlessWebSearchRequested() {
         val body = JSONObject(AiResponsesProtocol.request("model", emptyList(), emptyList(), false))
         assertFalse(body.has("tools"))
