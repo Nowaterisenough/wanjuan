@@ -99,6 +99,20 @@ object SyncManager {
     suspend fun syncAwait(): SyncResult = if (isEnabled) pullFlight.start().await() else SyncResult()
     suspend fun flushPending(): SyncResult = if (isEnabled) changeFlight.start(rerunIfActive = true).await() else SyncResult()
 
+    /** Only a shelf gesture transfers original files. Capture newly imported shelf entries in the final flush. */
+    suspend fun pullBookshelfWithFiles(): SyncResult {
+        if (SyncSettings.provider != SyncSettings.GitHub) return syncAwait()
+        if (!isEnabled) return SyncResult()
+        return client.withTarget { target ->
+            val cloud = runSync(pushChanges = false)
+            val github = target.store as? GitHubSyncClient
+            if (cloud.failed > 0 || github == null) return@withTarget cloud
+            val files = mutationMutex.withLock { GitHubBookLibrary.sync(target.identity, github) }
+            cloud.copy(uploaded = cloud.uploaded + files.uploaded, downloaded = cloud.downloaded + files.downloaded,
+                failed = files.failed, errorMessage = files.errorMessage)
+        }
+    }
+
     private suspend fun runSync(pushChanges: Boolean): SyncResult = mutationMutex.withLock {
         progressTracker.begin()
         val heartbeat = syncScope.launch {

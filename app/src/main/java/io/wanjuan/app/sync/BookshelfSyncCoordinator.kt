@@ -317,6 +317,7 @@ class BookshelfSyncCoordinator(
                     book.type = book.type or ((local?.type ?: 0) and BookType.updateError)
                 }
                 if (local == null) {
+                    GitHubBookLibrary.markRemote(book)
                     dao.insertFromSync(book)
                     outcome = SyncApplyOutcome.Inserted
                 } else {

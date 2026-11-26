@@ -33,6 +33,11 @@ class TextFile(private var book: Book) {
         private var textFile: TextFile? = null
 
         @Synchronized
+        internal fun invalidate(book: Book) {
+            if (textFile?.book?.bookUrl == book.bookUrl) textFile = null
+        }
+
+        @Synchronized
         private fun getTextFile(book: Book): TextFile {
             if (textFile == null || textFile?.book?.bookUrl != book.bookUrl || book.isLocalModified()) {
                 textFile = TextFile(book)

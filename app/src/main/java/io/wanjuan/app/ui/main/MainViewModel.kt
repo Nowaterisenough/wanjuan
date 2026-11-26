@@ -245,7 +245,7 @@ class MainViewModel(application: Application) : BaseViewModel(application) {
                     },
                     bookKey = Book::bookUrl,
                     queueCatalogs = { addToWaitUp(it, onlyUpdateRead, false, true) },
-                    syncCloud = SyncManager::syncAwait,
+                    syncCloud = SyncManager::pullBookshelfWithFiles,
                     flushChanges = SyncManager::flushPending
                 ).run { catalogProgress.value = it } } finally { progressJob.cancelAndJoin() }
                 val syncFailure = when {

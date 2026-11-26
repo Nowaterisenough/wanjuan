@@ -30,6 +30,11 @@ class MobiFile(var book: Book) {
         private val doctypeDeclarationRegex = "<!DOCTYPE[^>]*>".toRegex()
 
         @Synchronized
+        internal fun invalidate(book: Book) {
+            if (mFile?.book?.bookUrl == book.bookUrl) clear()
+        }
+
+        @Synchronized
         private fun getMFile(book: Book): MobiFile {
             if (mFile == null || mFile?.book?.bookUrl != book.bookUrl) {
                 mFile = MobiFile(book)

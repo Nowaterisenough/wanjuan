@@ -22,7 +22,7 @@
     <string name="github_sync_branch">分支</string>
     <string name="github_sync_default_branch">留空使用仓库默认分支</string>
     <string name="github_sync_privacy_title">建议使用专用私有仓库</string>
-    <string name="github_sync_privacy_summary">书架、阅读进度和规则以 JSON 存储。所有设备使用同一仓库、分支和子目录。书籍文件与离线缓存导出仍使用 WebDAV，不上传到 GitHub。</string>
+    <string name="github_sync_privacy_summary">书架、阅读进度和规则以 JSON 存储。所有设备使用同一仓库、分支和子目录。下拉书架可双向同步本地书原文件。仓库书籍目录为所设子目录下的 books/。</string>
     <string-array name="sync_provider_names"><item>WebDAV</item><item>GitHub 仓库</item></string-array>
     <string-array name="sync_provider_values"><item>webdav</item><item>github</item></string-array>
 </resources>

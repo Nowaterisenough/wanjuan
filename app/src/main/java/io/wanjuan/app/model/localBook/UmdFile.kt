@@ -15,6 +15,11 @@ class UmdFile(var book: Book) {
         private var uFile: UmdFile? = null
 
         @Synchronized
+        internal fun invalidate(book: Book) {
+            if (uFile?.book?.bookUrl == book.bookUrl) uFile = null
+        }
+
+        @Synchronized
         private fun getUFile(book: Book): UmdFile {
             if (uFile == null || uFile?.book?.bookUrl != book.bookUrl) {
                 uFile = UmdFile(book)

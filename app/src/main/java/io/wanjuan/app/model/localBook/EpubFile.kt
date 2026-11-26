@@ -86,6 +86,14 @@ class EpubFile(var book: Book) {
         }
 
         @Synchronized
+        internal fun invalidate(book: Book) {
+            val prefix = "${book.bookUrl}|"
+            synchronized(globalNativeDomCache) { globalNativeDomCache.keys.removeAll { it.startsWith(prefix) } }
+            synchronized(globalNativeLayoutCache) { globalNativeLayoutCache.keys.removeAll { it.startsWith(prefix) } }
+            if (eFile?.book?.bookUrl == book.bookUrl) clear()
+        }
+
+        @Synchronized
         private fun getEFile(book: Book): EpubFile {
             if (eFile == null || eFile?.book?.bookUrl != book.bookUrl) {
                 eFile?.close()

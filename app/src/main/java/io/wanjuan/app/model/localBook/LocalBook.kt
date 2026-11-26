@@ -17,6 +17,7 @@ import io.wanjuan.app.exception.EmptyFileException
 import io.wanjuan.app.exception.NoBooksDirException
 import io.wanjuan.app.exception.NoStackTraceException
 import io.wanjuan.app.exception.TocEmptyException
+import io.wanjuan.app.sync.GitHubBookLibrary
 import io.wanjuan.app.help.AppWebDav
 import io.wanjuan.app.help.book.BookHelp
 import io.wanjuan.app.help.book.ContentProcessor
@@ -106,7 +107,7 @@ object LocalBook {
 
     fun getLastModified(book: Book): Result<Long> {
         return kotlin.runCatching {
-            val uri = book.bookUrl.toUri()
+            val uri = GitHubBookLibrary.copyFile(book).takeIf { it.isFile }?.let(Uri::fromFile) ?: book.bookUrl.toUri()
             if (uri.isContentScheme()) {
                 return@runCatching DocumentFile.fromSingleUri(appCtx, uri)!!.lastModified()
             }
@@ -298,7 +299,33 @@ object LocalBook {
             //已有书籍说明是更新,删除原有目录
             appDb.bookChapterDao.delByBook(bookUrl)
         }
+        GitHubBookLibrary.markImported(book)
         return book
+    }
+
+    internal fun invalidateFile(book: Book) {
+        when {
+            book.isEpub -> EpubFile.invalidate(book)
+            book.isPdf -> PdfFile.invalidate(book)
+            book.isUmd -> UmdFile.invalidate(book)
+            book.isMobi -> MobiFile.invalidate(book)
+            else -> TextFile.invalidate(book)
+        }
+        if (book.name.isNotBlank()) BookHelp.clearCache(book)
+    }
+
+    internal fun importLibraryBook(book: Book, file: File) {
+        val (name, author) = analyzeNameAuthor(book.originName)
+        book.name = name
+        book.author = author
+        book.order = appDb.bookDao.minOrder - 1
+        book.latestChapterTime = file.lastModified()
+        upBookInfoSafely(book, file.length())
+        appDb.runInTransaction {
+            if (appDb.bookDao.getBook(book.bookUrl) != null) return@runInTransaction
+            check(!appDb.bookDao.has(book.name, book.author)) { "书架已有同书名、同作者的书籍" }
+            appDb.bookDao.insertFromSync(book)
+        }
     }
 
     fun upBookInfo(book: Book) {

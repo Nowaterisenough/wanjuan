@@ -33,6 +33,14 @@ class PdfFile(var book: Book) {
         const val PAGE_SIZE = 10
 
         @Synchronized
+        internal fun invalidate(book: Book) {
+            if (pFile?.book?.bookUrl == book.bookUrl) {
+                pFile?.closePdf()
+                pFile = null
+            }
+        }
+
+        @Synchronized
         private fun getPFile(book: Book): PdfFile {
             if (pFile == null || pFile?.book?.bookUrl != book.bookUrl) {
                 pFile = PdfFile(book)

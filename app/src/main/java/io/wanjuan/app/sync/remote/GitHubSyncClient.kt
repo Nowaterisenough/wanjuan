@@ -15,6 +15,13 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody
+import okhttp3.Response
+import okio.BufferedSink
+import okio.buffer
+import okio.source
+import java.io.File
+import io.wanjuan.app.constant.AppPattern
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
 import java.util.Base64
@@ -65,19 +72,10 @@ class GitHubSyncClient(
 
     override suspend fun snapshot(directories: List<String>, onProgress: (Int, Int) -> Unit): Map<String, List<SyncRemoteFile>> {
         onProgress(0, 1)
-        val selected = initialize()
-        val result = request("GET", url("git", "trees", selected).newBuilder()
-            .addQueryParameter("recursive", "1").build(), allowConflict = true)
-        if (result.code == 409 && emptyRepositoryHint) {
-            onProgress(1, 1)
-            return directories.distinct().associateWith { emptyList() }
-        }
-        check(result.code == 200) { "GitHub 无法读取同步索引 (${result.code})" }
-        val tree = requireNotNull(result.json).asJsonObject
-        check(tree["truncated"]?.asBoolean != true) { "GitHub 仓库索引过大，无法安全读取完整变更清单" }
+        val entries = treeEntries()
         val prefix = (config.directoryParts + listOf("sync", "v1")).joinToString("/") + "/"
         val requested = directories.distinct().associateWith { mutableListOf<SyncRemoteFile>() }
-        for (element in tree.getAsJsonArray("tree")) {
+        for (element in entries) {
             val entry = element.asJsonObject
             if (entry["type"]?.asString != "blob") continue
             val path = entry["path"].asString
@@ -90,6 +88,88 @@ class GitHubSyncClient(
         }
         onProgress(1, 1)
         return requested
+    }
+
+    private suspend fun treeEntries(): Iterable<JsonElement> {
+        val selected = initialize()
+        val result = request("GET", url("git", "trees", selected).newBuilder()
+            .addQueryParameter("recursive", "1").build(), allowConflict = true)
+        if (result.code == 409 && emptyRepositoryHint) {
+            return emptyList()
+        }
+        check(result.code == 200) { "GitHub 无法读取同步索引 (${result.code})" }
+        val tree = requireNotNull(result.json).asJsonObject
+        check(tree["truncated"]?.asBoolean != true) { "GitHub 仓库索引过大，无法安全读取完整变更清单" }
+        return tree.getAsJsonArray("tree")
+    }
+
+    private val libraryPrefix get() = (config.directoryParts + "books").joinToString("/") + "/"
+
+    internal suspend fun libraryFiles(): List<GitHubBookFile> = treeEntries().mapNotNull { element ->
+        val entry = element.asJsonObject
+        val fullPath = entry["path"].asString
+        if (entry["type"].asString != "blob" || entry["mode"]?.asString == "120000" ||
+            !fullPath.startsWith(libraryPrefix)) return@mapNotNull null
+        val path = fullPath.removePrefix(libraryPrefix)
+        if (!AppPattern.bookFileRegex.matches(path.substringAfterLast('/'))) return@mapNotNull null
+        libraryPathParts(path)
+        GitHubBookFile(path, entry["sha"].asString, entry["size"].asLong)
+    }
+
+    internal suspend fun downloadBook(file: GitHubBookFile, destination: File) {
+        checkBookSize(file.size)
+        require(file.sha.matches(Regex("[0-9a-f]{40}"))) { "书籍文件版本无效" }
+        exchange("GET", url("git", "blobs", file.sha), accept = "application/vnd.github.raw+json") { response ->
+            val source = response.body.source()
+            destination.outputStream().use { output ->
+                var remaining = file.size
+                val buffer = ByteArray(64 * 1024)
+                while (remaining > 0) {
+                    val n = source.read(buffer, 0, minOf(buffer.size.toLong(), remaining).toInt())
+                    check(n > 0) { "书籍未下载完整" }
+                    output.write(buffer, 0, n)
+                    remaining -= n
+                }
+                check(source.exhausted()) { "书籍文件长度不匹配" }
+            }
+        }
+        check(gitBookSha(destination) == file.sha) { "书籍文件校验失败" }
+    }
+
+    internal suspend fun uploadBook(path: String, file: File, previous: String?): String = writes.withLock {
+        val selected = initialize()
+        val parts = config.directoryParts + "books" + libraryPathParts(path)
+        val size = file.length()
+        checkBookSize(size)
+        val metadata = JsonObject().apply {
+            addProperty("message", "Sync book $path")
+            addProperty("branch", selected)
+            previous?.let { addProperty("sha", it) }
+        }
+        val prefix = (metadata.toString().dropLast(1) + ",\"content\":\"").toByteArray()
+        val body = object : RequestBody() {
+            override fun contentType() = jsonType
+            override fun contentLength() = prefix.size + ((size + 2) / 3) * 4 + 2
+            override fun writeTo(sink: BufferedSink) {
+                sink.write(prefix)
+                file.source().buffer().use { source ->
+                    var remaining = size
+                    while (remaining > 0) {
+                        // Every non-final block must encode a whole number of Base64 triples.
+                        val length = minOf(48 * 1024L, remaining)
+                        sink.writeUtf8(source.readByteString(length).base64())
+                        remaining -= length
+                    }
+                }
+                sink.writeUtf8("\"}")
+            }
+        }
+        exchange("PUT", url("contents", *parts.toTypedArray()), body, allowConflict = true) { response ->
+            check(response.isSuccessful) { "仓库中的书籍已变化，请再次下拉刷新" }
+            emptyRepositoryHint = false
+            JsonParser.parseReader(requireNotNull(response.body).charStream()).asJsonObject
+                .getAsJsonObject("content")["sha"].asString
+        }
     }
 
     private fun url(vararg segments: String): HttpUrl = apiBase.newBuilder()
@@ -275,7 +355,17 @@ class GitHubSyncClient(
         allowMissing: Boolean = false,
         allowConflict: Boolean = false,
         ifNoneMatch: String? = null
-    ): ApiResult {
+    ): ApiResult = exchange(method, url, body?.toString()?.toRequestBody(jsonType), allowMissing,
+        allowConflict, ifNoneMatch) { response ->
+        val json = if (response.isSuccessful) response.body.string().takeIf(String::isNotBlank)?.let(JsonParser::parseString) else null
+        ApiResult(response.code, json, response.header("ETag"))
+    }
+
+    private suspend fun <T> exchange(
+        method: String, url: HttpUrl, body: RequestBody? = null,
+        allowMissing: Boolean = false, allowConflict: Boolean = false, ifNoneMatch: String? = null,
+        accept: String = "application/vnd.github+json", read: (Response) -> T
+    ): T {
         while (true) {
             val remaining = rateLimitUntil.get() - System.nanoTime()
             if (remaining <= 0) break
@@ -283,16 +373,19 @@ class GitHubSyncClient(
         }
         val request = Request.Builder().url(url)
             .header("Authorization", "Bearer ${config.token}")
-            .header("Accept", "application/vnd.github+json")
+            .header("Accept", accept)
             .header("X-GitHub-Api-Version", "2022-11-28")
             .header("User-Agent", "wanjuan-sync")
             .apply { ifNoneMatch?.let { header("If-None-Match", it) } }
-            .method(method, body?.toString()?.toRequestBody(jsonType)).build()
-        return http.newCall(request).await().use { response ->
-            if (ifNoneMatch != null && response.code == 304) return@use ApiResult(304, null)
-            if (allowMissing && response.code == 404) return@use ApiResult(404, null)
-            if (allowConflict && response.code in listOf(409, 422)) return@use ApiResult(response.code, null)
-            if (!response.isSuccessful) {
+            .method(method, body).build()
+        val call = http.newCall(request)
+        if (accept == "application/vnd.github.raw+json" || (body?.contentLength() ?: 0) > 1024 * 1024) {
+            call.timeout().timeout(15, TimeUnit.MINUTES)
+        }
+        return call.await().use { response ->
+            val allowed = (ifNoneMatch != null && response.code == 304) ||
+                (allowMissing && response.code == 404) || (allowConflict && response.code in listOf(409, 422))
+            if (!response.isSuccessful && !allowed) {
                 if (response.code == 429 || response.code == 403) {
                     val seconds = response.header("Retry-After")?.toLongOrNull()
                     val reset = response.header("X-RateLimit-Reset")?.toLongOrNull()
@@ -315,7 +408,7 @@ class GitHubSyncClient(
                 // Do not include remote bodies or credential-bearing request details in logs.
                 throw IOException("GitHub $reason (${response.code})")
             }
-            ApiResult(response.code, response.body?.string()?.takeIf(String::isNotBlank)?.let(JsonParser::parseString), response.header("ETag"))
+            read(response)
         }
     }
 }

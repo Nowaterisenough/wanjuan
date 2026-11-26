@@ -17,6 +17,7 @@ import io.wanjuan.app.data.entities.BookSource
 import io.wanjuan.app.exception.NoStackTraceException
 import io.wanjuan.app.help.RuleBigDataHelp
 import io.wanjuan.app.help.config.AppConfig
+import io.wanjuan.app.sync.GitHubBookLibrary
 import io.wanjuan.app.model.localBook.LocalBook
 import io.wanjuan.app.utils.FileDoc
 import io.wanjuan.app.utils.GSON
@@ -113,6 +114,7 @@ fun Book.getLocalUri(): Uri {
     if (!isLocal) {
         throw NoStackTraceException("不是本地书籍")
     }
+    GitHubBookLibrary.copyFile(this).takeIf { it.isFile }?.let { return Uri.fromFile(it) }
     var uri = localUriCache[bookUrl]
     if (uri != null) {
         return uri
