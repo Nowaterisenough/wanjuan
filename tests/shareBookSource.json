@@ -16049,5 +16049,57 @@
     },
     "searchUrl": "http://www.ttshuba.net/search.html,{\n'method': 'POST',\n'body': 's=articlename&searchkey={{key}}&Submit='\n}",
     "weight": 0
+  },
+  {
+    "bookSourceGroup": "小说,成人",
+    "bookSourceName": "九库书屋",
+    "bookSourceType": 0,
+    "bookSourceUrl": "https://9ksw.com",
+    "bookUrlPattern": "https?://9ksw\\.com/novel\\d+/?",
+    "customOrder": 298,
+    "enabled": true,
+    "enabledExplore": true,
+    "exploreUrl": "最新更新::/latest/{{page == 1 ? \"\" : \"index_\" + page + \".html\"}}\n最新入库::/release/{{page == 1 ? \"\" : \"index_\" + page + \".html\"}}\n热门排行::/popular/{{page == 1 ? \"\" : \"index_\" + page + \".html\"}}\n完本小说::/completed/{{page == 1 ? \"\" : \"index_\" + page + \".html\"}}\n玄幻小说::/booklist1{{page == 1 ? \"\" : \"/\" + (page - 1) + \".html\"}}\n奇幻小说::/booklist2{{page == 1 ? \"\" : \"/\" + (page - 1) + \".html\"}}\n武侠小说::/booklist3{{page == 1 ? \"\" : \"/\" + (page - 1) + \".html\"}}\n都市小说::/booklist4{{page == 1 ? \"\" : \"/\" + (page - 1) + \".html\"}}\n历史小说::/booklist5{{page == 1 ? \"\" : \"/\" + (page - 1) + \".html\"}}\n军事小说::/booklist6{{page == 1 ? \"\" : \"/\" + (page - 1) + \".html\"}}\n悬疑小说::/booklist7{{page == 1 ? \"\" : \"/\" + (page - 1) + \".html\"}}\n游戏小说::/booklist8{{page == 1 ? \"\" : \"/\" + (page - 1) + \".html\"}}\n科幻小说::/booklist9{{page == 1 ? \"\" : \"/\" + (page - 1) + \".html\"}}\n体育小说::/booklist10{{page == 1 ? \"\" : \"/\" + (page - 1) + \".html\"}}\n古言小说::/booklist11{{page == 1 ? \"\" : \"/\" + (page - 1) + \".html\"}}\n现言小说::/booklist12{{page == 1 ? \"\" : \"/\" + (page - 1) + \".html\"}}\n幻言小说::/booklist13{{page == 1 ? \"\" : \"/\" + (page - 1) + \".html\"}}\n仙侠小说::/booklist14{{page == 1 ? \"\" : \"/\" + (page - 1) + \".html\"}}\n青春小说::/booklist15{{page == 1 ? \"\" : \"/\" + (page - 1) + \".html\"}}\n穿越小说::/booklist16{{page == 1 ? \"\" : \"/\" + (page - 1) + \".html\"}}\n女生小说::/booklist17{{page == 1 ? \"\" : \"/\" + (page - 1) + \".html\"}}\n其他小说::/booklist18{{page == 1 ? \"\" : \"/\" + (page - 1) + \".html\"}}",
+    "lastUpdateTime": 1795664492071,
+    "ruleBookInfo": {
+      "name": "@css:.desc .title@text",
+      "author": "@css:.info [itemprop=author]@text",
+      "coverUrl": "@css:.book img@src",
+      "intro": "@css:.desc-text@textNodes",
+      "kind": "@css:.info [itemprop=genre]@text&&meta[property=og:novel:status]@content",
+      "lastChapter": "@css:#new-chapter li:first-child a@text",
+      "updateTime": "@css:meta[property=og:novel:update_time]@content"
+    },
+    "ruleContent": {
+      "webJs": "(function () { var body = document.querySelector('#chapter-content'); return body && !body.querySelector('p.info') && body.textContent.trim() ? body.outerHTML : null; })()",
+      "content": "@css:#chapter-content@html"
+    },
+    "ruleExplore": {
+      "bookList": "@css:.list-thumbnail .home-truyendecu",
+      "name": "@css:.caption h3@text",
+      "bookUrl": "@css:.caption > a@href",
+      "coverUrl": "@css:.each_truyen img@src",
+      "kind": "@css:.each_truyen .hoan-thanh-mau@text",
+      "lastChapter": "@css:.tt-status small@ownText",
+      "author": "@css:.chuyen-muc a@text",
+      "updateTime": "@css:.luot-xem:last-child@ownText"
+    },
+    "ruleSearch": {
+      "bookList": "@css:.list-thumbnail .home-truyendecu",
+      "name": "@css:.caption h3@text",
+      "bookUrl": "@css:.caption > a@href",
+      "coverUrl": "@css:.each_truyen img@src",
+      "kind": "@css:.each_truyen .hoan-thanh-mau@text",
+      "lastChapter": "@css:.tt-status small@ownText",
+      "checkKeyWord": "从垃圾堆开始的冒险",
+      "updateTime": "@css:.chuyen-muc@ownText"
+    },
+    "ruleToc": {
+      "chapterList": "@css:#list-chapter .list-chapter a[href]",
+      "chapterName": "@css:@text",
+      "chapterUrl": "@css:@href@js:result + ',{\"webView\":true}'",
+      "nextTocUrl": "@css:#pagination a[href]:matchesOwn(^Next$)@href"
+    },
+    "searchUrl": "@js:\nvar first = source.bookSourceUrl + '/e/search/index.php?show=title%2Cwriter%2Cbyr&searchget=1&keyboard=' + encodeURIComponent(key);\nvar url = first;\nif (page > 1) {\n    var resultUrl = String(java.connect(first).url());\n    var id = /[?&]searchid=(\\d+)/.exec(resultUrl);\n    if (id) url = source.bookSourceUrl + '/e/search/result/index.php?searchid=' + id[1] + '&page=' + (page - 1);\n}\nurl;"
   }
 ]
