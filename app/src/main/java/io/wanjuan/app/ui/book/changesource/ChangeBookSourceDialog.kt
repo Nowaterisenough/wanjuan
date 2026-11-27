@@ -128,6 +128,10 @@ class ChangeBookSourceDialog() : BaseDialogFragment(R.layout.dialog_book_change_
         binding.toolBar.elevation = requireContext().elevation
     }
 
+    internal val currentChapterTitle get() = callBack?.oldBook?.durChapterTitle
+
+    internal fun verificationCandidates() = adapter.getItems().map { it.toBook() }
+
     private fun initMenu() {
         binding.toolBar.inflateMenu(R.menu.change_source)
         binding.toolBar.menu.applyTint(requireContext())
@@ -294,6 +298,7 @@ class ChangeBookSourceDialog() : BaseDialogFragment(R.layout.dialog_book_change_
                 viewModel.onLoadWordCountChecked(item.isChecked)
             }
 
+            R.id.menu_keyword_verify -> KeywordVerifyDialog().show(childFragmentManager, "keywordVerify")
             R.id.menu_start_stop -> viewModel.startOrStopSearch()
             R.id.menu_source_manage -> startActivity<BookSourceActivity>()
             R.id.menu_close -> dismissAllowingStateLoss()

@@ -76,7 +76,8 @@ class CodeEditActivity :
                 nonPrintablePaintingFlags = AppConfig.editNonPrintable
                 setEditorLanguage(viewModel.language)
                 upEdit(AppConfig.editFontScale, null, AppConfig.editAutoWrap)
-                setText(viewModel.initialText)
+                setText(viewModel.workingText ?: viewModel.initialText)
+                editorReady = true
                 editable = viewModel.writable
                 menuSaveBtn?.isVisible = viewModel.writable
                 requestFocus()
@@ -96,6 +97,15 @@ class CodeEditActivity :
         }
     }
 
+    private var editorReady = false
+
+    override fun onPause() {
+        if (editorReady && !isFinishing && intent.hasExtra(SourceEditSession.EXTRA)) {
+            SourceEditSession.checkpoint(intent, editor.text.toString())
+        }
+        super.onPause()
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         editorSearcher.stopSearch()
@@ -105,6 +115,11 @@ class CodeEditActivity :
     /**
      * 使用super.finish(),防止循环回调
      * */
+    private fun fieldResult() = Intent().apply {
+        putExtra("fieldKey", this@CodeEditActivity.intent.getStringExtra("fieldKey"))
+        putExtra("fieldTab", this@CodeEditActivity.intent.getIntExtra("fieldTab", 0))
+    }
+
     private fun save(check: Boolean) {
         if (!viewModel.writable) return super.finish()
         val text = editor.text.toString()
@@ -112,7 +127,7 @@ class CodeEditActivity :
         when {
             text == viewModel.initialText -> {
                 if (cursorPos > 0) {
-                    val result = Intent().apply {
+                    val result = fieldResult().apply {
                         putExtra("cursorPosition", cursorPos)
                     }
                     setResult(RESULT_OK, result)
@@ -125,7 +140,7 @@ class CodeEditActivity :
                     positiveButton(R.string.yes)
                     negativeButton(R.string.no) {
                         if (cursorPos > 0) {
-                            val result = Intent().apply {
+                            val result = fieldResult().apply {
                                 putExtra("cursorPosition", cursorPos)
                             }
                             setResult(RESULT_OK, result)
@@ -135,8 +150,8 @@ class CodeEditActivity :
                 }
             }
             else -> {
-                val result = Intent().apply {
-                    putExtra("text", text)
+                val result = fieldResult().apply {
+                    SourceEditSession.result(this@CodeEditActivity.intent, this, text)
                     putExtra("cursorPosition", cursorPos)
                 }
                 setResult(RESULT_OK, result)

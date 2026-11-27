@@ -193,6 +193,7 @@ object CacheBook {
 
     class CacheBookModel(var bookSource: BookSource, var book: Book) {
 
+        private val singleOnly = mutableSetOf<Int>()
         private val waitDownloadSet = linkedSetOf<Int>()
         private val onDownloadSet = linkedSetOf<Int>()
         private val tasks = CompositeCoroutine()
@@ -229,6 +230,7 @@ object CacheBook {
 
         @Synchronized
         fun stop() {
+            singleOnly.clear()
             waitDownloadSet.clear()
             tasks.clear()
             isStopped = true
@@ -333,6 +335,21 @@ object CacheBook {
                 waitDownloadSet.remove(chapterIndex)
                 return
             }
+            val rule = bookSource.ruleContent
+            val batchSize = rule?.maxBatchSize?.coerceIn(1, 128) ?: 0
+            if (batchSize > 0 && chapterIndex !in singleOnly &&
+                (!rule?.contentBatch.isNullOrBlank() || !bookSource.mainJs.isNullOrBlank()) &&
+                !BookHelp.hasContent(book, chapter)) {
+                val batch = waitDownloadSet.asSequence().filter { it !in singleOnly && it !in onDownloadSet }
+                    .mapNotNull { appDb.bookChapterDao.getChapter(book.bookUrl, it) }
+                    .filter { !it.isVolume && !BookHelp.hasContent(book, it) && !BookHelp.hasImageContent(book, it) }
+                    .take(batchSize).toList()
+                if (batch.isNotEmpty()) {
+                    downloadBatch(scope, context, batch)
+                    return
+                }
+            }
+            singleOnly.remove(chapterIndex)
             waitDownloadSet.remove(chapterIndex)
             onDownloadSet.add(chapterIndex)
             if (BookHelp.hasContent(book, chapter)) {
@@ -380,6 +397,28 @@ object CacheBook {
             }.apply {
                 tasks.add(this)
             }.start()
+        }
+
+        private fun downloadBatch(scope: CoroutineScope, context: CoroutineContext, chapters: List<BookChapter>) {
+            chapters.forEach { waitDownloadSet.remove(it.index); onDownloadSet.add(it.index) }
+            val task = Coroutine.async(scope, context, start = CoroutineStart.LAZY, executeContext = context) {
+                BatchContent.download(bookSource, book, chapters) { chapter, text ->
+                    onSuccess(chapter)
+                    downloadFinish(chapter, text)
+                }
+            }.onError { AppLog.put("批量下载失败，剩余章节转为单章下载", it) }.onFinally {
+                synchronized(this@CacheBookModel) {
+                    for (chapter in chapters) {
+                        if (onDownloadSet.remove(chapter.index) && !isStopped) {
+                            singleOnly.add(chapter.index)
+                            waitDownloadSet.add(chapter.index)
+                        }
+                    }
+                    onFinally()
+                }
+            }
+            tasks.add(task)
+            task.start()
         }
 
         suspend fun downloadAwait(chapter: BookChapter): String {

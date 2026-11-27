@@ -29,6 +29,9 @@
             app:popupTheme="@style/AppTheme.PopupOverlay"
             app:titleTextAppearance="@style/ToolbarTitle" />
 
+        <ProgressBar android:id="@+id/rotate_loading" android:layout_width="32dp"
+            android:layout_height="32dp" android:layout_gravity="center" android:visibility="gone" />
+
         <androidx.core.widget.NestedScrollView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

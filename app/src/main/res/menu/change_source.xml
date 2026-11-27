@@ -3,6 +3,7 @@
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
+    <item android:id="@+id/menu_keyword_verify" android:title="@string/verify_chapter_keywords" />
     <item
         android:id="@+id/menu_screen"
         android:title="@string/screen"

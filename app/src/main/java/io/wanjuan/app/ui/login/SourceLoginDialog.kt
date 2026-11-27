@@ -66,6 +66,7 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true),
     private val viewModel by activityViewModels<SourceLoginViewModel>()
     private var lastClickTime: Long = 0
     private var oKToClose = false
+    private var v2: SourceLoginV2Delegate? = null
     private var rowUis: List<RowUi>? = null
     private var rowUiName = arrayListOf<String>()
     private val rowUiActionRunnables = hashMapOf<String, Runnable>()
@@ -391,6 +392,11 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true),
     override fun onFragmentCreated(view: View, savedInstanceState: Bundle?) {
         val source = viewModel.source ?: return
         loginUrl = source.getLoginJs()
+        if (io.wanjuan.app.model.login.LoginUiV2.isV2(source.loginUi)) {
+            binding.toolBar.title = source.getTag()
+            v2 = SourceLoginV2Delegate(this, binding, source, viewModel.book, viewModel.chapter).also { it.start() }
+            return
+        }
         val loginUiStr = source.loginUi ?: return
         val codeStr = loginUiStr.let {
             when {
@@ -492,6 +498,12 @@ class SourceLoginDialog : BaseDialogFragment(R.layout.dialog_login, true),
                 }
             }
         }
+    }
+
+    override fun onDestroyView() {
+        v2?.destroy()
+        v2 = null
+        super.onDestroyView()
     }
 
     override fun onDismiss(dialog: DialogInterface) {

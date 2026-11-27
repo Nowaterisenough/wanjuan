@@ -33,6 +33,7 @@ class CodeEditViewModel(application: Application) : BaseViewModel(application) {
         "l_quiet"
     )
 
+    var workingText: String? = null
     var initialText = ""
     var cursorPosition = 0
     var language: TextMateLanguage? = null
@@ -59,7 +60,8 @@ class CodeEditViewModel(application: Application) : BaseViewModel(application) {
                 writable = false
                 initialText = cacheText
             } else {
-                initialText = intent.getStringExtra("text") ?: throw Exception("未获取到待编辑文本")
+                workingText = SourceEditSession.draft(intent)
+                initialText = SourceEditSession.original(intent) ?: intent.getStringExtra("text") ?: throw Exception("未获取到待编辑文本")
             }
             if (isHtmlStr(initialText)) {
                 languageName = "text.html.basic"

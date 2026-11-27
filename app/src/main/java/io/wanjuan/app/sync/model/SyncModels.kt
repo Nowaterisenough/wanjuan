@@ -429,6 +429,8 @@ data class SyncBookSource(
     val enabled: Boolean = true,
     @SerializedName(value = "h", alternate = ["enabledExplore"])
     val enabledExplore: Boolean = true,
+    @SerializedName(value = "mainJs")
+    val mainJs: String? = null,
     @SerializedName(value = "i", alternate = ["jsLib"])
     val jsLib: String? = null,
     @SerializedName(value = "j", alternate = ["enabledCookieJar"])
@@ -492,6 +494,7 @@ data class SyncBookSource(
                 enabled = source.enabled,
                 enabledExplore = source.enabledExplore,
                 jsLib = source.jsLib,
+                mainJs = source.mainJs,
                 enabledCookieJar = source.enabledCookieJar,
                 concurrentRate = source.concurrentRate,
                 header = source.header,

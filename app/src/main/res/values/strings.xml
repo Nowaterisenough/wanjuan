@@ -1978,4 +1978,9 @@ Selected text or question:
     <string name="bookshelf_last_attempt_time">Last attempt: %1$s</string>
     <string name="reader_current_chapter">Current</string>
     <string name="reader_chapter_number">Ch. %1$d</string>
+    <string name="verify_chapter_keywords">Verify chapter text</string>
+    <string name="login_ui_v2_render_error">Login UI failed to load. loginUi(state) must return {rows:[...]}. See logs.</string>
+    <string name="login_ui_v2_action_error">Login action failed: %1$s</string>
+    <string name="login_ui_v2_invalid_action">loginAction returned an invalid command object</string>
+    <string name="login_ui_v2_save_error">Failed to save login info</string>
 </resources>

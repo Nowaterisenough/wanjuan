@@ -29,7 +29,7 @@ import java.util.concurrent.ConcurrentHashMap
  * 采用md5作为key可以在分类修改后自动重新计算,不需要手动刷新
  */
 
-private val mutexMap by lazy { hashMapOf<String, Mutex>() }
+private val mutexMap by lazy { ConcurrentHashMap<String, Mutex>() }
 private val exploreKindsMap by lazy { ConcurrentHashMap<String, List<ExploreKind>>() }
 private val aCache by lazy { ACache.get("explore") }
 
@@ -43,7 +43,7 @@ private fun BookSource.getExploreKindsKey(): String {
     ).joinToString("|")
     return MD5Utils.md5Encode(
         listOf(
-            "explore-kinds-v2",
+            "explore-kinds-v3",
             bookSourceUrl,
             exploreUrl.orEmpty(),
             jsLib.orEmpty(),
@@ -68,45 +68,32 @@ suspend fun BookSource.exploreKinds(): List<ExploreKind> {
     if (exploreUrl.isNullOrBlank()) {
         return emptyList()
     }
-    val mutex = mutexMap[bookSourceUrl] ?: Mutex().apply { mutexMap[bookSourceUrl] = this }
+    val mutex = mutexMap.getOrPut(bookSourceUrl) { Mutex() }
     mutex.withLock {
         exploreKindsMap[exploreKindsKey]?.let { return it }
         val kinds = arrayListOf<ExploreKind>()
         withContext(Dispatchers.IO) {
             kotlin.runCatching {
                 val ruleStr = when {
-                    exploreUrl.startsWith("@js:", true) -> {
-                        aCache.getAsString(exploreKindsKey)?.takeIf { it.isNotBlank() } ?: run {
-                            val exploreKindsJava = ExploreKindsJsExtensions(this@exploreKinds)
-                            val exploreInfoMap = exploreInfoMapList[bookSourceUrl] ?: InfoMap(bookSourceUrl).also {
+                    exploreUrl.startsWith("@js:", true) || exploreUrl.startsWith("<js>", true) -> {
+                        val state = synchronized(exploreInfoMapList) {
+                            exploreInfoMapList[bookSourceUrl] ?: InfoMap(bookSourceUrl).also {
                                 exploreInfoMapList.put(bookSourceUrl, it)
-                            }
-                            runScriptWithContext {
-                                evalJS(exploreUrl.substring(4)) {
-                                    put("java", exploreKindsJava)
-                                    put("infoMap", exploreInfoMap)
-                                }.toExploreKindsRule()
-                            }.also { rule ->
-                                if (rule.isValidExploreKindsRule() && shouldCacheExploreKinds(rule)) {
-                                    aCache.put(exploreKindsKey, rule)
-                                }
                             }
                         }
-                    }
-                    exploreUrl.startsWith("<js>", true) -> {
-                        aCache.getAsString(exploreKindsKey)?.takeIf { it.isNotBlank() } ?: run {
-                            val exploreKindsJava = ExploreKindsJsExtensions(this@exploreKinds)
-                            val exploreInfoMap = exploreInfoMapList[bookSourceUrl] ?: InfoMap(bookSourceUrl).also {
-                                exploreInfoMapList.put(bookSourceUrl, it)
-                            }
+                        aCache.getAsString(exploreKindsKey)?.takeIf { it.isNotBlank() && state.hasPersisted() } ?: run {
+                            val script = if (exploreUrl.startsWith("@js:", true)) exploreUrl.substring(4)
+                                else exploreUrl.substring(4, exploreUrl.lastIndexOf('<'))
+                            val bridge = ExploreKindsJsExtensions(this@exploreKinds)
                             runScriptWithContext {
-                                evalJS(exploreUrl.substring(4, exploreUrl.lastIndexOf("<"))) {
-                                    put("java", exploreKindsJava)
-                                    put("infoMap", exploreInfoMap)
+                                evalJS(script) {
+                                    put("java", bridge)
+                                    put("infoMap", state)
                                 }.toExploreKindsRule()
                             }.also { rule ->
-                                if (rule.isValidExploreKindsRule() && shouldCacheExploreKinds(rule)) {
-                                    aCache.put(exploreKindsKey, rule)
+                                if (rule.isValidExploreKindsRule()) {
+                                    state.saveNow()
+                                    if (shouldCacheExploreKinds(rule)) aCache.put(exploreKindsKey, rule)
                                 }
                             }
                         }

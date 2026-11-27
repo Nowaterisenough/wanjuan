@@ -16,6 +16,7 @@ import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.tabs.TabLayout
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
+import io.wanjuan.app.ui.code.SourceEditSession
 import io.wanjuan.app.R
 import io.wanjuan.app.base.VMBaseActivity
 import io.wanjuan.app.data.entities.RssSource
@@ -90,11 +91,29 @@ class RssSourceEditActivity :
         }
     }
 
+    private var draftId = java.util.UUID.randomUUID().toString()
+    private var formReady = false
+    private var returnedField: Intent? = null
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        if (formReady) SourceEditSession.saveForm(draftId, GSON.toJson(getRssSource()))
+        outState.putString("formId", draftId)
+        outState.putInt("editTab", binding.tabLayout.selectedTabPosition)
+        super.onSaveInstanceState(outState)
+    }
+
     override fun onActivityCreated(savedInstanceState: Bundle?) {
+        savedInstanceState?.getString("formId")?.let { draftId = java.util.UUID.fromString(it).toString() }
         softKeyboardTool.attachToWindow(window)
         initView()
         viewModel.initData(intent) {
-            upSourceView(viewModel.rssSource)
+            val restored = SourceEditSession.readForm(draftId)?.let { GSON.fromJson(it, RssSource::class.java) }
+            upSourceView(restored ?: viewModel.rssSource)
+            val tab = savedInstanceState?.getInt("editTab") ?: 0
+            binding.tabLayout.getTabAt(tab)?.select()
+            formReady = true
+            returnedField?.let(::applyReturnedField)
+            returnedField = null
         }
     }
 
@@ -121,6 +140,7 @@ class RssSourceEditActivity :
     }
 
     override fun onDestroy() {
+        if (isFinishing) SourceEditSession.removeForm(draftId)
         super.onDestroy()
         softKeyboardTool.dismiss()
     }
@@ -138,26 +158,38 @@ class RssSourceEditActivity :
 
     private val textEditLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == RESULT_OK) {
-            val view = window.decorView.findFocus()
-            if (view is EditText) {
-                result.data?.getStringExtra("text")?.let {
-                    view.setText(it)
-                }
-                result.data?.getIntExtra("cursorPosition", -1)?.takeIf { it in 0 ..< view.text.length }?.let {
-                    view.setSelection(it)
-                }
-            } else {
-                toastOnUi(R.string.focus_lost_on_textbox)
-            }
+            result.data?.let { if (formReady) applyReturnedField(it) else returnedField = it }
         }
     }
+
+    private fun applyReturnedField(data: Intent) {
+        val tab = data.getIntExtra("fieldTab", binding.tabLayout.selectedTabPosition)
+        binding.tabLayout.getTabAt(tab)?.select()
+        val field = data.getStringExtra("fieldKey") ?: return
+        val position = adapter.editEntities.indexOfFirst { it.key == field }
+        if (position < 0) return
+        SourceEditSession.consume(data)?.let { value ->
+            adapter.editEntities[position].value = value
+            adapter.notifyItemChanged(position)
+        }
+        binding.recyclerView.scrollToPosition(position)
+        binding.recyclerView.post {
+            val holder = binding.recyclerView.findViewHolderForAdapterPosition(position)
+            val edit = holder?.itemView?.findViewById<EditText>(R.id.editText) ?: return@post
+            edit.requestFocus()
+            edit.setSelection(data.getIntExtra("cursorPosition", 0).coerceIn(0, edit.length()))
+        }
+    }
+
     private fun onFullEditClicked() {
         val view = window.decorView.findFocus()
         if (view is EditText) {
             val hint = findParentTextInputLayout(view)?.hint?.toString()
             val currentText = view.text.toString()
             val intent = Intent(this, CodeEditActivity::class.java).apply {
-                putExtra("text", currentText)
+                putExtra("fieldKey", view.getTag(R.id.tag) as? String)
+                putExtra("fieldTab", binding.tabLayout.selectedTabPosition)
+                SourceEditSession.start(this, currentText)
                 putExtra("title", hint)
                 putExtra("cursorPosition", view.selectionStart)
             }

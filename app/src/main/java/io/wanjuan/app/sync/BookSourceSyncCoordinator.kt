@@ -200,6 +200,7 @@ class BookSourceSyncCoordinator(
             enabled = enabled,
             enabledExplore = enabledExplore,
             jsLib = jsLib,
+            mainJs = mainJs,
             enabledCookieJar = enabledCookieJar,
             concurrentRate = concurrentRate,
             header = header,

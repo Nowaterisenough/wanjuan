@@ -61,6 +61,12 @@ class AnalyzeRule(
     private var isFromBookInfo : Boolean = false
 ) : JsExtensions {
 
+    @get:androidx.annotation.RestrictTo(androidx.annotation.RestrictTo.Scope.LIBRARY)
+    internal var batch: io.wanjuan.app.model.BatchContent? = null
+
+    @android.webkit.JavascriptInterface
+    fun cacheContent(chapter: Any?, content: String) = batch?.accept(chapter, content) ?: false
+
     private val book get() = ruleData as? BaseBook
     private val rssArticle get() = ruleData as? RssArticle
 

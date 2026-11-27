@@ -26,6 +26,8 @@ class InfoMap(val sourceUrl: String): MutableMap<String, String> {
         saveTime = time
     }
 
+    fun hasPersisted() = CacheManager.get("infoMap_${sourceUrl}") != null
+
     fun saveNow() {
         val json = GSON.toJson(actualMap)
         CacheManager.put("infoMap_${sourceUrl}", json, saveTime)

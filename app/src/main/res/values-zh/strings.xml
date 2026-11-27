@@ -1872,4 +1872,9 @@
     <string name="bookshelf_last_attempt_time">上次尝试：%1$s</string>
     <string name="reader_current_chapter">当前章</string>
     <string name="reader_chapter_number">第 %1$d 章</string>
+    <string name="verify_chapter_keywords">校验章节正文</string>
+    <string name="login_ui_v2_render_error">登录界面加载失败，loginUi(state) 必须返回 {rows:[...]}，详情见日志</string>
+    <string name="login_ui_v2_action_error">登录操作失败：%1$s</string>
+    <string name="login_ui_v2_invalid_action">loginAction 返回了无效的命令对象</string>
+    <string name="login_ui_v2_save_error">登录信息保存失败</string>
 </resources>
