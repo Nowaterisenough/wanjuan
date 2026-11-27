@@ -1,6 +1,7 @@
 package io.wanjuan.app.sync
 
 import io.wanjuan.app.sync.model.SyncResult
+import kotlinx.coroutines.CancellationException
 
 enum class SyncPhase {
     Idle, Connecting, Capturing, CheckingIndex, CheckingCursor,
@@ -64,6 +65,22 @@ class SyncProgressTracker(private val publish: (SyncProgress) -> Unit = {}) {
         val books = state.books.toMutableMap()
         ids.forEach { if (it in books) books[it] = BookSyncProgress(fraction.coerceIn(0f, 0.95f)) }
         emit(state.copy(books = books))
+    }
+
+    internal suspend fun track(
+        onFailure: (Exception) -> SyncResult,
+        action: suspend () -> SyncResult
+    ): SyncResult {
+        begin()
+        val result = try {
+            action()
+        } catch (e: CancellationException) {
+            finish(SyncResult(failed = 1, errorMessage = "Sync cancelled"))
+            throw e
+        } catch (e: Exception) {
+            onFailure(e)
+        }
+        return result.also(::finish)
     }
 
     @Synchronized

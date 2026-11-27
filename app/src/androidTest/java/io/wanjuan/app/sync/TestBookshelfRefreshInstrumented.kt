@@ -220,11 +220,14 @@ class TestBookshelfRefreshInstrumented {
         )
         fun capture() = reconciler.capture()
         fun pendingBook() = GSON.fromJsonObject<SyncBookPayload>(db.syncOutboxDao.pending().single().payloadJson).getOrThrow()
-        suspend fun sync() = SyncOrchestrator(
-            remote, SyncCaptureAction { capture() },
-            SyncPullAction { SyncPullEngine(remote, RoomSyncPullStore(db), listOf(bookSyncPullHandler(books))).pullAll(it) },
-            SyncFlushAction { repository.flushOutbox(remote, it) }
-        ).sync()
+        suspend fun sync(): SyncResult {
+            val result = SyncResult.Mutable()
+            remote.ensureDirs()
+            capture()
+            SyncPullEngine(remote, RoomSyncPullStore(db), listOf(bookSyncPullHandler(books))).pullAll(result)
+            repository.flushOutbox(remote, result)
+            return result.toResult()
+        }
     }
 
     private class MemoryRemote : SyncRemoteStore {

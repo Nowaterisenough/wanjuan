@@ -14,11 +14,8 @@ import io.wanjuan.app.sync.model.SyncBookSourcePayload
 import io.wanjuan.app.sync.model.SyncObjectType
 import io.wanjuan.app.sync.model.SyncOrderPayload
 import io.wanjuan.app.sync.model.SyncTombstonePayload
-import io.wanjuan.app.sync.remote.SyncRemoteStore
-import io.wanjuan.app.sync.remote.upload
 
 class BookSourceSyncCoordinator(
-    private val client: SyncRemoteStore,
     private val repository: SyncRepository,
     private val clock: SyncClock,
     private val deviceIdProvider: () -> String,
@@ -59,12 +56,6 @@ class BookSourceSyncCoordinator(
         repository.markDirty(SyncObjectType.BookSourceOrder, "bookSources", payload, "order")
     }
 
-    suspend fun pushSource(source: BookSource) {
-        val payload = BookSourceSyncMapper.toPayload(source, deviceIdProvider(), clock.now())
-        recordLocalSourceClock(payload)
-        client.upload("bookSources/${payload.sourceHash}.json", payload)
-    }
-
     fun applyRemoteSource(payload: SyncBookSourcePayload) {
         repository.applyRemote {
             db.runInTransaction {
@@ -85,18 +76,6 @@ class BookSourceSyncCoordinator(
                 )
             }
         }
-    }
-
-    suspend fun pushOrder(items: List<BookSourcePart>) {
-        val payload = SyncOrderPayload(
-            updatedAt = clock.now(),
-            updatedByDeviceId = deviceIdProvider(),
-            items = items.sortedBy { it.customOrder }.map {
-                SyncIds.hashKey("book-source", it.bookSourceUrl)
-            }
-        )
-        recordLocalOrderClock(payload)
-        client.upload("order/bookSources.json", payload)
     }
 
     fun applyRemoteOrder(payload: SyncOrderPayload) {
@@ -128,31 +107,6 @@ class BookSourceSyncCoordinator(
                 )
             }
         }
-    }
-
-    suspend fun pushDelete(sourceUrl: String) {
-        pushDeleteById(
-            id = SyncIds.hashKey("book-source", sourceUrl),
-            sourceUrl = sourceUrl
-        )
-    }
-
-    suspend fun pushDeleteById(id: String, sourceUrl: String? = null) {
-        val deletedAt = clock.now()
-        val deviceId = deviceIdProvider()
-        recordLocalDeleteClock(
-            id = id,
-            deletedAt = deletedAt,
-            deletedByDeviceId = deviceId
-        )
-        val payload = SyncTombstonePayload(
-            objectType = SyncObjectType.BookSource,
-            objectId = id,
-            deletedAt = deletedAt,
-            deletedByDeviceId = deviceId,
-            objectKey = sourceUrl
-        )
-        client.upload("tombstones/bookSources/$id.json", payload)
     }
 
     fun applyRemoteDelete(payload: SyncTombstonePayload, sourceUrl: String? = null) {
@@ -200,58 +154,6 @@ class BookSourceSyncCoordinator(
             ?.bookSourceUrl
     }
 
-    private fun recordLocalSourceClock(payload: SyncBookSourcePayload) {
-        db.runInTransaction {
-            val metadataDao = db.syncMetadataDao
-            val metadata = metadataDao.get(SyncObjectType.BookSource, payload.sourceHash)
-            metadataDao.insert(
-                metadata.withLocalClock(
-                    objectId = payload.sourceHash,
-                    localUpdatedAt = payload.sourceUpdatedAt,
-                    updatedByDeviceId = payload.updatedByDeviceId
-                )
-            )
-        }
-    }
-
-    private fun recordLocalOrderClock(payload: SyncOrderPayload) {
-        db.runInTransaction {
-            val metadataDao = db.syncMetadataDao
-            val metadata = metadataDao.get(SyncObjectType.BookSourceOrder, "bookSources")
-            metadataDao.insert(
-                metadata?.let {
-                    it.copy(
-                        localUpdatedAt = maxOf(it.localUpdatedAt, payload.updatedAt),
-                        updatedByDeviceId = payload.updatedByDeviceId
-                    )
-                } ?: SyncMetadata(
-                    objectType = SyncObjectType.BookSourceOrder,
-                    objectId = "bookSources",
-                    localUpdatedAt = payload.updatedAt,
-                    updatedByDeviceId = payload.updatedByDeviceId
-                )
-            )
-        }
-    }
-
-    private fun recordLocalDeleteClock(
-        id: String,
-        deletedAt: Long,
-        deletedByDeviceId: String
-    ) {
-        db.runInTransaction {
-            val metadataDao = db.syncMetadataDao
-            val metadata = metadataDao.get(SyncObjectType.BookSource, id)
-            metadataDao.insert(
-                metadata.withLocalDelete(
-                    objectId = id,
-                    deletedAt = deletedAt,
-                    deletedByDeviceId = deletedByDeviceId
-                )
-            )
-        }
-    }
-
     private fun SyncMetadata?.withRemoteClock(
         objectId: String,
         remoteUpdatedAt: Long,
@@ -269,23 +171,6 @@ class BookSourceSyncCoordinator(
         )
     }
 
-    private fun SyncMetadata?.withLocalClock(
-        objectId: String,
-        localUpdatedAt: Long,
-        updatedByDeviceId: String
-    ): SyncMetadata {
-        return this?.copy(
-            localUpdatedAt = maxOf(this.localUpdatedAt, localUpdatedAt),
-            deletedAt = null,
-            updatedByDeviceId = updatedByDeviceId
-        ) ?: SyncMetadata(
-            objectType = SyncObjectType.BookSource,
-            objectId = objectId,
-            localUpdatedAt = localUpdatedAt,
-            updatedByDeviceId = updatedByDeviceId
-        )
-    }
-
     private fun SyncMetadata?.withRemoteDelete(
         objectId: String,
         deletedAt: Long,
@@ -299,24 +184,6 @@ class BookSourceSyncCoordinator(
             objectType = SyncObjectType.BookSource,
             objectId = objectId,
             remoteUpdatedAt = deletedAt,
-            deletedAt = deletedAt,
-            updatedByDeviceId = deletedByDeviceId
-        )
-    }
-
-    private fun SyncMetadata?.withLocalDelete(
-        objectId: String,
-        deletedAt: Long,
-        deletedByDeviceId: String
-    ): SyncMetadata {
-        return this?.copy(
-            localUpdatedAt = maxOf(this.localUpdatedAt, deletedAt),
-            deletedAt = maxOf(this.deletedAt ?: 0L, deletedAt),
-            updatedByDeviceId = deletedByDeviceId
-        ) ?: SyncMetadata(
-            objectType = SyncObjectType.BookSource,
-            objectId = objectId,
-            localUpdatedAt = deletedAt,
             deletedAt = deletedAt,
             updatedByDeviceId = deletedByDeviceId
         )

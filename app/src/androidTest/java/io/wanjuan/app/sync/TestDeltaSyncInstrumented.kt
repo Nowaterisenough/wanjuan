@@ -461,9 +461,9 @@ class TestDeltaSyncInstrumented {
             BookshelfObjectApplier(RoomBookshelfSyncStore(db)), db)
         // Source coordinators are adapted to this replica rather than the application's database.
         private val handlers = productionSyncPullHandlers(groups, books,
-            BookSourceSyncCoordinator(remote, repository, clock, { "device" }, db),
-            RssSourceSyncCoordinator(remote, repository, clock, { "device" }, RssSourceSyncApplier(RoomRssSourceSyncStore(db))),
-            RuleSubSyncCoordinator(remote, repository, clock, { "device" }, db))
+            BookSourceSyncCoordinator(repository, clock, { "device" }, db),
+            RssSourceSyncCoordinator(repository, clock, { "device" }, RssSourceSyncApplier(RoomRssSourceSyncStore(db))),
+            RuleSubSyncCoordinator(repository, clock, { "device" }, db))
         val snapshots = RoomSyncSnapshotSource(db, clock, { "device" }, groups, trackBookVersions = false)
         val local = RoomDeltaLocal(db, snapshots, books, handlers)
         val engine = DeltaEngine(local, DeltaRemote(remote), "target", clock)

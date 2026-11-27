@@ -15,6 +15,22 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class TestSyncChangeObservation {
+    @Test fun rapidDatabaseChangesRequestOneCapture() = runBlocking {
+        withTimeout(5000) {
+            val changes = Channel<Int>()
+            val captures = Channel<Unit>(Channel.UNLIMITED)
+            val observer = launch {
+                changes.receiveAsFlow().afterBookshelfRefresh(MutableStateFlow(false), 50)
+                    .collect { captures.send(Unit) }
+            }
+            try {
+                repeat(4) { changes.send(it) }
+                captures.receive()
+                assertNull(withTimeoutOrNull(150) { captures.receive() })
+            } finally { observer.cancelAndJoin() }
+        }
+    }
+
     @Test fun catalogBatchesAreDeferredAndRefreshExitRechecksEvenWithoutAnotherDatabaseEdit() = runBlocking {
         withTimeout(5000) {
             val refreshing = MutableStateFlow(true)

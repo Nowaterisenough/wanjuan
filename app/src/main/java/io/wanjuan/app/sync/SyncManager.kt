@@ -63,9 +63,9 @@ object SyncManager {
             unifiedPullProgress = ::pullBookProgress, unifiedPushProgress = ::publishBookProgress)
     }
     val assets by lazy { SyncAssetCoordinator(AppWebDav.newSyncClient()) }
-    val bookSources by lazy { BookSourceSyncCoordinator(client, repository, SystemSyncClock, SyncDeviceStore::deviceId) }
-    val rssSources by lazy { RssSourceSyncCoordinator(client, repository, SystemSyncClock, SyncDeviceStore::deviceId) }
-    val ruleSubs by lazy { RuleSubSyncCoordinator(client, repository, SystemSyncClock, SyncDeviceStore::deviceId) }
+    val bookSources by lazy { BookSourceSyncCoordinator(repository, SystemSyncClock, SyncDeviceStore::deviceId) }
+    val rssSources by lazy { RssSourceSyncCoordinator(repository, SystemSyncClock, SyncDeviceStore::deviceId) }
+    val ruleSubs by lazy { RuleSubSyncCoordinator(repository, SystemSyncClock, SyncDeviceStore::deviceId) }
     private val snapshots by lazy { RoomSyncSnapshotSource(appDb, SystemSyncClock, SyncDeviceStore::deviceId, groups) }
     private val handlers by lazy { productionSyncPullHandlers(groups, bookshelf, bookSources, rssSources, ruleSubs) }
     private val local by lazy { RoomDeltaLocal(appDb,
@@ -132,7 +132,6 @@ object SyncManager {
     }
 
     private suspend fun runSync(pushChanges: Boolean, includeBookFiles: Boolean = false): SyncResult = mutationMutex.withLock {
-        progressTracker.begin()
         val heartbeat = syncScope.launch {
             var lastReport = 0L
             while (isActive) {
@@ -149,7 +148,11 @@ object SyncManager {
         try {
             var repeatChanges = false
             var targetId: String? = null
-            val result = try {
+            val result = progressTracker.track(onFailure = { e ->
+                AppLog.put("Sync v2 failed at ${progressTracker.snapshot().phase}: ${e.localizedMessage}", e)
+                SyncResult(failed = 1, errorMessage = e.localizedMessage ?: e.javaClass.simpleName,
+                    pending = runCatching { targetId?.let { appDb.syncDeltaDao.pendingCount(it) } ?: 0 }.getOrDefault(0))
+            }) {
                 client.withTarget { target ->
                     targetId = target.identity
                     val cursor = local.cursor(target.identity)
@@ -168,15 +171,7 @@ object SyncManager {
                     if (includeBookFiles) withSettings.withFiles { GitHubBookLibrary.sync(target.identity, github) }
                     else withSettings
                 }
-            } catch (e: CancellationException) {
-                progressTracker.finish(SyncResult(failed = 1, errorMessage = "Sync cancelled"))
-                throw e
-            } catch (e: Exception) {
-                AppLog.put("Sync v2 failed at ${progressTracker.snapshot().phase}: ${e.localizedMessage}", e)
-                SyncResult(failed = 1, errorMessage = e.localizedMessage ?: e.javaClass.simpleName,
-                    pending = runCatching { targetId?.let { appDb.syncDeltaDao.pendingCount(it) } ?: 0 }.getOrDefault(0))
             }
-            progressTracker.finish(result)
             AppLog.put("Sync v2 finished: uploaded=${result.uploaded}, downloaded=${result.downloaded}, " +
                 "pending=${result.pending}, failed=${result.failed}, phaseMs=${progressTracker.phaseTimings()}")
             // Retry real, persisted edits after connectivity returns; a pull itself creates no upload.

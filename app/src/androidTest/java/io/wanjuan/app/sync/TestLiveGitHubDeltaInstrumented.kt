@@ -200,9 +200,9 @@ class TestLiveGitHubDeltaInstrumented {
         private val books = BookshelfSyncCoordinator(remote, repository, clock, { "live-test" }, groups,
             BookshelfObjectApplier(RoomBookshelfSyncStore(db)), db)
         private val handlers = productionSyncPullHandlers(groups, books,
-            BookSourceSyncCoordinator(remote, repository, clock, { "live-test" }, db),
-            RssSourceSyncCoordinator(remote, repository, clock, { "live-test" }, RssSourceSyncApplier(RoomRssSourceSyncStore(db))),
-            RuleSubSyncCoordinator(remote, repository, clock, { "live-test" }, db))
+            BookSourceSyncCoordinator(repository, clock, { "live-test" }, db),
+            RssSourceSyncCoordinator(repository, clock, { "live-test" }, RssSourceSyncApplier(RoomRssSourceSyncStore(db))),
+            RuleSubSyncCoordinator(repository, clock, { "live-test" }, db))
         private var lastReported = -1
         private val progress = SyncProgressTracker { state ->
             if (state.phase == SyncPhase.MigratingReading && state.completed / 100 > lastReported) {

@@ -70,10 +70,17 @@ class TestSyncProgress {
     fun failedAndCancelledSyncNeverLeaveProgressRunning() = runBlocking {
         val states = mutableListOf<SyncProgress>()
         val tracker = SyncProgressTracker { states += it }
-        val remote = TestFakeSyncRemoteStore()
-        val orchestrator = SyncOrchestrator(remote,
-            SyncCaptureAction { throw CancellationException("cancel") }, SyncPullAction {}, SyncFlushAction {}, tracker)
-        try { orchestrator.sync(); fail("Expected cancellation") } catch (_: CancellationException) { }
+        val failure = tracker.track(onFailure = { SyncResult(failed = 1, errorMessage = it.message) }) {
+            error("unavailable")
+        }
+        assertEquals("unavailable", failure.errorMessage)
+        assertEquals(SyncPhase.Failed, states.last().phase)
+        try {
+            tracker.track(onFailure = { throw AssertionError("Cancellation treated as failure", it) }) {
+                throw CancellationException("cancel")
+            }
+            fail("Expected cancellation")
+        } catch (_: CancellationException) { }
         assertFalse(states.last().running)
         assertEquals(SyncPhase.Failed, states.last().phase)
         tracker.begin()

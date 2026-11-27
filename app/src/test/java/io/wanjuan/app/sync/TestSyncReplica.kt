@@ -50,13 +50,6 @@ class TestSyncReplica(
         pullStore = stateStore,
         handlers = managedTypes.map(::handler)
     )
-    private val orchestrator = SyncOrchestrator(
-        remoteStore = remote,
-        captureAction = SyncCaptureAction { reconciler.capture() },
-        pullAction = SyncPullAction(pullEngine::pullAll),
-        flushAction = SyncFlushAction(::flush)
-    )
-
     fun put(type: String, id: String, value: String, timestamp: Long) {
         require(type in managedTypes)
         clock.value = timestamp
@@ -95,7 +88,14 @@ class TestSyncReplica(
 
     fun hasPending(type: String, id: String): Boolean = Key(type, id) in outbox
 
-    suspend fun sync(): SyncResult = orchestrator.sync()
+    suspend fun sync(): SyncResult {
+        val result = SyncResult.Mutable()
+        remote.ensureDirs()
+        reconciler.capture()
+        pullEngine.pullAll(result)
+        flush(result)
+        return result.toResult()
+    }
 
     private fun snapshots(): List<SyncSnapshot> = objects.map { (key, value) ->
         val payload = Payload(

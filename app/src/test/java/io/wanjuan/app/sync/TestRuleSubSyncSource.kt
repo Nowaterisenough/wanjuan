@@ -18,9 +18,9 @@ class TestRuleSubSyncSource {
 
     @Test
     fun ruleSubSyncUsesTypeAndUrlAndNoRssSourceConfig() {
-        assertTrue(source.contains("ruleSubs/"))
-        assertTrue(source.contains("order/ruleSubs.json"))
-        assertTrue(source.contains("tombstones/ruleSubs/"))
+        assertTrue(source.contains("repository.markDirty(SyncObjectType.RuleSub,"))
+        assertTrue(source.contains("repository.markDirty(SyncObjectType.RuleSubOrder, \"ruleSubs\""))
+        assertTrue(source.contains("SyncTombstonePayload("))
         assertTrue(source.contains("findByTypeAndUrl(payload.type, payload.url)"))
         assertTrue(source.contains("items.sortedBy { it.customOrder }.map { SyncIds.ruleSubId(it) }"))
         assertTrue(source.contains("fun applyRemoteOrder(payload: SyncOrderPayload)"))
@@ -64,8 +64,7 @@ class TestRuleSubSyncSource {
         assertTrue(source.contains("objectType = SyncObjectType.RuleSub"))
         assertTrue(source.contains("if (payload.objectType != SyncObjectType.RuleSub) return"))
         assertFalse(source.contains("tombstoneWins"))
-        assertTrue(source.contains("recordLocalDeleteClock"))
-        assertTrue(source.contains("objectKey = objectKey"))
+        assertTrue(source.contains("objectKey = \"\${ruleSub.type}\\n\${ruleSub.url}\""))
         assertTrue(source.contains("payload.objectKey"))
         assertTrue(source.contains("findRuleSubByKey"))
         assertTrue(source.contains("withRemoteDelete"))

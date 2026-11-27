@@ -10,10 +10,10 @@ class TestBookSourceSyncSource {
     private val source = File("app/src/main/java/io/wanjuan/app/sync/BookSourceSyncCoordinator.kt").readText()
 
     @Test
-    fun sourceSyncHasSourceOrderAndTombstonePaths() {
-        assertTrue(source.contains("bookSources/"))
-        assertTrue(source.contains("order/bookSources.json"))
-        assertTrue(source.contains("tombstones/bookSources/"))
+    fun sourceSyncQueuesEntityOrderAndTombstoneChanges() {
+        assertTrue(source.contains("repository.markDirty(SyncObjectType.BookSource,"))
+        assertTrue(source.contains("repository.markDirty(SyncObjectType.BookSourceOrder, \"bookSources\""))
+        assertTrue(source.contains("SyncTombstonePayload("))
         assertTrue(source.contains("sourceUpdatedAt"))
     }
 
@@ -38,8 +38,6 @@ class TestBookSourceSyncSource {
         assertTrue(source.contains("DiscoverSourceUseConfig.removeSource(sourceUrl)"))
         assertTrue(source.contains("SyncTombstonePayload("))
         assertTrue(source.contains("objectType = SyncObjectType.BookSource"))
-        assertTrue(source.contains("recordLocalDeleteClock"))
-        assertTrue(source.contains("recordLocalOrderClock"))
         assertTrue(source.contains("SyncObjectType.BookSourceOrder"))
         assertTrue(source.contains("if (payload.objectType != SyncObjectType.BookSource) return"))
         assertTrue(source.contains("applyRemoteDelete(payload: SyncTombstonePayload, sourceUrl: String? = null)"))
@@ -56,7 +54,7 @@ class TestBookSourceSyncSource {
     @Test
     fun remoteSourceUpdatePreservesDeviceLocalLoginConfig() {
         val applyRemoteSource = source.substringAfter("fun applyRemoteSource(")
-            .substringBefore("suspend fun pushOrder(")
+            .substringBefore("fun applyRemoteOrder(")
 
         assertTrue(applyRemoteSource.contains("dao.insert(source)"))
         assertFalse(applyRemoteSource.contains("deleteSourceVariables"))

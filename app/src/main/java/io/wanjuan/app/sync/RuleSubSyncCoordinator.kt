@@ -10,11 +10,8 @@ import io.wanjuan.app.sync.model.SyncOrderPayload
 import io.wanjuan.app.sync.model.SyncRuleSub
 import io.wanjuan.app.sync.model.SyncRuleSubPayload
 import io.wanjuan.app.sync.model.SyncTombstonePayload
-import io.wanjuan.app.sync.remote.SyncRemoteStore
-import io.wanjuan.app.sync.remote.upload
 
 class RuleSubSyncCoordinator(
-    private val client: SyncRemoteStore,
     private val repository: SyncRepository,
     private val clock: SyncClock,
     private val deviceIdProvider: () -> String,
@@ -53,16 +50,6 @@ class RuleSubSyncCoordinator(
         repository.markDirty(SyncObjectType.RuleSubOrder, "ruleSubs", payload, "order")
     }
 
-    suspend fun pushSub(ruleSub: RuleSub) {
-        val payload = RuleSubSyncMapper.toPayload(ruleSub, deviceIdProvider(), clock.now())
-        recordLocalSubClock(payload)
-        client.upload("ruleSubs/${payload.ruleSubHash}.json", payload)
-    }
-
-    suspend fun pushRuleSub(ruleSub: RuleSub) {
-        pushSub(ruleSub)
-    }
-
     fun applyRemoteSub(payload: SyncRuleSubPayload) {
         if (payload.ruleSubHash != SyncIds.hashKey("rule-sub", "${payload.type}\n${payload.url}")) return
         repository.applyRemote {
@@ -97,16 +84,6 @@ class RuleSubSyncCoordinator(
         applyRemoteSub(payload)
     }
 
-    suspend fun pushOrder(items: List<RuleSub>) {
-        val payload = SyncOrderPayload(
-            updatedAt = clock.now(),
-            updatedByDeviceId = deviceIdProvider(),
-            items = items.sortedBy { it.customOrder }.map { SyncIds.ruleSubId(it) }
-        )
-        recordLocalOrderClock(payload)
-        client.upload("order/ruleSubs.json", payload)
-    }
-
     fun applyRemoteOrder(payload: SyncOrderPayload) {
         repository.applyRemote {
             db.runInTransaction {
@@ -138,33 +115,6 @@ class RuleSubSyncCoordinator(
                 )
             }
         }
-    }
-
-    suspend fun pushDelete(ruleSub: RuleSub) {
-        pushDeleteById(
-            id = SyncIds.ruleSubId(ruleSub),
-            objectKey = "${ruleSub.type}\n${ruleSub.url}"
-        )
-    }
-
-    suspend fun pushDeleteById(id: String, objectKey: String? = null) {
-        val deletedAt = clock.now()
-        val deviceId = deviceIdProvider()
-        recordLocalDeleteClock(
-            id = id,
-            deletedAt = deletedAt,
-            deletedByDeviceId = deviceId
-        )
-        client.upload(
-            "tombstones/ruleSubs/$id.json",
-            SyncTombstonePayload(
-                objectType = SyncObjectType.RuleSub,
-                objectId = id,
-                deletedAt = deletedAt,
-                deletedByDeviceId = deviceId,
-                objectKey = objectKey
-            )
-        )
     }
 
     fun applyRemoteDelete(payload: SyncTombstonePayload, objectKey: String? = null) {
@@ -204,58 +154,6 @@ class RuleSubSyncCoordinator(
         return db.ruleSubDao.findByTypeAndUrl(type, url)
     }
 
-    private fun recordLocalSubClock(payload: SyncRuleSubPayload) {
-        db.runInTransaction {
-            val metadataDao = db.syncMetadataDao
-            val metadata = metadataDao.get(SyncObjectType.RuleSub, payload.ruleSubHash)
-            metadataDao.insert(
-                metadata.withLocalClock(
-                    objectId = payload.ruleSubHash,
-                    localUpdatedAt = payload.subscriptionUpdatedAt,
-                    updatedByDeviceId = payload.updatedByDeviceId
-                )
-            )
-        }
-    }
-
-    private fun recordLocalOrderClock(payload: SyncOrderPayload) {
-        db.runInTransaction {
-            val metadataDao = db.syncMetadataDao
-            val metadata = metadataDao.get(SyncObjectType.RuleSubOrder, "ruleSubs")
-            metadataDao.insert(
-                metadata?.let {
-                    it.copy(
-                        localUpdatedAt = maxOf(it.localUpdatedAt, payload.updatedAt),
-                        updatedByDeviceId = payload.updatedByDeviceId
-                    )
-                } ?: SyncMetadata(
-                    objectType = SyncObjectType.RuleSubOrder,
-                    objectId = "ruleSubs",
-                    localUpdatedAt = payload.updatedAt,
-                    updatedByDeviceId = payload.updatedByDeviceId
-                )
-            )
-        }
-    }
-
-    private fun recordLocalDeleteClock(
-        id: String,
-        deletedAt: Long,
-        deletedByDeviceId: String
-    ) {
-        db.runInTransaction {
-            val metadataDao = db.syncMetadataDao
-            val metadata = metadataDao.get(SyncObjectType.RuleSub, id)
-            metadataDao.insert(
-                metadata.withLocalDelete(
-                    objectId = id,
-                    deletedAt = deletedAt,
-                    deletedByDeviceId = deletedByDeviceId
-                )
-            )
-        }
-    }
-
     private fun SyncMetadata?.withRemoteClock(
         objectId: String,
         remoteUpdatedAt: Long,
@@ -273,23 +171,6 @@ class RuleSubSyncCoordinator(
         )
     }
 
-    private fun SyncMetadata?.withLocalClock(
-        objectId: String,
-        localUpdatedAt: Long,
-        updatedByDeviceId: String
-    ): SyncMetadata {
-        return this?.copy(
-            localUpdatedAt = maxOf(this.localUpdatedAt, localUpdatedAt),
-            deletedAt = null,
-            updatedByDeviceId = updatedByDeviceId
-        ) ?: SyncMetadata(
-            objectType = SyncObjectType.RuleSub,
-            objectId = objectId,
-            localUpdatedAt = localUpdatedAt,
-            updatedByDeviceId = updatedByDeviceId
-        )
-    }
-
     private fun SyncMetadata?.withRemoteDelete(
         objectId: String,
         deletedAt: Long,
@@ -303,24 +184,6 @@ class RuleSubSyncCoordinator(
             objectType = SyncObjectType.RuleSub,
             objectId = objectId,
             remoteUpdatedAt = deletedAt,
-            deletedAt = deletedAt,
-            updatedByDeviceId = deletedByDeviceId
-        )
-    }
-
-    private fun SyncMetadata?.withLocalDelete(
-        objectId: String,
-        deletedAt: Long,
-        deletedByDeviceId: String
-    ): SyncMetadata {
-        return this?.copy(
-            localUpdatedAt = maxOf(this.localUpdatedAt, deletedAt),
-            deletedAt = maxOf(this.deletedAt ?: 0L, deletedAt),
-            updatedByDeviceId = deletedByDeviceId
-        ) ?: SyncMetadata(
-            objectType = SyncObjectType.RuleSub,
-            objectId = objectId,
-            localUpdatedAt = deletedAt,
             deletedAt = deletedAt,
             updatedByDeviceId = deletedByDeviceId
         )

@@ -10,8 +10,6 @@ import io.wanjuan.app.sync.model.SyncOrderPayload
 import io.wanjuan.app.sync.model.SyncRssSourcePayload
 import io.wanjuan.app.sync.model.SyncTombstonePayload
 import io.wanjuan.app.sync.model.SyncVersion
-import io.wanjuan.app.sync.remote.SyncRemoteStore
-import io.wanjuan.app.sync.remote.upload
 
 interface RssSourceSyncStore {
     fun allSources(): List<RssSource>
@@ -106,7 +104,6 @@ class RssSourceSyncApplier(
 }
 
 class RssSourceSyncCoordinator(
-    private val client: SyncRemoteStore,
     private val repository: SyncRepository,
     private val clock: SyncClock,
     private val deviceIdProvider: () -> String,
@@ -139,32 +136,6 @@ class RssSourceSyncCoordinator(
     fun enqueueOrder(sources: List<RssSource>) {
         val payload = orderPayload(sources)
         repository.markDirty(SyncObjectType.RssSourceOrder, "rssSources", payload, "order")
-    }
-
-    suspend fun pushSource(source: RssSource) {
-        val payload = RssSourceSyncMapper.toPayload(
-            source,
-            SyncVersion(clock.now(), deviceIdProvider())
-        )
-        client.upload("rssSources/${payload.sourceHash}.json", payload)
-    }
-
-    suspend fun pushDelete(source: RssSource) {
-        val id = SyncIds.rssSourceId(source.sourceUrl)
-        client.upload(
-            "tombstones/rssSources/$id.json",
-            SyncTombstonePayload(
-                objectType = SyncObjectType.RssSource,
-                objectId = id,
-                objectKey = source.sourceUrl,
-                deletedAt = clock.now(),
-                deletedByDeviceId = deviceIdProvider()
-            )
-        )
-    }
-
-    suspend fun pushOrder(sources: List<RssSource>) {
-        client.upload("order/rssSources.json", orderPayload(sources))
     }
 
     fun applyRemoteSource(payload: SyncRssSourcePayload): SyncApplyOutcome =

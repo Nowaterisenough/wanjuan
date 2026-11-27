@@ -11,6 +11,7 @@ import io.wanjuan.app.lib.webdav.Authorization
 import io.wanjuan.app.sync.mapper.BookSyncMapper
 import io.wanjuan.app.sync.merge.BookSyncMerge
 import io.wanjuan.app.sync.model.SyncBook
+import io.wanjuan.app.sync.model.SyncResult
 import io.wanjuan.app.sync.model.SyncBookPayload
 import io.wanjuan.app.sync.model.SyncObjectType
 import io.wanjuan.app.sync.model.SyncOrderPayload
@@ -456,17 +457,20 @@ class TestBookshelfSyncSafetyInstrumented {
             db.syncMetadataDao.insert(catalog.copy(lastSyncedHash = SyncCanonicalJson.hash(legacyCatalog)))
         }
 
-        private fun orchestrator() = SyncOrchestrator(
-            remote, SyncCaptureAction { reconciler.capture() },
-            SyncPullAction {
-                SyncPullEngine(remote, RoomSyncPullStore(db), listOf(bookSyncPullHandler(books), bookSyncDeletePullHandler(books))).pullAll(it)
-            },
-            SyncFlushAction { repository.flushOutbox(remote, it) }
-        )
+        suspend fun sync() = sync(pull = true)
+        suspend fun flush() = sync(pull = false)
 
-        suspend fun sync() = orchestrator().sync()
-
-        suspend fun flush() = orchestrator().flushPending()
+        private suspend fun sync(pull: Boolean): SyncResult {
+            val result = SyncResult.Mutable()
+            remote.ensureDirs()
+            reconciler.capture()
+            if (pull) {
+                val handlers = listOf(bookSyncPullHandler(books), bookSyncDeletePullHandler(books))
+                SyncPullEngine(remote, RoomSyncPullStore(db), handlers).pullAll(result)
+            }
+            repository.flushOutbox(remote, result)
+            return result.toResult()
+        }
     }
 
     private class MemoryRemote : SyncRemoteStore {
