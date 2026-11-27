@@ -362,9 +362,6 @@ object AppConfig : SharedPreferences.OnSharedPreferenceChangeListener {
     val showRSS: Boolean
         get() = appCtx.getPrefBoolean(PreferKey.showRss, false)
 
-    val showReadRecord: Boolean
-        get() = appCtx.getPrefBoolean(PreferKey.showReadRecord, true)
-
     var bookshelfHiddenTags: Map<Long, Set<String>>
         get() {
             val rawMap = GSON.fromJsonObject<Map<String, List<String>>>(

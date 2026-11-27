@@ -57,13 +57,9 @@ class RssArticlesFragment() : VMBaseFragment<RssArticlesViewModel>(R.layout.frag
     private val isPreload by lazy { activityViewModel.rssSource?.preload ?: false }
     private val orientation by lazy { resources.configuration.orientation }
     private val adapter: BaseRssArticlesAdapter<*> by lazy {
-        when (activityViewModel.articleStyle) {
-            1 -> RssArticlesAdapter1(requireContext(), this@RssArticlesFragment)
-            2 -> RssArticlesAdapter2(requireContext(), this@RssArticlesFragment)
-            4 -> RssArticlesAdapter4(requireContext(), this@RssArticlesFragment)
-            3 -> RssArticlesAdapter3(requireContext(), this@RssArticlesFragment)
-            else -> RssArticlesAdapter(requireContext(), this@RssArticlesFragment)
-        }
+        val style = activityViewModel.articleStyle ?: 0
+        if (style == 3) RssArticlesAdapter3(requireContext(), this)
+        else RssArticlesAdapter(requireContext(), this, style)
     }
     private val loadMoreView: LoadMoreView by lazy {
         LoadMoreView(requireContext())

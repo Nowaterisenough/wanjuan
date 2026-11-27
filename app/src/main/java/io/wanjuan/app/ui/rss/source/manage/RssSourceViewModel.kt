@@ -3,6 +3,7 @@ package io.wanjuan.app.ui.rss.source.manage
 import android.app.Application
 import android.text.TextUtils
 import io.wanjuan.app.base.BaseViewModel
+import io.wanjuan.app.ui.widget.dialog.RuleGroupEditor
 import io.wanjuan.app.data.appDb
 import io.wanjuan.app.data.entities.RssSource
 import io.wanjuan.app.help.DefaultData
@@ -21,7 +22,9 @@ import java.util.Locale
  * 订阅源管理数据修改
  * 修改数据要copy,直接修改会导致界面不刷新
  */
-class RssSourceViewModel(application: Application) : BaseViewModel(application) {
+class RssSourceViewModel(application: Application) : BaseViewModel(application), RuleGroupEditor {
+
+    override val groups get() = appDb.rssSourceDao.flowGroups()
 
     fun topSource(vararg sources: RssSource) {
         execute {
@@ -121,7 +124,7 @@ class RssSourceViewModel(application: Application) : BaseViewModel(application) 
         }
     }
 
-    fun addGroup(group: String) {
+    override fun addGroup(group: String) {
         execute {
             val sources = appDb.rssSourceDao.noGroup
             sources.forEach { source ->
@@ -131,7 +134,7 @@ class RssSourceViewModel(application: Application) : BaseViewModel(application) 
         }
     }
 
-    fun upGroup(oldGroup: String, newGroup: String?) {
+    override fun upGroup(oldGroup: String, newGroup: String?) {
         execute {
             val sources = appDb.rssSourceDao.getByGroup(oldGroup)
             sources.forEach { source ->
@@ -146,7 +149,7 @@ class RssSourceViewModel(application: Application) : BaseViewModel(application) 
         }
     }
 
-    fun delGroup(group: String) {
+    override fun delGroup(group: String) {
         execute {
             execute {
                 val sources = appDb.rssSourceDao.getByGroup(group)

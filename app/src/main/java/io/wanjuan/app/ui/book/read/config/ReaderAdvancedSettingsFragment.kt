@@ -6,6 +6,8 @@ import android.os.Bundle
 import android.view.View
 import android.view.ViewConfiguration
 import androidx.preference.Preference
+import androidx.preference.DialogPreference
+import androidx.preference.TwoStatePreference
 import io.wanjuan.app.R
 import io.wanjuan.app.constant.EventBus
 import io.wanjuan.app.constant.PreferKey
@@ -20,6 +22,7 @@ import io.wanjuan.app.utils.getPrefBoolean
 import io.wanjuan.app.utils.postEvent
 import io.wanjuan.app.utils.removePref
 import io.wanjuan.app.utils.setEdgeEffectColor
+import io.wanjuan.app.utils.showDialogFragment
 
 class ReaderAdvancedSettingsFragment : ReaderPreferenceFragment(),
     SharedPreferences.OnSharedPreferenceChangeListener {
@@ -43,6 +46,19 @@ class ReaderAdvancedSettingsFragment : ReaderPreferenceFragment(),
         listView.clipToPadding = true
         listView.overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
         listView.setEdgeEffectColor(ReaderSheetStyle.resolve(requireContext()).accentColor)
+        val intent = activity?.intent ?: return
+        val key = intent.getStringExtra("targetKey") ?: return
+        val target = findPreference<Preference>(key) ?: return
+        intent.removeExtra("targetKey")
+        listView.post {
+            if (this.view !== view || parentFragmentManager.isStateSaved) return@post
+            scrollToPreference(target)
+            when (target) {
+                is TwoStatePreference -> Unit // Locate a switch without changing the saved value.
+                is DialogPreference -> onDisplayPreferenceDialog(target)
+                else -> onPreferenceTreeClick(target)
+            }
+        }
     }
 
     override fun onResume() {
@@ -135,7 +151,7 @@ class ReaderAdvancedSettingsFragment : ReaderPreferenceFragment(),
         when (preference.key) {
             "customPageKey" -> PageKeyDialog(requireContext()).show()
             "clickRegionalConfig" -> {
-                (activity as? ReadBookActivity)?.showClickRegionalConfig()
+                showDialogFragment<ClickActionConfigDialog>()
             }
             PreferKey.contentSelectMenuConfig -> {
                 ContentSelectMenuConfigDialog().show(parentFragmentManager, "contentSelectMenuConfig")

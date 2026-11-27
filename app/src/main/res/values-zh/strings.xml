@@ -656,7 +656,6 @@
     <string name="select_count">（%1$d/%2$d）</string>
     <string name="show_rss">显示订阅</string>
     <string name="modern_rss_page">新版订阅页</string>
-    <string name="modern_rss_page_summary">使用新的订阅首页布局，支持切换源、分类标签和内嵌内容。</string>
     <string name="rss_source_manage">订阅源管理</string>
     <string name="rss_source_manage_summary">管理订阅源和源仓库。</string>
     <string name="merge_discovery_rss">合并发现和订阅</string>
@@ -811,7 +810,6 @@
     <string name="read_record">阅读记录</string>
     <string name="del_read_record">删除阅读记录</string>
     <string name="read_record_summary">阅读时间记录</string>
-    <string name="show_read_record">显示阅读统计入口</string>
     <string name="read_record_heatmap">阅读热力图</string>
     <string name="read_record_recent_books">最近在读</string>
     <string name="read_record_recent_days">按日摘要</string>
@@ -969,7 +967,6 @@
     <string name="reverse_toc">反转目录</string>
     <string name="show_discovery">显示发现</string>
     <string name="modern_discovery_page">启用新版发现页</string>
-    <string name="modern_discovery_page_summary">使用书源选择 + 标签切换 + 页面内书籍列表</string>
     <string name="discovery_settings_title">发现页管理</string>
     <string name="discovery_settings_summary">配置发现页入口与页面样式。</string>
     <string name="discover_grid_columns">每行数量</string>

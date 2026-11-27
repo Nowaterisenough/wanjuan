@@ -51,11 +51,11 @@ class ClickActionConfigDialog : BaseDialogFragment(R.layout.dialog_click_action_
 
     override fun onDismiss(dialog: DialogInterface) {
         super.onDismiss(dialog)
-        (activity as ReadBookActivity).bottomDialog--
+        (activity as? ReadBookActivity)?.let { it.bottomDialog-- }
     }
 
     override fun onFragmentCreated(view: View, savedInstanceState: Bundle?) {
-        (activity as ReadBookActivity).bottomDialog++
+        (activity as? ReadBookActivity)?.let { it.bottomDialog++ }
         view.setBackgroundColor(getCompatColor(R.color.translucent))
         initData()
         initViewEvent()

@@ -2,6 +2,14 @@ package io.wanjuan.app.ui.main.explore
 
 import io.wanjuan.app.data.entities.rule.ExploreKind
 
+data class DiscoverTagItem(
+    val kind: ExploreKind,
+    val text: String,
+    val isButton: Boolean,
+    val group: String? = null,
+    val subgroup: String? = null,
+)
+
 internal object DiscoverCategoryLayout {
     fun build(
         kinds: List<ExploreKind>,

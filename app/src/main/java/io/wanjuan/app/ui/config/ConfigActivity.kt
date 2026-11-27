@@ -9,6 +9,7 @@ import io.wanjuan.app.base.VMBaseActivity
 import io.wanjuan.app.constant.EventBus
 import io.wanjuan.app.databinding.ActivityConfigBinding
 import io.wanjuan.app.lib.theme.primaryTextColor
+import io.wanjuan.app.ui.book.read.config.ReaderAdvancedSettingsFragment
 import io.wanjuan.app.utils.observeEvent
 import io.wanjuan.app.utils.viewbindingdelegate.viewBinding
 
@@ -20,16 +21,20 @@ class ConfigActivity : VMBaseActivity<ActivityConfigBinding, ConfigViewModel>() 
     override fun onActivityCreated(savedInstanceState: Bundle?) {
         applyHeaderColors()
         when (val configTag = intent.getStringExtra("configTag")) {
+            ConfigTag.READ_CONFIG -> {
+                setTitle(R.string.read_config)
+                replaceFragment(configTag, ReaderAdvancedSettingsFragment::class.java)
+            }
             ConfigTag.OTHER_CONFIG -> replaceFragment(configTag, OtherConfigFragment::class.java)
             ConfigTag.THEME_CONFIG -> replaceFragment(configTag, ThemeConfigFragment::class.java)
             ConfigTag.SYNC_CONFIG -> replaceFragment(configTag, SyncConfigFragment::class.java)
             ConfigTag.AI_CONFIG -> replaceFragment(configTag, AiConfigFragment::class.java)
             ConfigTag.COVER_CONFIG -> replaceFragment(configTag, CoverConfigFragment::class.java)
             ConfigTag.WELCOME_CONFIG -> replaceFragment(configTag, WelcomeConfigFragment::class.java)
+            ConfigTag.DISCOVERY_CONFIG,
+            ConfigTag.SUBSCRIPTION_CONFIG,
             ConfigTag.DISCOVERY_SUBSCRIPTION_CONFIG ->
                 replaceFragment(configTag, DiscoverySubscriptionConfigFragment::class.java)
-            ConfigTag.DISCOVERY_CONFIG -> replaceFragment(configTag, DiscoveryConfigFragment::class.java)
-            ConfigTag.SUBSCRIPTION_CONFIG -> replaceFragment(configTag, SubscriptionConfigFragment::class.java)
             else -> finish()
         }
     }

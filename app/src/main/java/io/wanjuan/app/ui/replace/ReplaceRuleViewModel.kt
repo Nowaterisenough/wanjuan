@@ -3,6 +3,7 @@ package io.wanjuan.app.ui.replace
 import android.app.Application
 import android.text.TextUtils
 import io.wanjuan.app.base.BaseViewModel
+import io.wanjuan.app.ui.widget.dialog.RuleGroupEditor
 import io.wanjuan.app.data.appDb
 import io.wanjuan.app.data.entities.ReplaceRule
 import io.wanjuan.app.utils.splitNotBlank
@@ -11,7 +12,9 @@ import io.wanjuan.app.utils.splitNotBlank
  * 替换规则数据修改
  * 修改数据要copy,直接修改会导致界面不刷新
  */
-class ReplaceRuleViewModel(application: Application) : BaseViewModel(application) {
+class ReplaceRuleViewModel(application: Application) : BaseViewModel(application), RuleGroupEditor {
+
+    override val groups get() = appDb.replaceRuleDao.flowGroups()
 
     fun update(vararg rule: ReplaceRule) {
         execute {
@@ -93,7 +96,7 @@ class ReplaceRuleViewModel(application: Application) : BaseViewModel(application
         }
     }
 
-    fun addGroup(group: String) {
+    override fun addGroup(group: String) {
         execute {
             val sources = appDb.replaceRuleDao.noGroup
             sources.forEach { source ->
@@ -103,7 +106,7 @@ class ReplaceRuleViewModel(application: Application) : BaseViewModel(application
         }
     }
 
-    fun upGroup(oldGroup: String, newGroup: String?) {
+    override fun upGroup(oldGroup: String, newGroup: String?) {
         execute {
             val sources = appDb.replaceRuleDao.getByGroup(oldGroup)
             sources.forEach { source ->
@@ -118,7 +121,7 @@ class ReplaceRuleViewModel(application: Application) : BaseViewModel(application
         }
     }
 
-    fun delGroup(group: String) {
+    override fun delGroup(group: String) {
         execute {
             execute {
                 val sources = appDb.replaceRuleDao.getByGroup(group)

@@ -76,7 +76,6 @@ import io.wanjuan.app.ui.main.bookshelf.style2.BookshelfFragment2
 import io.wanjuan.app.ui.main.ai.AiChatActivity
 import io.wanjuan.app.ui.main.explore.ExploreFragment
 import io.wanjuan.app.ui.main.my.MyFragment
-import io.wanjuan.app.ui.main.readrecord.ReadRecordFragment
 import io.wanjuan.app.ui.main.rss.RssFragment
 import io.wanjuan.app.ui.widget.dialog.TextDialog
 import io.wanjuan.app.ui.widget.text.BadgeView
@@ -119,7 +118,6 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
     private val idBookshelf2 = 12
     private val idExplore = 1
     private val idRss = 2
-    private val idReadRecord = 3
     private val idMy = 4
     private var exitTime: Long = 0
     private var bookshelfReselected: Long = 0
@@ -143,7 +141,7 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
     private val fragmentMap = hashMapOf<Int, Fragment>()
     private var bottomMenuCount = 4
     private val EXIT_INTERVAL = 2000L
-    private val realPositions = arrayOf(idBookshelf, idExplore, idRss, idMy, idReadRecord)
+    private val realPositions = arrayOf(idBookshelf, idExplore, idRss, idMy)
     private val adapter by lazy {
         TabFragmentPageAdapter(supportFragmentManager)
     }
@@ -1439,7 +1437,6 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
             } else {
                 R.id.menu_rss
             }
-            idReadRecord -> R.id.menu_read_record
             else -> R.id.menu_my_config
         }
     }
@@ -1745,14 +1742,13 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
         }
 
         override fun getItemPosition(any: Any): Int {
-            val position = (any as MainFragmentInterface).position
-                ?: return POSITION_NONE
+            val position = (any as? MainFragmentInterface)?.position ?: return POSITION_NONE
+            if (position !in 0 until bottomMenuCount) return POSITION_NONE
             val fragmentId = getId(position)
             if ((fragmentId == idBookshelf1 && any is BookshelfFragment1)
                 || (fragmentId == idBookshelf2 && any is BookshelfFragment2)
                 || (fragmentId == idExplore && any is ExploreFragment)
                 || (fragmentId == idRss && any is RssFragment)
-                || (fragmentId == idReadRecord && any is ReadRecordFragment)
                 || (fragmentId == idMy && any is MyFragment)
             ) {
                 return POSITION_UNCHANGED
@@ -1766,7 +1762,6 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
                 idBookshelf2 -> BookshelfFragment2(position)
                 idExplore -> ExploreFragment(position)
                 idRss -> RssFragment(position)
-                idReadRecord -> ReadRecordFragment(position)
                 else -> MyFragment(position)
             }
         }

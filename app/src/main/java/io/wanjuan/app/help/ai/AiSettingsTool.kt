@@ -30,7 +30,6 @@ object AiSettingsTool {
         SettingDef(PreferKey.themeMode, "int", min = 0, max = 3),
         SettingDef(PreferKey.showDiscovery, "boolean"),
         SettingDef(PreferKey.showRss, "boolean"),
-        SettingDef(PreferKey.showReadRecord, "boolean"),
         SettingDef(PreferKey.modernDiscoveryPage, "boolean"),
         SettingDef(PreferKey.modernRssPage, "boolean"),
         SettingDef(PreferKey.mergeDiscoveryRss, "boolean"),
@@ -268,8 +267,7 @@ object AiSettingsTool {
                 PreferKey.themeMode,
                 PreferKey.defaultHomePage,
                 PreferKey.showDiscovery,
-                PreferKey.showRss,
-                PreferKey.showReadRecord
+                PreferKey.showRss
             )
         }
     }

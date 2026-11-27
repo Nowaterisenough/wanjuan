@@ -90,13 +90,18 @@ class DiscoverySubscriptionConfigFragment : PreferenceFragment(),
     private fun consumeTargetKey() {
         if (targetKeyHandled) return
         val rawTargetKey = activity?.intent?.getStringExtra("targetKey")?.trim().orEmpty()
-        if (rawTargetKey.isBlank()) return
-        val targetKey = when (rawTargetKey) {
-            KEY_MODERN_RSS_PAGE,
-            KEY_SEARCH_JUMP_MODERN_RSS_PAGE,
-            KEY_SEARCH_JUMP_RSS_MODE -> KEY_RSS_MODE
-            KEY_SEARCH_JUMP_DISCOVERY_MODE -> KEY_DISCOVERY_MODE
-            else -> rawTargetKey
+        if (rawTargetKey.isBlank()) {
+            if (tag == ConfigTag.SUBSCRIPTION_CONFIG) {
+                targetKeyHandled = true
+                scrollToPreference(PreferKey.showRss)
+            }
+            return
+        }
+        val key = rawTargetKey.removePrefix("search_jump_")
+        val targetKey = when (key) {
+            PreferKey.modernDiscoveryPage -> KEY_DISCOVERY_MODE
+            PreferKey.modernRssPage -> KEY_RSS_MODE
+            else -> key
         }
         val preference = findPreference<Preference>(targetKey) ?: return
         targetKeyHandled = true
@@ -104,8 +109,8 @@ class DiscoverySubscriptionConfigFragment : PreferenceFragment(),
             scrollToPreference(preference)
             if (preference is SwitchPreferenceCompat) {
                 preference.isChecked = !preference.isChecked
-            } else {
-                onPreferenceTreeClick(preference)
+            } else if (preference is NameListPreference) {
+                onDisplayPreferenceDialog(preference)
             }
             activity?.intent?.removeExtra("targetKey")
         }
@@ -116,9 +121,5 @@ class DiscoverySubscriptionConfigFragment : PreferenceFragment(),
         private const val PAGE_MODE_LEGACY = "legacy"
         private const val KEY_DISCOVERY_MODE = "modernDiscoveryMode"
         private const val KEY_RSS_MODE = "modernRssMode"
-        private const val KEY_MODERN_RSS_PAGE = "modernRssPage"
-        private const val KEY_SEARCH_JUMP_MODERN_RSS_PAGE = "search_jump_modernRssPage"
-        private const val KEY_SEARCH_JUMP_DISCOVERY_MODE = "search_jump_modernDiscoveryMode"
-        private const val KEY_SEARCH_JUMP_RSS_MODE = "search_jump_modernRssMode"
     }
 }

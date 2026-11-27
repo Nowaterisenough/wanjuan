@@ -20,11 +20,24 @@ import io.wanjuan.app.utils.gone
 import io.wanjuan.app.utils.visible
 
 
-class RssArticlesAdapter(context: Context, callBack: CallBack) :
+class RssArticlesAdapter(context: Context, callBack: CallBack, style: Int) :
     BaseRssArticlesAdapter<ItemRssArticleBinding>(context, callBack) {
 
+    private val layout = when (style) {
+        1 -> R.layout.item_rss_article_1
+        2 -> R.layout.item_rss_article_2
+        4 -> R.layout.item_rss_article_4
+        else -> R.layout.item_rss_article
+    }
+    private val gridPlaceholder = if (style == 2 || style == 4) {
+        R.drawable.transparent_placeholder
+    } else {
+        R.drawable.image_rss_article
+    }
+
     override fun getViewBinding(parent: ViewGroup): ItemRssArticleBinding {
-        return ItemRssArticleBinding.inflate(inflater, parent, false)
+        // All four layouts share the same root type and article view IDs.
+        return ItemRssArticleBinding.bind(inflater.inflate(layout, parent, false))
     }
 
     @SuppressLint("CheckResult")
@@ -66,7 +79,7 @@ class RssArticlesAdapter(context: Context, callBack: CallBack) :
                     RequestOptions().set(OkHttpModelLoader.sourceOriginOption, item.origin)
                 ImageLoader.load(context, item.image).apply(options).apply {
                     if (callBack.isGridLayout) {
-                        placeholder(R.drawable.image_rss_article)
+                        placeholder(gridPlaceholder)
                     } else {
                         addListener(object : RequestListener<Drawable> {
                             override fun onLoadFailed(

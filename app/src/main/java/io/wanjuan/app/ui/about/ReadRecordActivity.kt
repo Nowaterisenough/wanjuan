@@ -216,8 +216,10 @@ class ReadRecordActivity : BaseActivity<ActivityReadRecordBinding>() {
     private fun buildDashboard(): ReadRecordDashboard {
         val today = selectedDate
         val month = YearMonth.from(today)
-        val readRecordMap = appDb.readRecordDao.allShow.associateBy { it.bookName }
-        val totalTime = appDb.readRecordDao.allTime
+        val records = appDb.readRecordDao.allShow
+        val readRecordMap = records.associateBy { it.bookName }
+        val books = appDb.bookDao.all
+        val snapshots = ReadRecordWidgetStore.loadRecentSnapshots()
         val dailyStats = appDb.readRecordDailyDao.allDesc.mapNotNull { record ->
             runCatching {
                 DailyReadSummary(
@@ -243,17 +245,16 @@ class ReadRecordActivity : BaseActivity<ActivityReadRecordBinding>() {
             today = today,
             todayTime = dailyMap[today] ?: 0L,
             monthTime = dailyStats.filter { YearMonth.from(it.date) == month }.sumOf { it.readTime },
-            totalTime = totalTime,
+            totalTime = records.sumOf { it.readTime },
             activeDays = dailyStats.count { it.readTime > 0L },
             heatmapCells = heatmapCells,
             recentBooks = recentBooks,
             dailyTimeline = dailyStats.take(14),
             hasDailyStats = dailyStats.isNotEmpty(),
-            recentCoverItems = ReadRecordWidgetStore.loadRecentVisualItems(5),
-            rankItems = ReadRecordWidgetStore.buildRankItems(),
+            recentCoverItems = ReadRecordWidgetStore.loadRecentVisualItems(5, books, snapshots),
+            rankItems = ReadRecordWidgetStore.buildRankItems(records = records, books = books, snapshots = snapshots),
             goalConfig = ReadRecordWidgetStore.loadGoalConfig(),
-            readBookCount = appDb.readRecordDao.allShow.size,
-            latestRecentReadTime = appDb.readRecentBookDao.latestReadTime() ?: 0L
+            readBookCount = records.size
         )
     }
 
@@ -684,8 +685,7 @@ private data class ReadRecordDashboard(
     val recentCoverItems: List<ReadRecentVisualItem>,
     val rankItems: List<ReadRecordRankItem>,
     val goalConfig: ReadRecordGoalConfig,
-    val readBookCount: Int,
-    val latestRecentReadTime: Long
+    val readBookCount: Int
 )
 
 private data class RecentReadBook(

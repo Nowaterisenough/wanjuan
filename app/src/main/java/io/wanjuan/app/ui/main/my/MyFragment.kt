@@ -42,6 +42,7 @@ import io.wanjuan.app.ui.replace.ReplaceRuleActivity
 import io.wanjuan.app.ui.rss.source.manage.RssSourceActivity
 import io.wanjuan.app.utils.LogUtils
 import io.wanjuan.app.utils.ColorUtils
+import io.wanjuan.app.utils.canvasrecorder.CanvasRecorderFactory
 import io.wanjuan.app.utils.applyMainBottomBarPadding
 import io.wanjuan.app.utils.dpToPx
 import io.wanjuan.app.utils.getPrefBoolean
@@ -140,14 +141,13 @@ class MyFragment() : BaseFragment(R.layout.fragment_my_config), MainFragmentInte
             val title: String,
             val summary: String,
             val key: String,
-            val ownerConfigTag: String? = null,
+            val ownerConfigTag: String,
         ) {
             val searchText: String = listOf(title, summary, key).joinToString(" ").lowercase()
         }
 
         private val subSearchItems by lazy(LazyThreadSafetyMode.NONE) { buildSubSearchItems() }
         private val ownerMatchedSubItems = hashMapOf<String, List<SubSearchItem>>()
-        private var activeSearchKeyword: String = ""
         private val originalSummaries = hashMapOf<String, CharSequence?>()
 
         override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
@@ -219,7 +219,6 @@ class MyFragment() : BaseFragment(R.layout.fragment_my_config), MainFragmentInte
 
         fun filterMainPreferences(query: String?) {
             val keyword = query?.trim().orEmpty().lowercase()
-            activeSearchKeyword = keyword
             ownerMatchedSubItems.clear()
             val root = preferenceScreen ?: return
             if (keyword.isBlank()) {
@@ -280,7 +279,7 @@ class MyFragment() : BaseFragment(R.layout.fragment_my_config), MainFragmentInte
                 Triple("coverConfig", R.xml.pref_config_cover, ConfigTag.COVER_CONFIG),
                 Triple("ai_setting", R.xml.pref_config_ai, ConfigTag.AI_CONFIG),
                 Triple("setting", R.xml.pref_config_other, ConfigTag.OTHER_CONFIG),
-                Triple("setting", R.xml.pref_config_read, ConfigTag.OTHER_CONFIG),
+                Triple("setting", R.xml.pref_config_read, ConfigTag.READ_CONFIG),
                 Triple(
                     "setting",
                     R.xml.pref_config_discovery_subscription,
@@ -304,7 +303,8 @@ class MyFragment() : BaseFragment(R.layout.fragment_my_config), MainFragmentInte
                     if (eventType == XmlPullParser.START_TAG) {
                         val title = collectPreferenceAttr(parser, "title").orEmpty()
                         val key = collectPreferenceAttr(parser, "key").orEmpty()
-                        if (title.isNotBlank() && key.isNotBlank()) {
+                        val supported = key != PreferKey.optimizeRender || CanvasRecorderFactory.isSupport
+                        if (supported && title.isNotBlank() && key.isNotBlank()) {
                             items.add(
                                 SubSearchItem(
                                     ownerKey = ownerKey,
@@ -363,6 +363,14 @@ class MyFragment() : BaseFragment(R.layout.fragment_my_config), MainFragmentInte
         }
 
         override fun onPreferenceTreeClick(preference: Preference): Boolean {
+            val match = ownerMatchedSubItems[preference.key]?.firstOrNull()
+            if (match != null) {
+                startActivity<ConfigActivity> {
+                    putExtra("configTag", match.ownerConfigTag)
+                    putExtra("targetKey", match.key)
+                }
+                return true
+            }
             when (preference.key) {
                 "bookSourceManage" -> startActivity<BookSourceActivity>()
                 "rssSourceManage" -> startActivity<RssSourceActivity>()
@@ -401,19 +409,6 @@ class MyFragment() : BaseFragment(R.layout.fragment_my_config), MainFragmentInte
                 "about" -> startActivity<AboutActivity>()
                 "exit" -> activity?.finish()
                 else -> Unit
-            }
-            if (activeSearchKeyword.isNotBlank()) {
-                ownerMatchedSubItems[preference.key.orEmpty()]
-                    ?.firstOrNull()
-                    ?.let { item ->
-                        item.ownerConfigTag?.let { configTag ->
-                            startActivity<ConfigActivity> {
-                                putExtra("configTag", configTag)
-                                putExtra("targetKey", item.key)
-                            }
-                            return true
-                        }
-                    }
             }
             return super.onPreferenceTreeClick(preference)
         }

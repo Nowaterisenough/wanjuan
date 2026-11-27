@@ -2,11 +2,8 @@ package io.wanjuan.app.ui.association
 
 import android.app.Application
 import android.net.Uri
-import androidx.lifecycle.MutableLiveData
 import io.wanjuan.app.R
-import io.wanjuan.app.base.BaseViewModel
 import io.wanjuan.app.constant.AppConst
-import io.wanjuan.app.constant.AppLog
 import io.wanjuan.app.constant.AppPattern
 import io.wanjuan.app.data.appDb
 import io.wanjuan.app.data.entities.BookSource
@@ -25,28 +22,13 @@ import io.wanjuan.app.utils.isAbsUrl
 import io.wanjuan.app.utils.isUri
 import io.wanjuan.app.utils.splitNotBlank
 
-
-class ImportBookSourceViewModel(app: Application) : BaseViewModel(app) {
+class ImportBookSourceViewModel(app: Application) : ImportPreviewViewModel<BookSource>(app) {
     var isAddGroup = false
     var groupName: String? = null
-    val errorLiveData = MutableLiveData<String>()
-    val successLiveData = MutableLiveData<Int>()
 
-    val allSources = arrayListOf<BookSource>()
     val checkSources = arrayListOf<BookSourcePart?>()
-    val selectStatus = arrayListOf<Boolean>()
     val newSourceStatus = arrayListOf<Boolean>()
     val updateSourceStatus = arrayListOf<Boolean>()
-
-    val isSelectAll: Boolean
-        get() {
-            selectStatus.forEach {
-                if (!it) {
-                    return false
-                }
-            }
-            return true
-        }
 
     val isSelectAllNew: Boolean
         get() {
@@ -68,86 +50,76 @@ class ImportBookSourceViewModel(app: Application) : BaseViewModel(app) {
             return true
         }
 
-    val selectCount: Int
-        get() {
-            var count = 0
-            selectStatus.forEach {
-                if (it) {
-                    count++
-                }
-            }
-            return count
-        }
-
-    fun importSelect(finally: () -> Unit) {
-        execute {
-            val group = groupName?.trim()
-            val keepName = AppConfig.importKeepName
-            val keepGroup = AppConfig.importKeepGroup
-            val keepEnable = AppConfig.importKeepEnable
-            val selectSource = arrayListOf<BookSource>()
-            selectStatus.forEachIndexed { index, b ->
-                if (b) {
-                    val source = allSources[index]
-                    checkSources[index]?.let {
-                        if (keepName) {
-                            source.bookSourceName = it.bookSourceName
-                        }
-                        if (keepGroup) {
-                            source.bookSourceGroup = it.bookSourceGroup
-                        }
-                        if (keepEnable) {
-                            source.enabled = it.enabled
-                            source.enabledExplore = it.enabledExplore
-                        }
-                        source.customOrder = it.customOrder
+    override suspend fun saveSelection() {
+        val group = groupName?.trim()
+        val keepName = AppConfig.importKeepName
+        val keepGroup = AppConfig.importKeepGroup
+        val keepEnable = AppConfig.importKeepEnable
+        val selectSource = arrayListOf<BookSource>()
+        selectStatus.forEachIndexed { index, b ->
+            if (b) {
+                val source = allSources[index]
+                checkSources[index]?.let {
+                    if (keepName) {
+                        source.bookSourceName = it.bookSourceName
                     }
-                    if (!group.isNullOrEmpty()) {
-                        if (isAddGroup) {
-                            val groups = linkedSetOf<String>()
-                            source.bookSourceGroup?.splitNotBlank(AppPattern.splitGroupRegex)?.let {
-                                groups.addAll(it)
-                            }
-                            groups.add(group)
-                            source.bookSourceGroup = groups.joinToString(",")
-                        } else {
-                            source.bookSourceGroup = group
-                        }
+                    if (keepGroup) {
+                        source.bookSourceGroup = it.bookSourceGroup
                     }
-                    selectSource.add(source)
+                    if (keepEnable) {
+                        source.enabled = it.enabled
+                        source.enabledExplore = it.enabledExplore
+                    }
+                    source.customOrder = it.customOrder
                 }
+                if (!group.isNullOrEmpty()) {
+                    if (isAddGroup) {
+                        val groups = linkedSetOf<String>()
+                        source.bookSourceGroup?.splitNotBlank(AppPattern.splitGroupRegex)?.let {
+                            groups.addAll(it)
+                        }
+                        groups.add(group)
+                        source.bookSourceGroup = groups.joinToString(",")
+                    } else {
+                        source.bookSourceGroup = group
+                    }
+                }
+                selectSource.add(source)
             }
-            SourceHelp.insertBookSource(*selectSource.toTypedArray())
-            ContentProcessor.upReplaceRules()
-        }.onFinally {
-            finally.invoke()
         }
+        SourceHelp.insertBookSource(*selectSource.toTypedArray())
+        ContentProcessor.upReplaceRules()
     }
 
-    fun importSource(text: String) {
-        execute {
-            val mText = text.trim { it.isWhitespace() || it == '\uFEFF' }
-            val sources = when {
-                mText.isAbsUrl() -> importSourceUrl(mText, emptySet())
-                mText.isUri() -> {
-                    val uri = Uri.parse(mText)
-                    uri.inputStream(context).getOrThrow().use { inputS ->
-                        importContent(BookSourceImportParser.parse(inputS.reader(Charsets.UTF_8)))
-                    }
+    override suspend fun preparePreview(text: String) {
+        val mText = text.trim { it.isWhitespace() || it == '\uFEFF' }
+        val sources = when {
+            mText.isAbsUrl() -> importSourceUrl(mText, emptySet())
+            mText.isUri() -> {
+                val uri = Uri.parse(mText)
+                uri.inputStream(context).getOrThrow().use { inputS ->
+                    importContent(BookSourceImportParser.parse(inputS.reader(Charsets.UTF_8)))
                 }
-                else -> importContent(BookSourceImportParser.parse(mText))
             }
-            if (sources.isEmpty()) {
-                throw NoStackTraceException(context.getString(R.string.wrong_format))
-            }
-            // Publish only after all files and linked sources have been validated.
-            allSources.clear()
-            allSources.addAll(sources)
-        }.onError {
-            errorLiveData.postValue("ImportError:${it.localizedMessage}")
-            AppLog.put("ImportError:${it.localizedMessage}", it)
-        }.onSuccess {
-            comparisonSource()
+            else -> importContent(BookSourceImportParser.parse(mText))
+        }
+        if (sources.isEmpty()) {
+            throw NoStackTraceException(context.getString(R.string.wrong_format))
+        }
+        // Publish only after all files and linked sources have been validated.
+        allSources.clear()
+        allSources.addAll(sources)
+        checkSources.clear()
+        selectStatus.clear()
+        newSourceStatus.clear()
+        updateSourceStatus.clear()
+        val existing = appDb.bookSourceDao.allPart.associateBy { it.bookSourceUrl }
+        allSources.forEach {
+            val source = existing[it.bookSourceUrl]
+            checkSources.add(source)
+            selectStatus.add(source == null || source.lastUpdateTime < it.lastUpdateTime)
+            newSourceStatus.add(source == null)
+            updateSourceStatus.add(source != null && source.lastUpdateTime < it.lastUpdateTime)
         }
     }
 
@@ -184,22 +156,4 @@ class ImportBookSourceViewModel(app: Application) : BaseViewModel(app) {
             }
         }
     }
-
-    private fun comparisonSource() {
-        execute {
-            checkSources.clear()
-            selectStatus.clear()
-            newSourceStatus.clear()
-            updateSourceStatus.clear()
-            allSources.forEach {
-                val source = appDb.bookSourceDao.getBookSourcePart(it.bookSourceUrl)
-                checkSources.add(source)
-                selectStatus.add(source == null || source.lastUpdateTime < it.lastUpdateTime)
-                newSourceStatus.add(source == null)
-                updateSourceStatus.add(source != null && source.lastUpdateTime < it.lastUpdateTime)
-            }
-            successLiveData.postValue(allSources.size)
-        }
-    }
-
 }

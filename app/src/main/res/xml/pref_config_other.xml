@@ -37,12 +37,6 @@
             android:title="@string/pt_default_read"
             app:iconSpaceReserved="false" />
 
-        <io.wanjuan.app.lib.prefs.SwitchPreference
-            android:defaultValue="true"
-            android:key="showReadRecord"
-            android:title="@string/show_read_record"
-            app:iconSpaceReserved="false" />
-
         <io.wanjuan.app.lib.prefs.Preference
             android:key="discoverySubscriptionSettings"
             android:summary="@string/discovery_subscription_settings_summary"

@@ -45,7 +45,6 @@ object PreferKey {
     const val prevKeys = "prevKeyCodes"
     const val nextKeys = "nextKeyCodes"
     const val showDiscovery = "showDiscovery"
-    const val showReadRecord = "showReadRecord"
     const val modernDiscoveryPage = "modernDiscoveryPage"
     const val modernRssPage = "modernRssPage"
     const val mergeDiscoveryRss = "mergeDiscoveryRss"

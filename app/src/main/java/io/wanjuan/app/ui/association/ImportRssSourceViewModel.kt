@@ -2,12 +2,9 @@ package io.wanjuan.app.ui.association
 
 import android.app.Application
 import androidx.core.net.toUri
-import androidx.lifecycle.MutableLiveData
 import com.jayway.jsonpath.JsonPath
 import io.wanjuan.app.R
-import io.wanjuan.app.base.BaseViewModel
 import io.wanjuan.app.constant.AppConst
-import io.wanjuan.app.constant.AppLog
 import io.wanjuan.app.constant.AppPattern
 import io.wanjuan.app.data.appDb
 import io.wanjuan.app.data.entities.RssSource
@@ -30,88 +27,57 @@ import io.wanjuan.app.utils.readText
 import io.wanjuan.app.utils.splitNotBlank
 import splitties.init.appCtx
 
-class ImportRssSourceViewModel(app: Application) : BaseViewModel(app) {
+class ImportRssSourceViewModel(app: Application) : ImportPreviewViewModel<RssSource>(app) {
     var isAddGroup = false
     var groupName: String? = null
-    val errorLiveData = MutableLiveData<String>()
-    val successLiveData = MutableLiveData<Int>()
 
-    val allSources = arrayListOf<RssSource>()
     val checkSources = arrayListOf<RssSource?>()
-    val selectStatus = arrayListOf<Boolean>()
 
-    val isSelectAll: Boolean
-        get() {
-            selectStatus.forEach {
-                if (!it) {
-                    return false
-                }
-            }
-            return true
-        }
-
-    val selectCount: Int
-        get() {
-            var count = 0
-            selectStatus.forEach {
-                if (it) {
-                    count++
-                }
-            }
-            return count
-        }
-
-    fun importSelect(finally: () -> Unit) {
-        execute {
-            val group = groupName?.trim()
-            val keepName = AppConfig.importKeepName
-            val keepGroup = AppConfig.importKeepGroup
-            val keepEnable = AppConfig.importKeepEnable
-            val selectSource = arrayListOf<RssSource>()
-            selectStatus.forEachIndexed { index, b ->
-                if (b) {
-                    val source = allSources[index]
-                    checkSources[index]?.let {
-                        if (keepName) {
-                            source.sourceName = it.sourceName
-                        }
-                        if (keepGroup) {
-                            source.sourceGroup = it.sourceGroup
-                        }
-                        if (keepEnable) {
-                            source.enabled = it.enabled
-                        }
-                        source.customOrder = it.customOrder
+    override suspend fun saveSelection() {
+        val group = groupName?.trim()
+        val keepName = AppConfig.importKeepName
+        val keepGroup = AppConfig.importKeepGroup
+        val keepEnable = AppConfig.importKeepEnable
+        val selectSource = arrayListOf<RssSource>()
+        selectStatus.forEachIndexed { index, b ->
+            if (b) {
+                val source = allSources[index]
+                checkSources[index]?.let {
+                    if (keepName) {
+                        source.sourceName = it.sourceName
                     }
-                    if (!group.isNullOrEmpty()) {
-                        if (isAddGroup) {
-                            val groups = linkedSetOf<String>()
-                            source.sourceGroup?.splitNotBlank(AppPattern.splitGroupRegex)?.let {
-                                groups.addAll(it)
-                            }
-                            groups.add(group)
-                            source.sourceGroup = groups.joinToString(",")
-                        } else {
-                            source.sourceGroup = group
-                        }
+                    if (keepGroup) {
+                        source.sourceGroup = it.sourceGroup
                     }
-                    selectSource.add(source)
+                    if (keepEnable) {
+                        source.enabled = it.enabled
+                    }
+                    source.customOrder = it.customOrder
                 }
+                if (!group.isNullOrEmpty()) {
+                    if (isAddGroup) {
+                        val groups = linkedSetOf<String>()
+                        source.sourceGroup?.splitNotBlank(AppPattern.splitGroupRegex)?.let {
+                            groups.addAll(it)
+                        }
+                        groups.add(group)
+                        source.sourceGroup = groups.joinToString(",")
+                    } else {
+                        source.sourceGroup = group
+                    }
+                }
+                selectSource.add(source)
             }
-            SourceHelp.insertRssSource(*selectSource.toTypedArray())
-        }.onFinally {
-            finally.invoke()
         }
+        SourceHelp.insertRssSource(*selectSource.toTypedArray())
     }
 
-    fun importSource(text: String) {
-        execute {
-            importSourceAwait(text)
-        }.onError {
-            errorLiveData.postValue("ImportError:${it.localizedMessage}")
-            AppLog.put("ImportError:${it.localizedMessage}", it)
-        }.onSuccess {
-            comparisonSource()
+    override suspend fun preparePreview(text: String) {
+        importSourceAwait(text)
+        allSources.forEach {
+            val has = appDb.rssSourceDao.getByKey(it.sourceUrl)
+            checkSources.add(has)
+            selectStatus.add(has == null || has.lastUpdateTime < it.lastUpdateTime)
         }
     }
 
@@ -184,16 +150,4 @@ class ImportRssSourceViewModel(app: Application) : BaseViewModel(app) {
             }
         }
     }
-
-    private fun comparisonSource() {
-        execute {
-            allSources.forEach {
-                val has = appDb.rssSourceDao.getByKey(it.sourceUrl)
-                checkSources.add(has)
-                selectStatus.add(has == null || has.lastUpdateTime < it.lastUpdateTime)
-            }
-            successLiveData.postValue(allSources.size)
-        }
-    }
-
 }

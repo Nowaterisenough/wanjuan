@@ -218,7 +218,6 @@ class ThemeConfigFragment : PreferenceFragment(),
             PreferKey.bgImageN -> selectBgAction(true)
             PreferKey.bookInfoBgImage -> selectBookInfoBgAction(false)
             PreferKey.bookInfoBgImageN -> selectBookInfoBgAction(true)
-            "themeList" -> startActivity<ThemeManageActivity>()
             "theme_manage" -> startActivity<ThemeManageActivity>()
             "navigation_bar_manage" -> startActivity<NavigationBarManageActivity>()
             "saveDayTheme",

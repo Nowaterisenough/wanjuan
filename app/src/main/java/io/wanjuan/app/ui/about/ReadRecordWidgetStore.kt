@@ -94,9 +94,11 @@ object ReadRecordWidgetStore {
         saveRecentSnapshots(emptyList())
     }
 
-    fun loadRecentVisualItems(limit: Int): List<ReadRecentVisualItem> {
-        val booksByUrl = appDb.bookDao.all.associateBy { it.bookUrl }
-        return loadRecentSnapshots()
+    fun loadRecentVisualItems(
+        limit: Int, books: List<Book>, snapshots: List<ReadRecentVisualSnapshot>
+    ): List<ReadRecentVisualItem> {
+        val booksByUrl = books.associateBy { it.bookUrl }
+        return snapshots
             .sortedByDescending { it.lastRead }
             .distinctBy { it.identityKey() }
             .take(limit)
@@ -113,12 +115,17 @@ object ReadRecordWidgetStore {
         appCtx.putPrefString(PreferKey.readRecordGoalConfig, GSON.toJson(config))
     }
 
-    fun buildRankItems(limit: Int? = null): List<ReadRecordRankItem> {
-        val readRecords = appDb.readRecordDao.allShow.sortedByDescending { it.readTime }
-        val booksByName = appDb.bookDao.all.groupBy { it.name }.mapValues { entry ->
+    fun buildRankItems(
+        limit: Int? = null,
+        records: List<ReadRecordShow> = appDb.readRecordDao.allShow,
+        books: List<Book> = appDb.bookDao.all,
+        snapshots: List<ReadRecentVisualSnapshot> = loadRecentSnapshots()
+    ): List<ReadRecordRankItem> {
+        val readRecords = records.sortedByDescending { it.readTime }
+        val booksByName = books.groupBy { it.name }.mapValues { entry ->
             entry.value.maxByOrNull { it.durChapterTime }
         }
-        val snapshotsByName = loadRecentSnapshots()
+        val snapshotsByName = snapshots
             .sortedByDescending { it.lastRead }
             .associateBy { it.name }
         val result = readRecords.map { record: ReadRecordShow ->

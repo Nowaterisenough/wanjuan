@@ -29,9 +29,6 @@ interface ReadRecentBookDao {
     )
     fun recentBooks(limit: Int): List<Book>
 
-    @Query("select max(lastRead) from readRecentBooks")
-    fun latestReadTime(): Long?
-
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     fun insert(record: ReadRecentBook)
 

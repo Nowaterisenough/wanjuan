@@ -4,6 +4,7 @@ import android.app.Application
 import android.text.TextUtils
 import io.wanjuan.app.R
 import io.wanjuan.app.base.BaseViewModel
+import io.wanjuan.app.ui.widget.dialog.RuleGroupEditor
 import io.wanjuan.app.data.appDb
 import io.wanjuan.app.data.entities.BookSource
 import io.wanjuan.app.data.entities.BookSourcePart
@@ -29,7 +30,9 @@ import java.util.Locale
  * 书源管理数据修改
  * 修改数据要copy,直接修改会导致界面不刷新
  */
-class BookSourceViewModel(application: Application) : BaseViewModel(application) {
+class BookSourceViewModel(application: Application) : BaseViewModel(application), RuleGroupEditor {
+
+    override val groups get() = appDb.bookSourceDao.flowGroups()
 
     fun topSource(vararg sources: BookSourcePart) {
         execute {
@@ -263,7 +266,7 @@ class BookSourceViewModel(application: Application) : BaseViewModel(application)
         }
     }
 
-    fun addGroup(group: String) {
+    override fun addGroup(group: String) {
         execute {
             val sources = appDb.bookSourceDao.noGroup
             sources.forEach { source ->
@@ -273,7 +276,7 @@ class BookSourceViewModel(application: Application) : BaseViewModel(application)
         }
     }
 
-    fun upGroup(oldGroup: String, newGroup: String?) {
+    override fun upGroup(oldGroup: String, newGroup: String?) {
         execute {
             val sources = appDb.bookSourceDao.getByGroup(oldGroup)
             sources.forEach { source ->
@@ -288,7 +291,7 @@ class BookSourceViewModel(application: Application) : BaseViewModel(application)
         }
     }
 
-    fun delGroup(group: String) {
+    override fun delGroup(group: String) {
         execute {
             execute {
                 val sources = appDb.bookSourceDao.getByGroup(group)

@@ -2,6 +2,7 @@ package io.wanjuan.app.ui.config
 
 object ConfigTag {
 
+    const val READ_CONFIG = "readConfig"
     const val OTHER_CONFIG = "otherConfig"
     const val THEME_CONFIG = "themeConfig"
     const val SYNC_CONFIG = "syncConfig"

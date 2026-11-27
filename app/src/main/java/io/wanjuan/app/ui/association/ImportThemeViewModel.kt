@@ -2,11 +2,8 @@ package io.wanjuan.app.ui.association
 
 import android.app.Application
 import androidx.core.net.toUri
-import androidx.lifecycle.MutableLiveData
 import io.wanjuan.app.R
-import io.wanjuan.app.base.BaseViewModel
 import io.wanjuan.app.constant.AppConst
-import io.wanjuan.app.constant.AppLog
 import io.wanjuan.app.exception.NoStackTraceException
 import io.wanjuan.app.help.config.ThemeConfig
 import io.wanjuan.app.help.http.decompressed
@@ -23,56 +20,26 @@ import io.wanjuan.app.utils.isUri
 import io.wanjuan.app.utils.readText
 import splitties.init.appCtx
 
-class ImportThemeViewModel(app: Application) : BaseViewModel(app) {
+class ImportThemeViewModel(app: Application) : ImportPreviewViewModel<ThemeConfig.Config>(app) {
 
-    val errorLiveData = MutableLiveData<String>()
-    val successLiveData = MutableLiveData<Int>()
-
-    val allSources = arrayListOf<ThemeConfig.Config>()
     val checkSources = arrayListOf<ThemeConfig.Config?>()
-    val selectStatus = arrayListOf<Boolean>()
 
-    val isSelectAll: Boolean
-        get() {
-            selectStatus.forEach {
-                if (!it) {
-                    return false
-                }
+    override suspend fun saveSelection() {
+        selectStatus.forEachIndexed { index, b ->
+            if (b) {
+                ThemeConfig.addConfig(allSources[index])
             }
-            return true
-        }
-
-    val selectCount: Int
-        get() {
-            var count = 0
-            selectStatus.forEach {
-                if (it) {
-                    count++
-                }
-            }
-            return count
-        }
-
-    fun importSelect(finally: () -> Unit) {
-        execute {
-            selectStatus.forEachIndexed { index, b ->
-                if (b) {
-                    ThemeConfig.addConfig(allSources[index])
-                }
-            }
-        }.onFinally {
-            finally.invoke()
         }
     }
 
-    fun importSource(text: String) {
-        execute {
-            importSourceAwait(text.trim())
-        }.onError {
-            errorLiveData.postValue("ImportError:${it.localizedMessage}")
-            AppLog.put("ImportError:${it.localizedMessage}", it)
-        }.onSuccess {
-            comparisonSource()
+    override suspend fun preparePreview(text: String) {
+        importSourceAwait(text.trim())
+        allSources.forEach { config ->
+            val source = ThemeConfig.configList.find {
+                it.themeName == config.themeName
+            }
+            checkSources.add(source)
+            selectStatus.add(source == null || source != config)
         }
     }
 
@@ -113,18 +80,4 @@ class ImportThemeViewModel(app: Application) : BaseViewModel(app) {
             importSourceAwait(it)
         }
     }
-
-    private fun comparisonSource() {
-        execute {
-            allSources.forEach { config ->
-                val source = ThemeConfig.configList.find {
-                    it.themeName == config.themeName
-                }
-                checkSources.add(source)
-                selectStatus.add(source == null || source != config)
-            }
-            successLiveData.postValue(allSources.size)
-        }
-    }
-
 }
