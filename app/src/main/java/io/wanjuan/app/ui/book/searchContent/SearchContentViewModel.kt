@@ -71,7 +71,6 @@ class SearchContentViewModel(application: Application) : BaseViewModel(applicati
             )
             searchResultsWithinChapter.add(result)
         }
-        searchResultCounts += searchResultsWithinChapter.size
         return searchResultsWithinChapter
     }
 

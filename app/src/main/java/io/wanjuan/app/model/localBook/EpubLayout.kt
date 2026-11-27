@@ -26,6 +26,7 @@ internal data class EpubPageColor(
 ) : EpubDrawCommand()
 
 internal data class EpubTextRun(
+    val annotation: String? = null,
     val text: String,
     val x: Float,
     val y: Float,

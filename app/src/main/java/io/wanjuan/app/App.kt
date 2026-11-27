@@ -95,6 +95,7 @@ class App : Application() {
                 .enableLogger(BuildConfig.DEBUG || AppConfig.recordLog)
                 .setLogger(EventLogger())
             DefaultData.upVersion()
+            io.wanjuan.app.ui.book.bookmark.BookmarkMarkdownSync.start()
             AppFreezeMonitor.init(this@App)
             DispatchersMonitor.init()
             URL.setURLStreamHandlerFactory(ObsoleteUrlFactory(okHttpClient))

@@ -1979,8 +1979,13 @@ Selected text or question:
     <string name="reader_current_chapter">Current</string>
     <string name="reader_chapter_number">Ch. %1$d</string>
     <string name="verify_chapter_keywords">Verify chapter text</string>
+    <string name="search_scope_entire_book">Entire book</string>
+    <string name="search_scope_before">Before current position</string>
+    <string name="search_scope_after">After current position</string>
     <string name="login_ui_v2_render_error">Login UI failed to load. loginUi(state) must return {rows:[...]}. See logs.</string>
     <string name="login_ui_v2_action_error">Login action failed: %1$s</string>
     <string name="login_ui_v2_invalid_action">loginAction returned an invalid command object</string>
     <string name="login_ui_v2_save_error">Failed to save login info</string>
+    <string name="bookmark_auto_md">Automatically update Markdown excerpts</string>
+    <string name="search_current_chapter">Current chapter</string>
 </resources>

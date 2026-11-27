@@ -16,4 +16,10 @@
         android:checkable="true"
         app:showAsAction="never" />
 
+    <group android:checkableBehavior="single">
+        <item android:id="@+id/scope_entire" android:title="@string/search_scope_entire_book" />
+        <item android:id="@+id/scope_before" android:title="@string/search_scope_before" />
+        <item android:id="@+id/scope_after" android:title="@string/search_scope_after" />
+        <item android:id="@+id/scope_chapter" android:title="@string/search_current_chapter" />
+    </group>
 </menu>

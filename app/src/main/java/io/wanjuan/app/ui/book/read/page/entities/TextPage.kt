@@ -1087,7 +1087,17 @@ data class TextPage(
         text.shadow?.let { shadow ->
             paint.setShadowLayer(shadow.blur, shadow.dx, shadow.dy, shadow.color)
         }
-        canvas.drawText(text.text, text.x, text.baseline + text.baselineShift, paint)
+        val baseline = text.baseline + text.baselineShift
+        val annotation = text.annotation
+        if (annotation == null) canvas.drawText(text.text, text.x, baseline, paint) else {
+            val baseSize = paint.textSize
+            val annotationBottom = baseline + paint.ascent()
+            canvas.drawText(text.text, text.x + (text.width - paint.measureText(text.text)) / 2, baseline, paint)
+            paint.textSize = baseSize * 0.5f
+            canvas.drawText(annotation, text.x + (text.width - paint.measureText(annotation)) / 2,
+                annotationBottom - paint.descent(), paint)
+            paint.textSize = baseSize
+        }
         if (text.underline || text.overline || text.strikeThrough) {
             val oldColor = paint.color
             val oldStrokeWidth = paint.strokeWidth

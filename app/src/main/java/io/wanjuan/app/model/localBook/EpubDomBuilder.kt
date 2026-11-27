@@ -173,23 +173,6 @@ internal class EpubDomBuilder(
             .takeIf { it.isNotEmpty() }
     }
 
-    private fun Element.toRubyFallbackText(): String {
-        val builder = StringBuilder()
-        childNodes().forEach { child ->
-            when (child) {
-                is TextNode -> builder.append(child.wholeText)
-                is Element -> when (child.normalName()) {
-                    "rt" -> child.text().trim().takeIf { it.isNotBlank() }?.let {
-                        builder.append('（').append(it).append('）')
-                    }
-                    "rp" -> Unit
-                    else -> builder.append(child.text())
-                }
-            }
-        }
-        return builder.toString().ifBlank { text() }
-    }
-
     private fun Element.addGeneratedContent(content: String, style: String, before: Boolean) {
         val styleAttr = style.takeIf { it.isNotBlank() }?.let { " style=\"$it\"" }.orEmpty()
         val html = "<span data-epub-generated=\"true\"$styleAttr>${content.escapeHtml()}</span>"
@@ -253,13 +236,26 @@ internal class EpubDomBuilder(
             attr.key to value
         }
         if (element.normalName() == "ruby") {
-            return EpubDomElement(
-                tagName = "span",
-                attributes = attributes,
-                style = style,
-                children = listOf(EpubDomText(element.toRubyFallbackText(), sourcePath)),
-                sourcePath = sourcePath
-            )
+            val groups = mutableListOf<EpubDomNode>()
+            val base = StringBuilder()
+            fun appendGroup(annotation: String?) {
+                if (base.isEmpty()) return
+                val path = "$sourcePath/${groups.size}"
+                val text = EpubDomText(base.toString(), path)
+                groups += if (annotation.isNullOrBlank()) text else EpubDomElement(
+                    "ruby", mapOf("annotation" to annotation), style, listOf(text), path
+                )
+                base.clear()
+            }
+            element.childNodes().forEach { child ->
+                when {
+                    child is TextNode -> base.append(child.wholeText)
+                    child is Element && child.normalName() == "rt" -> appendGroup(child.text())
+                    child is Element && child.normalName() !in setOf("rp", "rtc") -> base.append(child.text())
+                }
+            }
+            appendGroup(null)
+            return EpubDomElement("span", attributes, style, groups, sourcePath)
         }
         val children = element.childNodes().mapIndexedNotNull { index, child ->
             buildNode(

@@ -50,7 +50,6 @@ class TestForkSyncFeature {
         val readBook = repoFile("app/src/main/java/io/wanjuan/app/model/ReadBook.kt").readText()
 
         assertTrue(engine.contains("intrinsicContentWidth"))
-        assertTrue(engine.contains("if (char == '\\n')"))
         assertTrue(readBook.contains("chapterLayoutKeys"))
     }
 

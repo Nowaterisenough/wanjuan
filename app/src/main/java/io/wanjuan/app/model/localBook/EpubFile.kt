@@ -63,7 +63,7 @@ class EpubFile(var book: Book) {
         const val NATIVE_CONTENT_FLAG = "<epub-native"
         const val NATIVE_LAYOUT_FLAG = "data-href="
         const val NATIVE_CONTENT_VERSION_FLAG = "data-native-ver=\"2\""
-        private const val NATIVE_LAYOUT_DISK_CACHE_VERSION = 4
+        private const val NATIVE_LAYOUT_DISK_CACHE_VERSION = 5
         private const val ENABLE_EPUB_DEBUG_DUMP = false
         private val scriptBlockRegex = Regex("(?is)<script\\b[^>]*>.*?</script>")
         private val scriptSelfClosingRegex = Regex("(?is)<script\\b[^>]*/>")

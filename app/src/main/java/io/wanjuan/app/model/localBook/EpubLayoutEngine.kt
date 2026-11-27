@@ -502,7 +502,9 @@ internal class EpubLayoutEngine(
                 is EpubBreakNode -> items.add(InlineBreak(current.style))
                 is EpubInlineNode -> {
                     val childLink = current.linkHref() ?: linkHref
-                    current.children.forEach { child -> collect(child, childLink) }
+                    if (current.tagName == "ruby" && current.attributes["annotation"] != null) {
+                        items.add(InlineText(current.plainText(), current.style, current.sourcePath, childLink, current.attributes["annotation"]))
+                    } else current.children.forEach { child -> collect(child, childLink) }
                 }
                 is EpubImageNode -> items.add(InlineImage(current, linkHref))
                 else -> Unit
@@ -612,16 +614,18 @@ internal class EpubLayoutEngine(
                     val metrics = paint.fontMetrics
                     val ascent = -metrics.ascent
                     val descent = metrics.descent
-                    normalized.forEach { char ->
-                        if (char == '\n') {
+                    val annotation = item.annotation
+                    val rubyHeight = if (annotation != null) paint.textSize * 0.55f else 0f
+                    val units = if (annotation != null) sequenceOf(normalized) else normalized.asSequence().map { it.toString() }
+                    units.forEach { value ->
+                        if (value == "\n") {
                             flushLine(force = true)
                             return@forEach
                         }
-                        val value = char.toString()
                         if (lineSegments.isEmpty() && value.isBlank()) {
                             return@forEach
                         }
-                        val charWidth = paint.measureText(value) + item.style.extraCharacterSpacing(value)
+                        val charWidth = maxOf(paint.measureText(value) + item.style.extraCharacterSpacing(value), annotation?.let { paint.measureText(it) * 0.5f } ?: 0f)
                         if (lineSegments.isNotEmpty() && lineWidth + charWidth > lineWidthLimit) {
                             flushLine()
                             if (value.isBlank()) {
@@ -631,11 +635,12 @@ internal class EpubLayoutEngine(
                         lineSegments.add(
                             LineSegment(
                                 text = value,
+                                annotation = annotation,
                                 imageSrc = null,
                                 width = charWidth,
                                 height = itemLineHeight,
                                 size = paint.textSize,
-                                ascent = ascent,
+                                ascent = ascent + rubyHeight,
                                 descent = descent,
                                 color = item.style.colorInt(),
                                 backgroundColor = null,
@@ -659,7 +664,7 @@ internal class EpubLayoutEngine(
                             )
                         )
                         lineWidth += charWidth
-                        currentLineHeight = maxOf(currentLineHeight, itemLineHeight)
+                        currentLineHeight = maxOf(currentLineHeight, itemLineHeight + rubyHeight)
                     }
                 }
             }
@@ -691,6 +696,7 @@ internal class EpubLayoutEngine(
         segments.forEach { segment ->
             val last = merged.lastOrNull()
             if (last != null &&
+                last.annotation == null && segment.annotation == null &&
                 last.imageSrc == null &&
                 segment.imageSrc == null &&
                 last.size == segment.size &&
@@ -736,6 +742,7 @@ internal class EpubLayoutEngine(
                 currentCommands.add(
                     EpubTextRun(
                         text = segment.text,
+                        annotation = segment.annotation,
                         x = x,
                         y = top,
                         baseline = lineBaseline - maxAscent + segment.ascent,
@@ -2242,7 +2249,8 @@ internal class EpubLayoutEngine(
         val rawText: String,
         val style: EpubComputedStyle,
         val sourcePath: String,
-        val linkHref: String?
+        val linkHref: String?,
+        val annotation: String? = null
     ) : InlineItem() {
         fun normalizedText(): String {
             return if (style["white-space"]?.contains("pre") == true) {
@@ -2263,6 +2271,7 @@ internal class EpubLayoutEngine(
     ) : InlineItem()
 
     private data class LineSegment(
+        val annotation: String? = null,
         val text: String,
         val imageSrc: String?,
         val width: Float,

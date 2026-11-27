@@ -1,5 +1,6 @@
 package io.wanjuan.app.ui.book.read
 
+import io.wanjuan.app.ui.book.searchContent.ContentSearchRange
 import android.animation.Animator
 import android.animation.AnimatorListenerAdapter
 import android.animation.ValueAnimator
@@ -820,6 +821,16 @@ class ReadMenu @JvmOverloads constructor(
                 false
             }
         }
+        tvPanelSearchTitle.text = context.getString(ContentSearchRange.saved(context).label) + " ▾"
+        tvPanelSearchTitle.setOnClickListener {
+            val ranges = ContentSearchRange.entries
+            androidx.appcompat.app.AlertDialog.Builder(context).setTitle(R.string.search_scope)
+                .setItems(ranges.map { context.getString(it.label) }.toTypedArray()) { _, index ->
+                    ranges[index].remember(context)
+                    tvPanelSearchTitle.text = context.getString(ranges[index].label) + " ▾"
+                    startInlineSearch(etPanelSearchQuery.text?.toString().orEmpty())
+                }.show()
+        }
         btnPanelSearchSubmit.setOnClickListener {
             startInlineSearch(etPanelSearchQuery.text?.toString().orEmpty())
         }
@@ -839,11 +850,14 @@ class ReadMenu @JvmOverloads constructor(
         tvPanelSearchCount.text = context.getString(R.string.loading)
         searchPanelAdapter.setItems(emptyList())
         searchPanelResults.clear()
+        val range = ContentSearchRange.saved(context)
+        val chapterIndex = ReadBook.durChapterIndex
+        val offset = ReadBook.durChapterPos
         searchPanelJob = Coroutine.async {
             val contentProcessor = ContentProcessor.get(book.name, book.origin)
             val chapters = appDb.bookChapterDao.getChapterList(book.bookUrl)
             val results = arrayListOf<SearchResult>()
-            chapters.forEach { chapter ->
+            range.chapters(chapters, chapterIndex).forEach { chapter ->
                 currentCoroutineContext().ensureActive()
                 if (!chapter.isVolume && BookHelp.hasContent(book, chapter)) {
                     val content = BookHelp.getContent(book, chapter) ?: return@forEach
@@ -859,7 +873,10 @@ class ReadMenu @JvmOverloads constructor(
                         content = content,
                         useReplace = SearchContentViewModel.replaceEnabled
                     ).toString()
-                    inlineSearchPositions(searchableContent, query).forEachIndexed { index, position ->
+                    val matches = inlineSearchPositions(searchableContent, query).withIndex().toList()
+                    val sorted = if (range == ContentSearchRange.BEFORE) matches.asReversed() else matches
+                    sorted.forEach matchLoop@{ (index, position) ->
+                        if (!range.includes(chapter.index, chapterIndex, position, offset)) return@matchLoop
                         currentCoroutineContext().ensureActive()
                         val (queryIndex, resultText) = inlineSearchResultText(
                             searchableContent,

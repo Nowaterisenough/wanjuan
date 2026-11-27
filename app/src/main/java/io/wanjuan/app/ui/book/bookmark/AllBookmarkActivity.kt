@@ -38,6 +38,7 @@ class AllBookmarkActivity : VMBaseActivity<ActivityAllBookmarkBinding, AllBookma
             when (it.requestCode) {
                 1 -> viewModel.exportBookmark(uri)
                 2 -> viewModel.exportBookmarkMd(uri)
+                3 -> { BookmarkMarkdownSync.select(uri); invalidateOptionsMenu() }
             }
         }
     }
@@ -61,11 +62,16 @@ class AllBookmarkActivity : VMBaseActivity<ActivityAllBookmarkBinding, AllBookma
 
     override fun onCompatCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.bookmark, menu)
+        menu.findItem(R.id.menu_auto_md).isChecked = BookmarkMarkdownSync.enabled
         return super.onCompatCreateOptionsMenu(menu)
     }
 
     override fun onCompatOptionsItemSelected(item: MenuItem): Boolean {
         when (item.itemId) {
+            R.id.menu_auto_md -> {
+                if (BookmarkMarkdownSync.enabled) BookmarkMarkdownSync.select(null) else exportDir.launch { requestCode = 3 }
+                invalidateOptionsMenu()
+            }
             R.id.menu_export -> exportDir.launch {
                 requestCode = 1
             }

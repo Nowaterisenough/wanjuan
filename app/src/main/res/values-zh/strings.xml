@@ -1873,8 +1873,13 @@
     <string name="reader_current_chapter">当前章</string>
     <string name="reader_chapter_number">第 %1$d 章</string>
     <string name="verify_chapter_keywords">校验章节正文</string>
+    <string name="search_scope_entire_book">全书</string>
+    <string name="search_scope_before">当前位置之前</string>
+    <string name="search_scope_after">当前位置之后</string>
     <string name="login_ui_v2_render_error">登录界面加载失败，loginUi(state) 必须返回 {rows:[...]}，详情见日志</string>
     <string name="login_ui_v2_action_error">登录操作失败：%1$s</string>
     <string name="login_ui_v2_invalid_action">loginAction 返回了无效的命令对象</string>
     <string name="login_ui_v2_save_error">登录信息保存失败</string>
+    <string name="bookmark_auto_md">自动更新 Markdown 摘录</string>
+    <string name="search_current_chapter">仅当前章</string>
 </resources>

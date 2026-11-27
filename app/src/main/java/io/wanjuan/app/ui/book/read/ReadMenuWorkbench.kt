@@ -1,5 +1,6 @@
 package io.wanjuan.app.ui.book.read
 
+import io.wanjuan.app.ui.book.searchContent.ContentSearchRange
 import android.content.Context
 import android.content.Intent
 import android.content.res.ColorStateList
@@ -109,7 +110,6 @@ class ReadMenuWorkbench(
     private var undoConfig: ReadBookConfig.AppearanceSnapshot? = null
     private var query = ""
     private var regexSearch = false
-    private var currentChapterOnly = false
     private var searchResults = emptyList<SearchResult>()
     private var searchMessage = "输入关键词，搜索已缓存的章节"
     private var searchOrigin: Triple<String, Int, Int>? = null
@@ -1140,7 +1140,13 @@ class ReadMenuWorkbench(
         }
         val filters = row()
         filters.addView(text(if (regexSearch) "✓ 正则表达式" else "正则表达式", Ui.TEXT_CAPTION, palette.secondary).apply { minHeight = dp(Ui.CONTROL_NORMAL); setOnClickListener { regexSearch = !regexSearch; startSearch() } }, LayoutParams(0, -2, 1f))
-        filters.addView(disclosureText(if (currentChapterOnly) "仅当前章" else "已缓存章节", Ui.TEXT_CAPTION, dropdown = true).apply { setOnClickListener { currentChapterOnly = !currentChapterOnly; startSearch() } })
+        val ranges = ContentSearchRange.entries
+        filters.addView(disclosureText(context.getString(ContentSearchRange.saved(context).label), Ui.TEXT_CAPTION, dropdown = true).apply {
+            setOnClickListener { choose("搜索范围", ranges.map { context.getString(it.label) }) { index ->
+                ranges[index].remember(context)
+                if (query.isBlank()) refresh() else startSearch()
+            } }
+        })
         body.addView(filters)
         searchCount = text(searchMessage, Ui.TEXT_CAPTION, palette.secondary)
         body.addView(searchCount, LayoutParams(-1, dp(31)))
@@ -1160,7 +1166,8 @@ class ReadMenuWorkbench(
         val expression = runCatching { if (regexSearch) Regex(term) else null }.getOrElse { searchResults = emptyList(); searchMessage = "正则表达式无效：${it.message}"; refresh(); return }
         if (searchOrigin == null) searchOrigin = Triple(book.bookUrl, ReadBook.durChapterIndex, ReadBook.durChapterPos)
         val chapterIndex = ReadBook.durChapterIndex
-        val onlyCurrent = currentChapterOnly
+        val range = ContentSearchRange.saved(context)
+        val offset = ReadBook.durChapterPos
         val regex = regexSearch
         dataJob?.cancel()
         searchResults = emptyList(); searchMessage = "正在搜索已缓存的章节…"; refresh()
@@ -1169,12 +1176,15 @@ class ReadMenuWorkbench(
                 withContext(Dispatchers.IO) {
                     val result = arrayListOf<SearchResult>()
                     val processor = ContentProcessor.get(book.name, book.origin)
-                    appDb.bookChapterDao.getChapterList(book.bookUrl).forEach { chapter ->
+                    range.chapters(appDb.bookChapterDao.getChapterList(book.bookUrl), chapterIndex).forEach { chapter ->
                         ensureActive()
-                        if (chapter.isVolume || (onlyCurrent && chapter.index != chapterIndex) || !BookHelp.hasContent(book, chapter)) return@forEach
+                        if (chapter.isVolume || !BookHelp.hasContent(book, chapter)) return@forEach
                         val raw = BookHelp.getContent(book, chapter) ?: return@forEach
                         val value = processor.getContent(book, chapter, raw, useReplace = book.getUseReplaceRule()).toString()
-                        ReaderSearchMatches.find(value, term, expression).forEachIndexed { localIndex, match ->
+                        val matches = ReaderSearchMatches.find(value, term, expression).withIndex().toList()
+                        val sorted = if (range == ContentSearchRange.BEFORE) matches.asReversed() else matches
+                        sorted.forEach matchLoop@{ (localIndex, match) ->
+                            if (!range.includes(chapter.index, chapterIndex, match.first, offset)) return@matchLoop
                             ensureActive()
                             if (result.size < 5000) {
                                 val start = (match.first - 35).coerceAtLeast(0)

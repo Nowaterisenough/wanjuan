@@ -9,4 +9,5 @@
         android:id="@+id/menu_export_md"
         android:title="@string/export_md" />
 
+    <item android:id="@+id/menu_auto_md" android:title="@string/bookmark_auto_md" android:checkable="true" />
 </menu>

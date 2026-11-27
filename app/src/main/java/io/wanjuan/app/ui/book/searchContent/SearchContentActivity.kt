@@ -73,18 +73,27 @@ class SearchContentActivity :
         }
     }
 
+    private val scopes = listOf(R.id.scope_entire, R.id.scope_before, R.id.scope_after, R.id.scope_chapter)
+
     override fun onCompatCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.content_search, menu)
         return super.onCompatCreateOptionsMenu(menu)
     }
 
     override fun onMenuOpened(featureId: Int, menu: Menu): Boolean {
+        menu.findItem(scopes[ContentSearchRange.saved(this).ordinal])?.isChecked = true
         menu.findItem(R.id.menu_enable_replace)?.isChecked = SearchContentViewModel.replaceEnabled
         menu.findItem(R.id.menu_enable_regex)?.isChecked = SearchContentViewModel.regexReplace
         return super.onMenuOpened(featureId, menu)
     }
 
     override fun onCompatOptionsItemSelected(item: MenuItem): Boolean {
+        if (item.itemId in scopes) {
+            ContentSearchRange.entries[scopes.indexOf(item.itemId)].remember(this)
+            item.isChecked = true
+            startContentSearch(searchView.query.toString().trim())
+            return true
+        }
         when (item.itemId) {
             R.id.menu_enable_replace -> {
                 SearchContentViewModel.replaceEnabled = !SearchContentViewModel.replaceEnabled
@@ -199,7 +208,11 @@ class SearchContentActivity :
         searchJob = lifecycleScope.launch(IO) {
             initJob?.join()
             kotlin.runCatching {
-                appDb.bookChapterDao.getChapterList(viewModel.bookUrl).forEach { bookChapter ->
+                val direction = ContentSearchRange.saved(this@SearchContentActivity)
+                val chapterIndex = durChapterIndex
+                val offset = viewModel.book?.durChapterPos ?: 0
+                val all = appDb.bookChapterDao.getChapterList(viewModel.bookUrl)
+                direction.chapters(all, chapterIndex).forEach { bookChapter ->
                     ensureActive()
                     val searchResults = if (isLocalBook
                         || BookHelp.getChapterCacheFileNames(
@@ -207,13 +220,16 @@ class SearchContentActivity :
                             bookChapter
                         ).any(viewModel.cacheChapterNames::contains)
                     ) {
-                        viewModel.searchChapter(query, bookChapter)
+                        val matches = viewModel.searchChapter(query, bookChapter)
+                        val included = matches.filter { direction.includes(bookChapter.index, chapterIndex, it.queryIndexInChapter, offset) }
+                        if (direction == ContentSearchRange.BEFORE) included.asReversed() else included
                     } else {
                         return@forEach
                     }
                     ensureActive()
                     if (searchResults.isNotEmpty()) {
                         viewModel.searchResultList.addAll(searchResults)
+                        viewModel.searchResultCounts = viewModel.searchResultList.size
                         binding.tvCurrentSearchInfo.post {
                             binding.tvCurrentSearchInfo.text =
                                 this@SearchContentActivity.getString(R.string.search_content_size) + ": ${viewModel.searchResultCounts}"
